@@ -43,21 +43,16 @@ computed: {
     followedBoats() {
         return this.settings.followed_boats || [];
     },
-   logoSrc() {
+  logoSrc() {
     const t = this.settings?.tournament;
-    if (!t) return '';
-    if (t === 'Edisto Invitational Billfish') {
-        return 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490';
-    } else if (t === 'KWLA') {
-        return '/static/images/KWLA-logo.png';
-    } else if (t === 'Kids') {
-        return '/static/images/Kids-logo.png';
-    } else if (t === 'Big Rock') {
-        return '/static/images/WHITELOGOBR.png';
-    } else {
+    if (!t || !this.allTournaments || !this.allTournaments[t]) {
         return '/static/images/WHITELOGOBR.png'; // fallback
     }
+
+    const logo = this.allTournaments[t].logo;
+    return logo ? logo : '/static/images/WHITELOGOBR.png';
 }
+
 ,
     activeHookedBoats() {
         const active = new Set();

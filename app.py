@@ -45,22 +45,19 @@ def get_version():
 
 known_boat_images = {}
 
-def name_to_image(name):
-    return (
-        name.strip().lower()
-        .replace(",", "")
-        .replace(" ", "_")
-        .replace("-", "_")
-        .replace("__", "_")
-    )
-
+def normalize_boat_name(name):
+    return name.strip().lower()\
+        .replace(',', '')\
+        .replace(' ', '_')\
+        .replace('-', '_')\
+        .replace('__', '_')  # Collapse double underscores
 
 
 
 #cache
 def cache_boat_image(name, image_url):
     """Download and cache image to static/images/boats/, return local path."""
-    safe_name = name_to_image(name)
+    safe_name = normalize_boat_name(name)
     safe_name = "".join(c for c in safe_name if c.isalnum() or c in ('_', '-'))  # strip quotes etc.
     ext = ".jpg" if ".jpg" in image_url.lower() else ".png"
     filename = f"{safe_name}{ext}"
@@ -182,7 +179,7 @@ def get_current_tournament():
 PARTICIPANTS_MASTER_FILE = 'participants_master.json'
 
 def generate_uid(tournament, name):
-    return f"{tournament.lower().replace(' ', '_')}_{name_to_image(name).replace(' ', '_')}"
+    return f"{tournament.lower().replace(' ', '_')}_{normalize_boat_name(name).replace(' ', '_')}"
 
 def save_participant_to_master(entry):
     data = []
@@ -686,22 +683,19 @@ def events():
         if os.path.exists(PARTICIPANTS_MASTER_FILE):
             with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
                 participants = json.load(f)
+                name_to_image = {
+                    normalize_boat_name(p['boat']): p['image']
+                    for p in participants
+                    if p['uid'].startswith(tournament.lower().replace(" ", "_"))
+                }
 
-            name_to_image = {
-                normalize_boat_name(p['boat']): p['image']
-                for p in participants
-                if p['uid'].startswith(tournament.lower().replace(" ", "_"))
-            }
-
-            for e in events:
-                norm_name = normalize_boat_name(e['boat'])
-                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
-
+                for e in events:
+                    norm_name = normalize_boat_name(e['boat'])
+                    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
     except Exception as e:
         print(f"⚠️ Failed to enrich events with images: {e}")
 
     return jsonify(events)
-
 
 
 

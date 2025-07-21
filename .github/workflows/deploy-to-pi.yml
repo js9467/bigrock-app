@@ -12,32 +12,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Detect file changes
-        id: changes
+      - name: Generate version from Git commit count
+        run: |
+          VERSION="1.$(git rev-list --count HEAD)"
+          echo "$VERSION" > version.txt
+
+      - name: Get list of changed files
+        id: changed
         run: |
           git fetch origin main --depth=2
           FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           echo "$FILES" > files.txt
           echo "files=$(paste -sd "," files.txt)" >> $GITHUB_OUTPUT
-
-          if grep -E '(^app\.py$|\.py$|^systemd/)' files.txt; then
-            echo "restart_required=true" >> $GITHUB_ENV
+          if grep -Ei '\.py$' files.txt; then
+            echo "py_changed=true" >> $GITHUB_ENV
           else
-            echo "restart_required=false" >> $GITHUB_ENV
+            echo "py_changed=false" >> $GITHUB_ENV
           fi
 
-      - name: Upload all changed files to Raspberry Pi
+      - name: Upload changed files to Raspberry Pi
         uses: appleboy/scp-action@v0.1.4
         with:
           host: 64.99.148.73
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
-          source: ${{ steps.changes.outputs.files }}
+          source: ${{ steps.changed.outputs.files }},version.txt
           target: /home/pi/bigrock-app
           overwrite: true
 
-      - name: Restart Flask service if needed
-        if: env.restart_required == 'true'
+      - name: Restart service only if a .py file changed
+        if: env.py_changed == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 64.99.148.73

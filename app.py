@@ -128,26 +128,30 @@ def scrape_events(tournament):
             print(f"✅ Found {len(feed_items)} activity items for {tournament}")
 
             for item in feed_items:
-                try:
-                    boat = item.query_selector("h4").inner_text().strip()
-                    description = item.query_selector("p strong").inner_text().strip()
-                    timestamp = item.query_selector("p.pull-right").inner_text().strip()
+    try:
+        boat = item.query_selector("h4").inner_text().strip() if item.query_selector("h4") else "Unknown"
+        paragraph = item.query_selector("p").inner_text().strip()
+        timestamp = item.query_selector("p.pull-right").inner_text().strip() if item.query_selector("p.pull-right") else ""
 
-                    events.append({
-                        "boat": boat,
-                        "message": description,
-                        "time": timestamp,
-                        "action": description.lower(),
-                        "image": "/static/images/placeholder.png"
-                    })
-                except Exception as e:
-                    print(f"⚠️ Failed to parse one item: {e}")
+        # Ignore tournament headers and plain name-only rows
+        if (
+            paragraph.lower().startswith("2025") or
+            re.match(r"^[a-z ,.'-]+$", paragraph.lower())  # simple name-only line
+        ):
+            continue
 
-            context.close()
-            browser.close()
+        description = paragraph
 
+        events.append({
+            "boat": boat,
+            "message": description,
+            "time": timestamp,
+            "action": description.lower(),
+            "image": "/static/images/placeholder.png"
+        })
     except Exception as e:
-        print(f"❌ Scrape failed for {tournament}: {e}")
+        print(f"⚠️ Failed to parse one item: {e}")
+
 
     cache["data"] = events
     cache["last_time"] = now

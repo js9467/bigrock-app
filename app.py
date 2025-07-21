@@ -695,7 +695,7 @@ def events():
 for e in events:
     norm_name = normalize_boat_name(e['boat'])
     e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
-)
+
     except Exception as e:
         print(f"⚠️ Failed to enrich events with images: {e}")
 

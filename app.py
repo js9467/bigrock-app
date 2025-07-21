@@ -398,106 +398,7 @@ def scrape_participants(tournament):
     return boats
 
 
-# demo events 
-def generate_demo_events(tournament):
-    import random
-    from datetime import datetime, timedelta
-
-    tournament_key = tournament.lower().replace(" ", "_")
-    events = []
-
-    # Load real participants for this tournament
-    participants = []
-    if os.path.exists(PARTICIPANTS_MASTER_FILE):
-        with open(PARTICIPANTS_MASTER_FILE, "r") as f:
-            all_participants = json.load(f)
-            participants = [
-                p for p in all_participants if p["uid"].startswith(tournament_key)
-            ]
-
-    if not participants:
-        print("⚠️ No participants found for demo mode.")
-        return []
-
-    now = datetime.now()
-    timeline = []
-
-    random.shuffle(participants)
-    sample_boats = participants[:6]  # limit to 6 for less crowding
-
-    for p in sample_boats:
-        angler = p.get("angler", p.get("boat", "Unknown Angler"))
-        boat = p.get("boat", "Unknown Boat")
-        uid = p.get("uid")
-        image = p.get("image", "/static/images/placeholder.png")
-
-        # Random delay before this boat hooks up (30s–3min)
-        hookup_delay_sec = random.randint(30, 180)
-        now += timedelta(seconds=hookup_delay_sec)
-
-        # Step 1: Hooked Up
-        hookup_event = {
-            "boat": boat,
-            "angler": angler,
-            "uid": uid,
-            "image": image,
-            "action": "hooked up.",
-            "message": f"{angler} hooked up.",
-            "time": now.strftime("Jul %d @ %I:%M %p"),
-            "hookup_id": f"{uid}_{now.strftime('%H%M%S')}"
-        }
-        timeline.append(hookup_event)
-
-        # Random delay before outcome (2–10 minutes)
-        resolution_delay = random.randint(2, 10)
-        now += timedelta(minutes=resolution_delay)
-
-        # Step 2: Follow-up result (weighted)
-        result_action, result_type = random.choices(
-            population=[
-                ("pulled hook.", "pulled"),
-                ("wrong species.", "wrong"),
-                ("released a blue marlin.", "released"),
-                ("released a white marlin.", "released"),
-                ("boated a blue marlin.", "boated"),
-                ("boated a white marlin.", "boated"),
-            ],
-            weights=[3, 2, 4, 4, 1, 2],
-            k=1
-        )[0]
-
-        resolution_event = {
-            "boat": boat,
-            "angler": angler,
-            "uid": uid,
-            "image": image,
-            "action": result_action,
-            "message": f"{angler} {result_action}",
-            "time": now.strftime("Jul %d @ %I:%M %p"),
-            "hookup_id": hookup_event["hookup_id"]
-        }
-        timeline.append(resolution_event)
-
-        # Step 3: Headed to Scales — only for boated blue marlin
-        if result_action == "boated a blue marlin.":
-            now += timedelta(minutes=random.randint(1, 3))
-            scales_event = {
-                "boat": boat,
-                "angler": angler,
-                "uid": uid,
-                "image": image,
-                "action": "headed to scales.",
-                "message": f"{angler} is headed to scales with a blue marlin.",
-                "time": now.strftime("Jul %d @ %I:%M %p"),
-                "hookup_id": hookup_event["hookup_id"],
-                "eta": (datetime.now() + timedelta(minutes=random.randint(5, 15))).strftime("%I:%M %p")
-            }
-            timeline.append(scales_event)
-
-    # Return in reverse chronological order (newest first)
-    return sorted(timeline, key=lambda x: datetime.strptime(x["time"], "Jul %d @ %I:%M %p"), reverse=True)
-
-
+# 
 
 
 # scrape leaderboard 
@@ -665,35 +566,38 @@ def wifi():
             return jsonify({'status': 'error', 'message': str(e)})
     return render_template('wifi.html')
 
-@app.route('/events')
-def events():
+@app.route('/api/events')
+def api_events():
     settings = load_settings()
-    tournament = settings.get("tournament", "Big Rock")
+    tournament = settings.get('tournament', 'Big Rock')
+    data_source = settings.get('data_source', 'live')  # 'demo', 'live', etc.
 
-    try:
+    if data_source == 'demo':
+        events = load_historical_data(tournament).get("events", [])
+        now = datetime.now()
+
+        # Only include demo events that would have already occurred
+        visible_events = []
+        for e in events:
+            try:
+                # Parse e["time"], e.g. "Jun 14 @ 6:15 PM"
+                event_time = datetime.strptime(e["time"], "%b %d @ %I:%M %p")
+                event_time = event_time.replace(year=now.year)
+
+                if event_time <= now:
+                    visible_events.append(e)
+            except Exception as ex:
+                print(f"⚠️ Error parsing time: {e.get('time')} — {ex}")
+                continue
+
+        events = visible_events
+
+    elif data_source == 'historical':
+        events = load_historical_data(tournament).get("events", [])
+    else:
         events = scrape_events(tournament)
-    except Exception as e:
-        print(f"Scraping error (events, {tournament}): {e}")
-        events = []
 
-    try:
-        if os.path.exists(PARTICIPANTS_MASTER_FILE):
-            with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
-                participants = json.load(f)
-                name_to_image = {
-                    normalize_boat_name(p['boat']): p['image']
-                    for p in participants
-                    if p['uid'].startswith(tournament.lower().replace(" ", "_"))
-                }
-
-                for e in events:
-                    norm_name = normalize_boat_name(e['boat'])
-                    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
-    except Exception as e:
-        print(f"⚠️ Failed to enrich events with images: {e}")
-
-    return jsonify(events)
-
+    return jsonify(events[::-1])  # newest 
 
 
 @app.route('/leaderboard')

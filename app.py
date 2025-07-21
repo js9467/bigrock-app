@@ -294,7 +294,6 @@ def scrape_participants(tournament):
     if now - cache["last_time"] < 300:
         print(f"Using cached participants for {tournament}")
         return cache["data"]
-
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -321,8 +320,7 @@ def scrape_participants(tournament):
                 return boats;
             }
             """)
-
-try:
+        try:
     for entry in entries:
         name = entry['name'].strip()
         image_url = entry['image']

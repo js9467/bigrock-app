@@ -47,5 +47,4 @@ jobs:
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
           script: |
-            echo "Restarting bigrock.service..."
             sudo systemctl restart bigrock.service

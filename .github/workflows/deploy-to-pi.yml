@@ -9,16 +9,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-  uses: actions/checkout@v4
-  with:
-    fetch-depth: 0  # Required for accurate commit count
-
-- name: Generate version from Git commit count
-  run: |
-    VERSION="1.$(git rev-list --count HEAD)"
-    echo "$VERSION" > version.txt
-
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Necessary for accurate commit count
 
       - name: Generate version from Git commit count
         run: |

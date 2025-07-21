@@ -107,7 +107,7 @@
   </footer>
 
   <script src="/static/main.js"></script>
-  <script>
+ <script>
 new Vue({
   el: '#app',
   data: {
@@ -177,6 +177,43 @@ new Vue({
         player.src = '';
       }
     },
+    watchLive() {
+      this.showVideo = true;
+      this.showVideoPopup = false;
+    },
+    closeVideo() {
+      this.showVideo = false;
+    },
+    dismissVideoPopup() {
+      this.showVideoPopup = false;
+    },
+    formatTime(time) {
+      if (!time) return '';
+      const date = new Date(time);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+    formatETA(eta) {
+      if (!eta) return '';
+      const date = new Date(eta);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+    handleImageError(event) {
+      event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
+    },
+    toggleHookedUpMinimized() {
+      this.isHookedUpMinimized = !this.isHookedUpMinimized;
+    },
+    toggleScalesMinimized() {
+      this.isScalesMinimized = !this.isScalesMinimized;
+    }
+  },
+  mounted() {
+    this.loadSettings();
+    this.loadRemoteTournaments();
+  }
+});
+</script>
+
 
 </body>
 </html>

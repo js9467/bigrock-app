@@ -11,7 +11,7 @@
 <body>
   <div id="app">
     <header>
-      <img :src="logoSrc" alt="Tournament Logo">
+      <img v-if="logoSrc" :src="logoSrc" alt="Tournament Logo">
       <h1>Settings</h1>
       <div class="control-buttons">
         <button class="settings-icon" @click="goBack">← Back</button>
@@ -111,14 +111,9 @@
       },
       computed: {
         logoSrc() {
-          const t = this.settings.tournament;
-          if (t === 'Edisto Invitational Billfish') {
-            return 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490';
-          } else if (t === 'KWLA' || t === 'Kids' || t === 'Big Rock') {
-            return '/static/images/WHITELOGOBR.png';
-          } else {
-            return '/static/images/WHITELOGOBR.png';
-          }
+          const t = this.settings?.tournament;
+          const tournament = this.allTournaments?.[t];
+          return tournament?.logo || '';
         },
         availableTournaments() {
           const filtered = {};

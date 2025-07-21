@@ -1,54 +1,91 @@
-
 new Vue({
-  el: '#app',
-  data: {
-    events: [],
-    displayedEvents: [],
-    participants: [],
-    boatImages: {},
-    leaderboard: [],
-    hookedBoats: [],
-    scalesBoats: [],
-    galleryImages: [],
-    currentImageIndex: 0,
-    settings: {
-      sounds: { hooked: true, released: true, boated: true },
-      followed_boats: [],
-      effects_volume: 0.5,
-      radio_volume: 0.5,
-      tournament: 'Big Rock',
-      data_source: 'current',
-      disable_sleep_mode: false
+    el: '#app',
+    data: {
+        events: [],
+        displayedEvents: [],
+        participants: [],
+        boatImages: {},
+        leaderboard: [],
+        hookedBoats: [],
+        scalesBoats: [],
+        galleryImages: [],
+        currentImageIndex: 0,
+        settings: {
+            sounds: { hooked: true, released: true, boated: true },
+            followed_boats: [],
+            effects_volume: 0.5,
+            radio_volume: 0.5,
+            tournament: 'Kids',
+            data_source: 'current',
+            disable_sleep_mode: false
+        },
+        radioPlaying: false,
+        hls: null,
+        eventIndex: 0,
+        scrollInterval: null,
+        slideshowInterval: null,
+        error: null,
+        showLeaderboard: false,
+        isSleepMode: false,
+        lastBoatedTime: null,
+        showVideoPopup: false,
+        showVideo: false,
+        videoBoat: '',
+        videoETA: '',
+        videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5Z5Z5Z5Z5Z5Z5Z',
+        isHookedUpMinimized: false,
+        isScalesMinimized: false,
+        wifiConnected: true,
+        isLoading: true,
+        appMounted: false
     },
-    allTournaments: {},
-    radioPlaying: false,
-    hls: null,
-    eventIndex: 0,
-    scrollInterval: null,
-    slideshowInterval: null,
-    error: null,
-    showLeaderboard: false,
-    isSleepMode: false,
-    lastBoatedTime: null,
-    showVideoPopup: false,
-    showVideo: false,
-    videoBoat: '',
-    videoETA: '',
-    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5Q3--y1ayc6Evw',
-    isHookedUpMinimized: false,
-    isScalesMinimized: false
-  },
-  computed: {
-    logoSrc() {
-      const t = this.settings && this.settings.tournament;
-      const tournament = this.allTournaments && this.allTournaments[t];
-      return tournament && tournament.logo ? tournament.logo : '';
+computed: {
+    followedBoats() {
+        return this.settings.followed_boats || [];
     },
-    themeClass() {
-      return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
+  logoSrc() {
+    const t = this.settings?.tournament;
+    if (!t || !this.allTournaments || !this.allTournaments[t]) {
+        return '/static/images/WHITELOGOBR.png'; // fallback
     }
-  },
-  methods: {
+
+    const logo = this.allTournaments[t].logo;
+    return logo ? logo : '/static/images/WHITELOGOBR.png';
+}
+
+,
+    activeHookedBoats() {
+        const active = new Set();
+        const results = [];
+
+        for (const event of this.events) {
+            const lower = (event.action || '').toLowerCase();
+            const boat = event.boat;
+
+            if (lower.includes('hooked up')) {
+                if (!active.has(boat)) {
+                    active.add(boat);
+                    results.push(event);
+                }
+            } else if (
+                lower.includes('released') ||
+                lower.includes('boated') ||
+                lower.includes('pulled hook') ||
+                lower.includes('wrong species')
+            ) {
+                active.delete(boat);
+                const index = results.findIndex(e => e.boat === boat);
+                if (index !== -1) results.splice(index, 1);
+            }
+        }
+        return results;
+    },
+    activeScalesBoats() {
+        return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
+    }
+}
+,
+    methods: {
         formatTime(timeStr) {
             const date = new Date(timeStr);
             return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -238,9 +275,218 @@ async loadEvents() {
                 this.wifiConnected = false;
             }
         },
-  mounted() {
+        watchLive() {
+            this.showVideoPopup = false;
+            this.showVideo = true;
+        },
+        dismissVideoPopup() {
+            this.showVideoPopup = false;
+        },
+        closeVideo() {
+            this.showVideo = false;
+        },
+        toggleHookedUpMinimized() {
+            this.isHookedUpMinimized = !this.isHookedUpMinimized;
+        },
+        toggleScalesMinimized() {
+            this.isScalesMinimized = !this.isScalesMinimized;
+        },
+        checkSleepMode() {
+            if (this.settings.disable_sleep_mode) {
+                this.isSleepMode = false;
+                this.stopSlideshow();
+                this.loadEvents();
+                this.loadParticipants();
+                this.loadLeaderboard();
+                this.loadHookedBoats();
+                this.loadScalesBoats();
+                return;
+            }
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const hour = now.getHours();
+            const minute = now.getMinutes();
+            const isTournamentDay = (
+                (this.settings.tournament === 'Big Rock' && month === 6 && day >= 5 && day <= 13) ||
+                (this.settings.tournament === 'Kids' && month === 7 && day >= 8 && day <= 11) ||
+                (this.settings.tournament === 'KWLA' && month === 6 && day >= 5 && day <= 6)
+            );
+            const isFishingHours = hour >= 9 && hour < 15;
+            const isWithinWeighInWindow = this.lastBoatedTime && (now - this.lastBoatedTime) < 30 * 60 * 1000;
+            this.isSleepMode = !isTournamentDay || (isTournamentDay && !isFishingHours && !isWithinWeighInWindow);
+            if (this.isSleepMode) {
+                this.stopHistoricalScroll();
+                this.loadGallery();
+            } else {
+                this.stopSlideshow();
+                this.loadEvents();
+                this.loadParticipants();
+                this.loadLeaderboard();
+                this.loadHookedBoats();
+                this.loadScalesBoats();
+            }
+        },
+        startSlideshow() {
+            this.stopSlideshow();
+            if (this.galleryImages.length > 0) {
+                this.slideshowInterval = setInterval(() => {
+                    this.currentImageIndex = (this.currentImageIndex + 1) % this.galleryImages.length;
+                }, 5000);
+            }
+        },
+        stopSlideshow() {
+            if (this.slideshowInterval) {
+                clearInterval(this.slideshowInterval);
+                this.slideshowInterval = null;
+            }
+        },
+        getBoatImage(boatName) {
+            if (this.boatImages[boatName]) {
+                return this.boatImages[boatName];
+            }
+            if (typeof known_boat_images !== 'undefined' && known_boat_images[boatName]) {
+                return known_boat_images[boatName];
+            }
+            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
+        },
+        handleImageError(event) {
+            event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
+        },
+        startHistoricalScroll() {
+            this.stopHistoricalScroll();
+            this.displayedEvents = [];
+            this.eventIndex = 0;
+            this.scrollInterval = setInterval(() => {
+                if (this.eventIndex < this.events.length) {
+                    this.displayedEvents = [...this.displayedEvents, this.events[this.eventIndex]];
+                    if (this.settings.sounds[this.events[this.eventIndex].action.toLowerCase().replace(' ', '')]) {
+                        const sound = new Audio(`/static/sounds/${this.events[this.eventIndex].action.toLowerCase().replace(' ', '')}.mp3`);
+                        sound.volume = this.settings.effects_volume;
+                        sound.play().catch(e => console.error('Sound error:', e));
+                    }
+                    this.eventIndex++;
+                    this.$nextTick(() => {
+                        const feed = this.$refs.eventFeed;
+                        if (feed) {
+                            feed.scrollTop = feed.scrollHeight;
+                        }
+                    });
+                } else {
+                    this.stopHistoricalScroll();
+                }
+            }, 20000);
+        },
+        stopHistoricalScroll() {
+            if (this.scrollInterval) {
+                clearInterval(this.scrollInterval);
+                this.scrollInterval = null;
+            }
+        },
+        toggleRadio() {
+    const player = document.getElementById('radio-player');
+    const streamURL = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+
+    if (this.radioPlaying) {
+        if (this.hls) {
+            this.hls.destroy();
+            this.hls = null;
+        }
+        player.pause();
+        player.src = '';
+        this.radioPlaying = false;
+    } else {
+        if (Hls.isSupported()) {
+            this.hls = new Hls();
+            this.hls.loadSource(streamURL);
+            this.hls.attachMedia(player);
+            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                player.volume = this.settings.radio_volume || 0.3;
+                player.play().catch(e => console.error('Audio play error:', e));
+                this.radioPlaying = true;
+                localStorage.setItem('radioPlaying', 'true');
+            });
+        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+            player.src = streamURL;
+            player.volume = this.settings.radio_volume || 0.3;
+            player.play().catch(e => console.error('Audio play error:', e));
+            this.radioPlaying = true;
+            localStorage.setItem('radioPlaying', 'true');
+        } else {
+            console.error('HLS not supported in this browser');
+        }
+    }
+
+    localStorage.setItem('radioPlaying', this.radioPlaying ? 'true' : 'false');
+}
+,
+        goToSettings() {
+            window.location.href = '/settings-page';
+        },
+        goToParticipants() {
+            window.location.href = '/participants';
+        },
+        goToLeaderboard() {
+            window.location.href = '/leaderboard';
+        },
+        goBack() {
+            window.location.href = '/';
+        }
+    },
+    watch: {
+        settings: {
+            handler() {
+                this.saveSettings();
+                localStorage.setItem('radioVolume', this.settings.radio_volume);
+                const player = document.getElementById('radio-player');
+                if (player && this.radioPlaying) {
+                    player.volume = this.settings.radio_volume;
+                }
+            },
+            deep: true
+        }
+    },
+    mounted() {
+    console.log('Vue instance mounted for:', window.location.pathname);
+    this.isLoading = true;
     this.loadSettings();
-    this.loadEvents();
-    this.loadRemoteTournaments();
-  }
+    this.checkSleepMode();
+    this.checkWifiStatus();
+
+    // Resume radio if it was playing
+    if (localStorage.getItem('radioPlaying') === 'true') {
+        this.toggleRadio();
+    }
+
+    this.loadParticipants()
+        .then(() => {
+            console.log('Initial data load complete');
+            return this.loadLeaderboard();
+        })
+        .then(() => {
+            this.isLoading = false;
+            this.appMounted = true;
+            console.log('Leaderboard page data loaded');
+
+            if (window.location.pathname !== '/leaderboard') {
+                this.loadEvents();
+                this.loadHookedBoats();
+                this.loadScalesBoats();
+                this.checkVideoTrigger();
+
+                // 🔁 Auto-refresh every 30 seconds
+                setInterval(() => {
+                    this.loadEvents();
+                    this.loadHookedBoats();
+                    this.loadScalesBoats();
+                }, 30000);
+            }
+        })
+        .catch(err => {
+            this.error = 'Error in initial data load: ' + err.message;
+            console.error('Error in initial data load:', err);
+            this.isLoading = false;
+            this.appMounted = true;
+        });
+},
 });

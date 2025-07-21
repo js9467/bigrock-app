@@ -322,49 +322,47 @@ def scrape_participants(tournament):
             }
             """)
 
+try:
     for entry in entries:
-    name = entry['name'].strip()
-    image_url = entry['image']
+        name = entry['name'].strip()
+        image_url = entry['image']
 
-    # 🚫 Skip known junk labels
-    skip_names = [
-        'sponsor',
-        'tournament logo',
-        'participants',
-        'follow',
-        'river center junior angler tournament',
-        'junior angler tournament'
-    ]
-    if name.lower() in skip_names or len(name) <= 2:
-        print(f"⏩ Skipping non-participant label: {name}")
-        continue
+        # 🚫 Skip known junk labels
+        skip_names = [
+            'sponsor',
+            'tournament logo',
+            'participants',
+            'follow',
+            'river center junior angler tournament',
+            'junior angler tournament'
+        ]
+        if name.lower() in skip_names or len(name) <= 2:
+            print(f"⏩ Skipping non-participant label: {name}")
+            continue
 
-    # ✅ Valid participant (angler or boat)
-    local_image = cache_boat_image(name, image_url)
-    participant = {
-        'name': name,
-        'image': local_image,
-        'uid': f"{normalize_boat_name(name)}_{tournament_uid}"
-    }
-    all_participants.append(participant)
+        # ✅ Valid participant (angler or boat)
+        local_image = cache_boat_image(name, image_url)
+        participant = {
+            'name': name,
+            'image': local_image,
+            'uid': f"{normalize_boat_name(name)}_{tournament_uid}"
+        }
+        all_participants.append(participant)
+        boats.append(participant)
 
-            boats.append(participant)
+    context.close()
+    browser.close()
 
+    print(f"✅ Scraped and cached {len(boats)} participants for {tournament}")
 
+except Exception as e:
+    print(f"❌ Playwright error for {tournament}: {e}")
+    boats = []
 
+cache["data"] = boats
+cache["last_time"] = now
+return boats
 
-            context.close()
-            browser.close()
-
-            print(f"✅ Scraped and cached {len(boats)} participants for {tournament}")
-
-    except Exception as e:
-        print(f"❌ Playwright error for {tournament}: {e}")
-        boats = []
-
-    cache["data"] = boats
-    cache["last_time"] = now
-    return boats
 
 def generate_demo_events(tournament):
     import random

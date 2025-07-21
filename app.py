@@ -47,11 +47,7 @@ def get_version():
     except FileNotFoundError:
         return "dev"
 
-@app.route('/')
-def index():
-    ...
-    version = get_version()
-    return render_template("index.html", ..., version=version)
+
 
 
 

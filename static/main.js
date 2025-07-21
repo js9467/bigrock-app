@@ -43,7 +43,7 @@ computed: {
     followedBoats() {
         return this.settings.followed_boats || [];
     },
-  logoSrc() {
+logoSrc() {
     const t = this.settings?.tournament;
     if (!t || !this.allTournaments || !this.allTournaments[t]) {
         return '/static/images/WHITELOGOBR.png'; // fallback
@@ -51,9 +51,8 @@ computed: {
 
     const logo = this.allTournaments[t].logo;
     return logo ? logo : '/static/images/WHITELOGOBR.png';
-}
+},
 
-,
     activeHookedBoats() {
         const active = new Set();
         const results = [];

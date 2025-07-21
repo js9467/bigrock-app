@@ -85,7 +85,7 @@ new Vue({
   goToSettings() {
     window.location.href = '/settings-page';
   }
-}
+},
 
   mounted() {
     this.loadSettings();

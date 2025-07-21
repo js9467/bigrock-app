@@ -26,10 +26,6 @@
       </div>
    
     </header>
-    <footer style="text-align: center; font-size: 0.8em; color: gray; margin-top: 20px;">
-  Version: {{ version }}
-</footer>
-
    {% endraw %}
     {% raw %}
     <div v-if="error" class="error">{{ error }}</div>
@@ -104,7 +100,12 @@
     <div v-else class="gallery-slideshow">
       <img :src="galleryImages[currentImageIndex]" alt="Gallery Image" class="slideshow-image">
     </div>
-    {% endraw %}
+        {% endraw %}
+  </div>
+
+  <!-- Git Version Display -->
+  <div style="position: fixed; bottom: 10px; right: 15px; font-size: 0.75em; color: #888;">
+    Version: {{ version }}
   </div>
 
   <script src="/static/main.js"></script>

@@ -14,17 +14,12 @@
 
   <div id="app">
     <header>
-      {% raw %}
-      <img :src="logoSrc" alt="Tournament Logo">
-      <h1>Reel Time Liveboard!!</h1>
-      <div class="control-buttons">
-        <a href="/leaderboard" class="button">Leaderboard</a>
-        <a href="/participants" class="button">Participants</a>
-        <button @click="toggleRadio">{{ radioPlaying ? 'VHF Off' : 'VHF On' }}</button>
-        <button class="settings-icon" @click="goToSettings">⚙️</button>
-      </div>
-      {% endraw %}
-    </header>
+    <img v-if="logoSrc" :src="logoSrc" alt="Tournament Logo">
+    <h1>Participants</h1>
+    <div class="control-buttons">
+      <button class="settings-icon" @click="goBack">← Back</button>
+    </div>
+  </header>
 
     {% raw %}
     <div v-if="error" class="error">{{ error }}</div>

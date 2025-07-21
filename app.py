@@ -43,10 +43,11 @@ import subprocess
 
 def get_version():
     try:
-        count = subprocess.check_output(['git', 'rev-list', '--count', 'HEAD']).decode().strip()
-        return f"1.{count}"
-    except:
+        with open("version.txt") as f:
+            return f.read().strip()
+    except FileNotFoundError:
         return "dev"
+
 
 
 

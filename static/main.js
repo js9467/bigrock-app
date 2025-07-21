@@ -46,60 +46,47 @@ new Vue({
     }
   },
   methods: {
-    async loadRemoteTournaments() {
-    // ...
+  async loadRemoteTournaments() {
+    try {
+      const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
+      if (response.ok) {
+        this.allTournaments = await response.json();
+      }
+    } catch (e) {
+      console.error('Failed to fetch tournament settings:', e);
+    }
   },
   loadSettings() {
-    // ...
+    fetch('/settings')
+      .then(res => res.json())
+      .then(data => {
+        Object.assign(this.settings, data);
+      });
   },
   loadEvents() {
-    // ...
+    fetch('/api/events')
+      .then(res => res.json())
+      .then(data => {
+        this.events = data;
+        this.displayedEvents = data;
+      });
   },
   toggleRadio() {
-    // ...
+    this.radioPlaying = !this.radioPlaying;
+    const radioPlayer = document.getElementById('radio-player');
+    if (this.radioPlaying) {
+      radioPlayer.src = "/static/vhf.mp3";
+      radioPlayer.play().catch(err => console.error("Radio play error:", err));
+    } else {
+      radioPlayer.pause();
+      radioPlayer.src = "";
+    }
   },
   goToSettings() {
     window.location.href = '/settings-page';
   }
 }
-    async loadRemoteTournaments() {
-      try {
-        const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
-        if (response.ok) {
-          this.allTournaments = await response.json();
-        }
-      } catch (e) {
-        console.error('Failed to fetch tournament settings:', e);
-      }
-    },
-    loadSettings() {
-      fetch('/settings')
-        .then(res => res.json())
-        .then(data => {
-          Object.assign(this.settings, data);
-        });
-    },
-    loadEvents() {
-      fetch('/api/events')
-        .then(res => res.json())
-        .then(data => {
-          this.events = data;
-          this.displayedEvents = data;
-        });
-    },
-    toggleRadio() {
-      this.radioPlaying = !this.radioPlaying;
-      const radioPlayer = document.getElementById('radio-player');
-      if (this.radioPlaying) {
-        radioPlayer.src = "/static/vhf.mp3";  // Change to actual stream or audio path
-        radioPlayer.play().catch(err => console.error("Radio play error:", err));
-      } else {
-        radioPlayer.pause();
-        radioPlayer.src = "";
-      }
-    }
-    // Add other methods like watchLive, handleImageError, etc. here if needed
-  },
+
   mounted() {
     this.loadSettings();
     this.loadEvents();

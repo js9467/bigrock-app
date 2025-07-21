@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, time, timedelta
 import random
 import subprocess
-import time
+import time3
 from playwright.sync_api import sync_playwright
 import threading
 import urllib3
@@ -89,6 +89,7 @@ def load_remote_settings(force=False):
         return REMOTE_SETTINGS_CACHE["data"]
 
 def scrape_events(tournament):
+    import re
     remote = load_remote_settings()
     config = remote.get(tournament, {})
     if not config:
@@ -112,58 +113,26 @@ def scrape_events(tournament):
     events = []
 
     try:
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-            ignore_https_errors=True
-        )
-        page = context.new_page()
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+                ignore_https_errors=True
+            )
+            page = context.new_page()
 
-        print(f"🔗 Navigating to {url}")
-        page.goto(url, wait_until="domcontentloaded", timeout=120000)
-        try:
-            page.wait_for_selector("#feed-all article", timeout=60000)
-        except:
-            print("No activities found or selector timeout.")
-        feed_items = page.query_selector_all("#feed-all article")
-
-        print(f"✅ Found {len(feed_items)} activity items for {tournament}")
-
-        for item in feed_items:
+            print(f"🔗 Navigating to {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=120000)
             try:
-                boat = item.query_selector("h4").inner_text().strip() if item.query_selector("h4") else "Unknown"
-                paragraph = item.query_selector("p").inner_text().strip()
-                timestamp = item.query_selector("p.pull-right").inner_text().strip() if item.query_selector("p.pull-right") else ""
+                page.wait_for_selector("#feed-all article", timeout=60000)
+            except:
+                print("No activities found or selector timeout.")
+            feed_items = page.query_selector_all("#feed-all article")
 
-                # Ignore tournament headers and plain name-only rows
-                if (
-                    paragraph.lower().startswith("2025") or
-                    re.match(r"^[a-z ,.'-]+$", paragraph.lower())  # simple name-only line
-                ):
-                    continue
+            print(f"✅ Found {len(feed_items)} activity items for {tournament}")
 
-                description = paragraph
+            for item in feed_items:
 
-                events.append({
-                    "boat": boat,
-                    "message": description,
-                    "time": timestamp,
-                    "action": description.lower(),
-                    "image": "/static/images/placeholder.png"
-                })
-            except Exception as e:
-                print(f"⚠️ Failed to parse one item: {e}")
-
-        context.close()
-        browser.close()
-
-except Exception as e:
-    print(f"❌ Scrape failed for {tournament}: {e}")
-
-cache["data"] = events
-cache["last_time"] = now
-return events
 
 
 def get_current_tournament():

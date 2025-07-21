@@ -385,7 +385,73 @@ async loadEvents() {
         },
         toggleRadio() {
     const player = document.getElementById('radio-player');
-    const streamURL = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+    const primaryStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+    const fallbackStream = 'https://playertest.longtailvideo.com/adaptive/bbbfull/bbbfull.m3u8';
+    const fallbackMessage = '🎣 Tournament VHF currently unavailable. Using test stream.';
+
+    const playStream = (url, isFallback = false) => {
+        if (Hls.isSupported()) {
+            this.hls = new Hls();
+            this.hls.loadSource(url);
+            this.hls.attachMedia(player);
+
+            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                player.volume = this.settings.radio_volume || 0.3;
+                player.play()
+                    .then(() => {
+                        this.radioPlaying = true;
+                        this.error = isFallback ? fallbackMessage : null;
+                        localStorage.setItem('radioPlaying', 'true');
+                    })
+                    .catch(err => {
+                        console.error('🔊 Audio play failed:', err);
+                        if (!isFallback) {
+                            this.hls.destroy();
+                            this.hls = null;
+                            playStream(fallbackStream, true);
+                        } else {
+                            this.error = fallbackMessage;
+                            this.radioPlaying = false;
+                        }
+                    });
+            });
+
+            this.hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    console.warn('💥 HLS fatal error:', data);
+                    this.hls.destroy();
+                    this.hls = null;
+                    if (!isFallback) {
+                        playStream(fallbackStream, true);
+                    } else {
+                        this.error = fallbackMessage;
+                        this.radioPlaying = false;
+                    }
+                }
+            });
+        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+            player.src = url;
+            player.volume = this.settings.radio_volume || 0.3;
+            player.play()
+                .then(() => {
+                    this.radioPlaying = true;
+                    this.error = isFallback ? fallbackMessage : null;
+                    localStorage.setItem('radioPlaying', 'true');
+                })
+                .catch(err => {
+                    console.error('🔊 Native HLS play failed:', err);
+                    if (!isFallback) {
+                        playStream(fallbackStream, true);
+                    } else {
+                        this.error = fallbackMessage;
+                        this.radioPlaying = false;
+                    }
+                });
+        } else {
+            this.error = fallbackMessage;
+            this.radioPlaying = false;
+        }
+    };
 
     if (this.radioPlaying) {
         if (this.hls) {
@@ -395,57 +461,13 @@ async loadEvents() {
         player.pause();
         player.src = '';
         this.radioPlaying = false;
+        this.error = null;
+        localStorage.setItem('radioPlaying', 'false');
     } else {
-        if (Hls.isSupported()) {
-            this.hls = new Hls();
-            this.hls.loadSource(streamURL);
-            this.hls.attachMedia(player);
-            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                player.volume = this.settings.radio_volume || 0.3;
-                player.play().catch(e => console.error('Audio play error:', e));
-                this.radioPlaying = true;
-                localStorage.setItem('radioPlaying', 'true');
-            });
-        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-            player.src = streamURL;
-            player.volume = this.settings.radio_volume || 0.3;
-            player.play().catch(e => console.error('Audio play error:', e));
-            this.radioPlaying = true;
-            localStorage.setItem('radioPlaying', 'true');
-        } else {
-            console.error('HLS not supported in this browser');
-        }
+        playStream(primaryStream, false);
     }
-
-    localStorage.setItem('radioPlaying', this.radioPlaying ? 'true' : 'false');
 }
 ,
-        goToSettings() {
-            window.location.href = '/settings-page';
-        },
-        goToParticipants() {
-            window.location.href = '/participants';
-        },
-        goToLeaderboard() {
-            window.location.href = '/leaderboard';
-        },
-        goBack() {
-            window.location.href = '/';
-        }
-    },
-    watch: {
-        settings: {
-            handler() {
-                this.saveSettings();
-                localStorage.setItem('radioVolume', this.settings.radio_volume);
-                const player = document.getElementById('radio-player');
-                if (player && this.radioPlaying) {
-                    player.volume = this.settings.radio_volume;
-                }
-            },
-            deep: true
-        }
-    },
     mounted() {
     console.log('Vue instance mounted for:', window.location.pathname);
     this.isLoading = true;

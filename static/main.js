@@ -37,9 +37,9 @@ new Vue({
   },
   computed: {
     logoSrc() {
-      const t = this.settings?.tournament;
-      const tournament = this.allTournaments?.[t];
-      return tournament?.logo || '';
+      const t = this.settings && this.settings.tournament;
+      const tournament = this.allTournaments && this.allTournaments[t];
+      return tournament && tournament.logo ? tournament.logo : '';
     },
     themeClass() {
       return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
@@ -56,29 +56,11 @@ new Vue({
         console.error('Failed to fetch tournament settings:', e);
       }
     },
-    async loadRemoteTournaments() { ... },
-
-  loadSettings() { ... },
-
-  loadEvents() { ... },
-
-  toggleRadio() {     // 👈 INSERT HERE
-    this.radioPlaying = !this.radioPlaying;
-    const radioPlayer = document.getElementById('radio-player');
-    if (this.radioPlaying) {
-      radioPlayer.src = "/static/vhf.mp3";
-      radioPlayer.play().catch(err => console.error("Radio play error:", err));
-    } else {
-      radioPlayer.pause();
-      radioPlayer.src = "";
-    }
-  },
     loadSettings() {
       fetch('/settings')
         .then(res => res.json())
         .then(data => {
           Object.assign(this.settings, data);
-
         });
     },
     loadEvents() {
@@ -89,12 +71,22 @@ new Vue({
           this.displayedEvents = data;
         });
     },
-    // other methods like toggleRadio, watchLive, handleImageError, etc.
+    toggleRadio() {
+      this.radioPlaying = !this.radioPlaying;
+      const radioPlayer = document.getElementById('radio-player');
+      if (this.radioPlaying) {
+        radioPlayer.src = "/static/vhf.mp3";  // Change to actual stream or audio path
+        radioPlayer.play().catch(err => console.error("Radio play error:", err));
+      } else {
+        radioPlayer.pause();
+        radioPlayer.src = "";
+      }
+    }
+    // Add other methods like watchLive, handleImageError, etc. here if needed
   },
   mounted() {
     this.loadSettings();
     this.loadEvents();
-    this.loadRemoteTournaments(); // ← now included!
-    // optionally other initializers
+    this.loadRemoteTournaments();
   }
 });

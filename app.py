@@ -664,7 +664,7 @@ def hooked():
 
     # Return only unresolved 'hooked up' events
     hooked = [
-        e for")]
+        e for e in events
         if e.get('action', '').lower() == 'hooked up'
         and e.get('hookup_id') not in resolved_ids
     ]

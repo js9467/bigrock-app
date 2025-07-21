@@ -2,7 +2,6 @@
 
 
 
-
 from flask import Flask, jsonify, request, render_template
 import json
 import os
@@ -47,6 +46,13 @@ def get_version():
             return f.read().strip()
     except FileNotFoundError:
         return "dev"
+
+@app.route('/')
+def index():
+    ...
+    version = get_version()
+    return render_template("index.html", ..., version=version)
+
 
 
 

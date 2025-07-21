@@ -2,7 +2,7 @@ name: Auto Deploy to Raspberry Pi
 
 on:
   push:
-    branches: [main]  # Change this if your main branch is named differently
+    branches: [main]  # Change if your main branch is different
 
 jobs:
   deploy:
@@ -19,11 +19,6 @@ jobs:
           FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           echo "$FILES" > files.txt
           echo "files=$(paste -sd "," files.txt)" >> $GITHUB_OUTPUT
-          if grep -Ei '\.py$' files.txt; then
-            echo "py_changed=true" >> $GITHUB_ENV
-          else
-            echo "py_changed=false" >> $GITHUB_ENV
-          fi
 
       - name: Upload changed files to Raspberry Pi
         uses: appleboy/scp-action@v0.1.4
@@ -34,8 +29,8 @@ jobs:
           source: ${{ steps.changed.outputs.files }}
           target: /home/pi/bigrock-app
           overwrite: true
-      - name: Restart service only if a .py file changed
-        if: env.py_changed == 'true'
+
+      - name: Restart bigrock.service on Raspberry Pi
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 64.99.148.73

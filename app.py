@@ -686,20 +686,22 @@ def events():
         if os.path.exists(PARTICIPANTS_MASTER_FILE):
             with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
                 participants = json.load(f)
-                name_to_image = {
-    normalize_boat_name(p['boat']): p['image']
-    for p in participants
-    if p['uid'].startswith(tournament.lower().replace(" ", "_"))
-}
 
-for e in events:
-    norm_name = normalize_boat_name(e['boat'])
-    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+            name_to_image = {
+                normalize_boat_name(p['boat']): p['image']
+                for p in participants
+                if p['uid'].startswith(tournament.lower().replace(" ", "_"))
+            }
+
+            for e in events:
+                norm_name = normalize_boat_name(e['boat'])
+                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
 
     except Exception as e:
         print(f"⚠️ Failed to enrich events with images: {e}")
 
     return jsonify(events)
+
 
 
 

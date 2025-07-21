@@ -11,6 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body :class="themeClass">
+
   <div id="app">
     <header>
       {% raw %}
@@ -30,6 +31,7 @@
 
     <div v-if="!isSleepMode">
       <div class="widgets">
+
         <div class="hooked-up">
           <div class="widget-header">
             <h3>Hooked Up</h3>
@@ -59,6 +61,7 @@
             <div v-if="activeScalesBoats.length === 0" class="no-scales">No boats headed to scales</div>
           </div>
         </div>
+
       </div>
 
       <div class="event-feed" ref="eventFeed">
@@ -103,87 +106,88 @@
     Version: {{ version }}
   </footer>
 
+  <script src="/static/main.js"></script>
   <script>
-  new Vue({
-    el: '#app',
-    data: {
-      settings: { tournament: 'Big Rock' },
-      allTournaments: {},
-      followedBoats: [],
-      radioPlaying: false,
-      isSleepMode: false,
-      displayedEvents: [],
-      activeHookedBoats: [],
-      activeScalesBoats: [],
-      galleryImages: [],
-      currentImageIndex: 0,
-      showVideoPopup: false,
-      videoBoat: '',
-      videoETA: '',
-      videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
-      showVideo: false,
-      error: null
+new Vue({
+  el: '#app',
+  data: {
+    settings: {
+      tournament: 'Big Rock'
     },
-    computed: {
-      logoSrc() {
-        const t = this.settings?.tournament;
-        const tournament = this.allTournaments?.[t];
-        return tournament?.logo || '';
-      },
-      themeClass() {
-        return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
-      }
+    allTournaments: {},
+    followedBoats: [],
+    radioPlaying: false,
+    isSleepMode: false,
+    displayedEvents: [],
+    activeHookedBoats: [],
+    activeScalesBoats: [],
+    galleryImages: [],
+    currentImageIndex: 0,
+    showVideoPopup: false,
+    videoBoat: '',
+    videoETA: '',
+    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
+    showVideo: false,
+    error: null
+  },
+  computed: {
+    logoSrc() {
+      const t = this.settings?.tournament;
+      const tournament = this.allTournaments?.[t];
+      return tournament?.logo || '';
     },
-    methods: {
-      async loadSettings() {
-        try {
-          const res = await fetch('/settings');
-          if (res.ok) {
-            const data = await res.json();
-            this.settings = { ...this.settings, ...data };
-            this.followedBoats = data.followed_boats || [];
-          }
-        } catch (e) {
-          console.error('Failed to load settings:', e);
-        }
-      },
-      async loadRemoteTournaments() {
-        try {
-          const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
-          if (res.ok) {
-            this.allTournaments = await res.json();
-          }
-        } catch (e) {
-          console.error('Failed to load remote tournaments:', e);
-        }
-      },
-      goToSettings() {
-        window.location.href = '/settings-page';
-      },
-      toggleHookedUpMinimized() {
-  this.isHookedUpMinimized = !this.isHookedUpMinimized;
-},
-
-      toggleRadio() {
-        this.radioPlaying = !this.radioPlaying;
-        const player = document.getElementById('radio-player');
-        if (this.radioPlaying) {
-          player.src = 'https://your-radio-stream-url';
-          player.play();
-        } else {
-          player.pause();
-          player.src = '';
-        }
-      },
-      handleImageError(event) {
-        event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
-      }
-    },
-    mounted() {
-      this.loadSettings();
-      this.loadRemoteTournaments();
+    themeClass() {
+      return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
     }
-  });
-  </script>
+  },
+  methods: {
+    async loadSettings() {
+      try {
+        const res = await fetch('/settings');
+        if (res.ok) {
+          const data = await res.json();
+          this.settings = { ...this.settings, ...data };
+          this.followedBoats = data.followed_boats || [];
+        }
+      } catch (e) {
+        console.error('Failed to load settings:', e);
+      }
+    },
+    async loadRemoteTournaments() {
+      try {
+        const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
+        if (res.ok) {
+          this.allTournaments = await res.json();
+        }
+      } catch (e) {
+        console.error('Failed to load remote tournaments:', e);
+      }
+    },
+    goToSettings() {
+      window.location.href = '/settings-page';
+    },
+    toggleRadio() {
+      this.radioPlaying = !this.radioPlaying;
+      const player = document.getElementById('radio-player');
+      if (this.radioPlaying) {
+        player.src = 'https://your-radio-stream-url'; // Replace with your stream
+        player.play();
+      } else {
+        player.pause();
+        player.src = '';
+      }
+    },
+    handleImageError(event) {
+      event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
+    }
+  },
+  mounted() {
+    this.loadSettings();
+    this.loadRemoteTournaments();
+  }
+});
+</script>
+
+
 </body>
 </html>

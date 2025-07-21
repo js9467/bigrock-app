@@ -600,6 +600,7 @@ def scrape_gallery():
 
 # routes
 
+        
 @app.route('/')
 def index():
     try:
@@ -619,8 +620,16 @@ def index():
 
     logo_url = logo_map.get(tournament, "/static/images/WHITELOGOBR.png")
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
-    
-    return render_template("index.html", logo_url=logo_url, theme_class=theme_class)
+
+    # Load Git version
+    try:
+        with open("version.txt") as f:
+            version = f.read().strip()
+    except FileNotFoundError:
+        version = "dev"
+
+    return render_template("index.html", logo_url=logo_url, theme_class=theme_class, version=version)
+
 
 
 @app.route('/settings-page')

@@ -305,61 +305,63 @@ def scrape_participants(tournament):
             except:
                 print("No images found or selector timeout for participants.")
             entries = page.evaluate("""
-            () => {
-                const boats = [];
-                document.querySelectorAll('img').forEach(img => {
-                  const src = img.getAttribute('src');
-                  const parent = img.closest('div');
-                  const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
-                  const name = nameTag?.textContent?.trim();
+() => {
+    const boats = [];
+    document.querySelectorAll('img').forEach(img => {
+      const src = img.getAttribute('src');
+      const parent = img.closest('div');
+      const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
+      const name = nameTag?.textContent?.trim();
 
-                  if (src && name) {
-                    boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
-                  }
-                });
-                return boats;
-            }
-            """)
-                try:
-            for entry in entries:
-                name = entry['name'].strip()
-                image_url = entry['image']
+      if (src && name) {
+        boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
+      }
+    });
+    return boats;
+}
+""")
 
-                # 🚫 Skip known junk labels
-                skip_names = [
-                    'sponsor',
-                    'tournament logo',
-                    'participants',
-                    'follow',
-                    'river center junior angler tournament',
-                    'junior angler tournament'
-                ]
-                if name.lower() in skip_names or len(name) <= 2:
-                    print(f"⏩ Skipping non-participant label: {name}")
-                    continue
+try:  # <-- Now aligned correctly
+    for entry in entries:
+        name = entry['name'].strip()
+        image_url = entry['image']
 
-                # ✅ Valid participant (angler or boat)
-                local_image = cache_boat_image(name, image_url)
-                participant = {
-                    'name': name,
-                    'image': local_image,
-                    'uid': f"{normalize_boat_name(name)}_{tournament_uid}"
-                }
-                all_participants.append(participant)
-                boats.append(participant)
+        # 🚫 Skip known junk labels
+        skip_names = [
+            'sponsor',
+            'tournament logo',
+            'participants',
+            'follow',
+            'river center junior angler tournament',
+            'junior angler tournament'
+        ]
+        if name.lower() in skip_names or len(name) <= 2:
+            print(f"⏩ Skipping non-participant label: {name}")
+            continue
 
-            context.close()
-            browser.close()
+        # ✅ Valid participant (angler or boat)
+        local_image = cache_boat_image(name, image_url)
+        participant = {
+            'name': name,
+            'image': local_image,
+            'uid': f"{normalize_boat_name(name)}_{tournament.replace(' ', '_').lower()}"
+        }
+        all_participants.append(participant)
+        boats.append(participant)
 
-            print(f"✅ Scraped and cached {len(boats)} participants for {tournament}")
+    context.close()
+    browser.close()
 
-        except Exception as e:
-            print(f"❌ Playwright error for {tournament}: {e}")
-            boats = []
+    print(f"✅ Scraped and cached {len(boats)} participants for {tournament}")
 
-        cache["data"] = boats
-        cache["last_time"] = now
-        return boats
+except Exception as e:
+    print(f"❌ Playwright error for {tournament}: {e}")
+    boats = []
+
+cache["data"] = boats
+cache["last_time"] = now
+return boats
+
 
 
 

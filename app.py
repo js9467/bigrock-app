@@ -588,9 +588,7 @@ def index():
         "Edisto Invitational Billfish": "https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490"
     }
 
-    logo_url = logo_map.get(tournament, "/static/images/WHITELOGOBR.png")
-    theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
-    version = get_version()
+   
 
     return render_template("index.html", logo_url=logo_url, theme_class=theme_class, version=version)
 

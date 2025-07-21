@@ -576,15 +576,19 @@ def scrape_gallery():
 def index():
     try:
         with open("settings.json", "r") as f:
+            print("✅ Opened settings.json")
             settings = json.load(f)
+            print("✅ Parsed settings:", settings)
             tournament = settings.get("tournament", "Big Rock")
-    except:
+    except Exception as e:
+        print("⚠️ Error loading settings.json:", e)
         tournament = "Big Rock"
 
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
     version = get_version()
 
     return render_template("index.html", theme_class=theme_class, version=version)
+
     
 
 

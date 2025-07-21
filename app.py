@@ -608,15 +608,14 @@ def scrape_gallery():
         
 @app.route('/')
 def index():
-    # Load tournament settings
     try:
         with open("settings.json", "r") as f:
             settings = json.load(f)
             tournament = settings.get("tournament", "Big Rock")
-    except Exception:
+    except:
         tournament = "Big Rock"
 
-    # Define static fallback logos
+    # Static fallback logos
     logo_map = {
         "Big Rock": "/static/images/WHITELOGOBR.png",
         "Kids": "/static/images/WHITELOGOBR.png",

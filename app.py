@@ -28,7 +28,7 @@ except ImportError:
 
 print("App starting... PLAYWRIGHT_AVAILABLE:", PLAYWRIGHT_AVAILABLE)
 
-app = Flask(__name__, template_folder='static')
+app = Flask(__name__) 
 SETTINGS_FILE = 'settings.json'
 MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'

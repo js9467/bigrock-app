@@ -899,8 +899,9 @@ def refresh_data_loop(interval=600):  # 10 minutes
 
 
 # Example run
-if __name__ == "__main__":
-    refresh_data_loop(600)  # Start background loop every 10 min
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0')
+
 
 
     import os

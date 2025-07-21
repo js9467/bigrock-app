@@ -105,46 +105,74 @@ def scrape_events(tournament):
     events = []
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36", ignore_https_errors=True)
-            page = context.new_page()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(ignore_https_errors=True, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+        page = context.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=120000)
 
-            print(f"🔗 Navigating to {url}")
-            page.goto(url, wait_until="domcontentloaded", timeout=120000)  # Increased timeout and consistent wait_until
-            try:
-                page.wait_for_selector("#feed-all article", timeout=60000)  # Increased timeout
-            except:
-                print("No activities found or selector timeout.")
-            feed_items = page.query_selector_all("#feed-all article")
+        try:
+            page.wait_for_selector("img", timeout=60000)
+        except:
+            print("No images found or selector timeout for participants.")
 
-            print(f"✅ Found {len(feed_items)} activity items for {tournament}")
+        entries = page.evaluate("""
+        () => {
+            const boats = [];
+            document.querySelectorAll('img').forEach(img => {
+              const src = img.getAttribute('src');
+              const parent = img.closest('div');
+              const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
+              const name = nameTag?.textContent?.trim();
 
-            for item in feed_items:
-                try:
-                    boat = item.query_selector("h4").inner_text().strip()
-                    description = item.query_selector("p strong").inner_text().strip()
-                    timestamp = item.query_selector("p.pull-right").inner_text().strip()
+              if (src && name) {
+                boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
+              }
+            });
+            return boats;
+        }
+        """)
 
-                    events.append({
-                        "boat": boat,
-                        "message": description,
-                        "time": timestamp,
-                        "action": description.lower(),
-                        "image": "/static/images/placeholder.png"
-                    })
-                except Exception as e:
-                    print(f"⚠️ Failed to parse one item: {e}")
+        all_participants = []
 
-            context.close()
-            browser.close()
+        for entry in entries:
+            name = entry['name'].strip()
+            image_url = entry['image']
 
-    except Exception as e:
-        print(f"❌ Scrape failed for {tournament}: {e}")
+            skip_names = [
+                'sponsor',
+                'tournament logo',
+                'participants',
+                'follow',
+                'river center junior angler tournament',
+                'junior angler tournament'
+            ]
+            if name.lower() in skip_names or len(name) <= 2:
+                print(f"⏩ Skipping non-participant label: {name}")
+                continue
 
-    cache["data"] = events
-    cache["last_time"] = now
-    return events
+            local_image = cache_boat_image(name, image_url)
+            participant = {
+                'name': name,
+                'image': local_image,
+                'uid': f"{normalize_boat_name(name)}_{tournament.replace(' ', '_').lower()}"
+            }
+            all_participants.append(participant)
+            boats.append(participant)
+
+        context.close()
+        browser.close()
+
+        print(f"✅ Scraped and cached {len(boats)} participants for {tournament}")
+
+except Exception as e:
+    print(f"❌ Playwright error for {tournament}: {e}")
+    boats = []
+
+cache["data"] = boats
+cache["last_time"] = now
+return boats
+
 
 def get_current_tournament():
     try:

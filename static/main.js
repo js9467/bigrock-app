@@ -77,7 +77,8 @@ new Vue({
       fetch('/settings')
         .then(res => res.json())
         .then(data => {
-          this.settings = { ...this.settings, ...data };
+          Object.assign(this.settings, data);
+
         });
     },
     loadEvents() {

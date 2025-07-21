@@ -33,7 +33,7 @@ jobs:
           key: ${{ secrets.PI_SSH_KEY }}
           source: ${{ steps.changed.outputs.files }}
           target: /home/pi/bigrock-app
-
+          overwrite: true
       - name: Restart service only if a .py file changed
         if: env.py_changed == 'true'
         uses: appleboy/ssh-action@v1.0.3

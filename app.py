@@ -433,7 +433,7 @@ def generate_demo_events(tournament):
             now += timedelta(minutes=random.randint(1, 3))
             scales_event = {
                 "boat": boat,
-                "angler कई बार देखे गए: angler,
+                "angler": angler,
                 "uid": uid,
                 "image": image,
                 "action": "headed to scales.",

@@ -43,15 +43,12 @@ computed: {
     followedBoats() {
         return this.settings.followed_boats || [];
     },
-  logoSrc() {
-    const t = this.settings?.tournament;
-    if (!t || !this.allTournaments || !this.allTournaments[t]) {
-        return '/static/images/WHITELOGOBR.png'; // fallback
-    }
-
-    const logo = this.allTournaments[t].logo;
-    return logo ? logo : '/static/images/WHITELOGOBR.png';
+ logoSrc() {
+  const t = this.settings?.tournament;
+  const tournament = this.allTournaments?.[t];
+  return tournament?.logo || '';
 }
+
 
 ,
     activeHookedBoats() {

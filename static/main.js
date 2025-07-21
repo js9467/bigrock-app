@@ -37,59 +37,46 @@ new Vue({
   },
   computed: {
     logoSrc() {
-      const t = this.settings && this.settings.tournament;
-      const tournament = this.allTournaments && this.allTournaments[t];
-      return tournament && tournament.logo ? tournament.logo : '';
+      const t = this.settings?.tournament;
+      const tournament = this.allTournaments?.[t];
+      return tournament?.logo || '';
     },
     themeClass() {
       return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
     }
   },
   methods: {
-  async loadRemoteTournaments() {
-    try {
-      const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
-      if (response.ok) {
-        this.allTournaments = await response.json();
+    async loadRemoteTournaments() {
+      try {
+        const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
+        if (response.ok) {
+          this.allTournaments = await response.json();
+        }
+      } catch (e) {
+        console.error('Failed to fetch tournament settings:', e);
       }
-    } catch (e) {
-      console.error('Failed to fetch tournament settings:', e);
-    }
+    },
+    loadSettings() {
+      fetch('/settings')
+        .then(res => res.json())
+        .then(data => {
+          this.settings = { ...this.settings, ...data };
+        });
+    },
+    loadEvents() {
+      fetch('/api/events')
+        .then(res => res.json())
+        .then(data => {
+          this.events = data;
+          this.displayedEvents = data;
+        });
+    },
+    // other methods like toggleRadio, watchLive, handleImageError, etc.
   },
-  loadSettings() {
-    fetch('/settings')
-      .then(res => res.json())
-      .then(data => {
-        Object.assign(this.settings, data);
-      });
-  },
-  loadEvents() {
-    fetch('/api/events')
-      .then(res => res.json())
-      .then(data => {
-        this.events = data;
-        this.displayedEvents = data;
-      });
-  },
-  toggleRadio() {
-    this.radioPlaying = !this.radioPlaying;
-    const radioPlayer = document.getElementById('radio-player');
-    if (this.radioPlaying) {
-      radioPlayer.src = "/static/vhf.mp3";
-      radioPlayer.play().catch(err => console.error("Radio play error:", err));
-    } else {
-      radioPlayer.pause();
-      radioPlayer.src = "";
-    }
-  },
-  goToSettings() {
-    window.location.href = '/settings-page';
-  }
-},
-
   mounted() {
     this.loadSettings();
     this.loadEvents();
-    this.loadRemoteTournaments();
+    this.loadRemoteTournaments(); // ← now included!
+    // optionally other initializers
   }
 });

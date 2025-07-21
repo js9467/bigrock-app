@@ -16,7 +16,7 @@ try:
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
-print("App starting... PLAYWRIGHT_AVAILABLE:", PLAYWRIGHT_AVAILABLE)
+print("App starting.... PLAYWRIGHT_AVAILABLE:", PLAYWRIGHT_AVAILABLE)
 
 app = Flask(__name__, template_folder='static')
 SETTINGS_FILE = 'settings.json'

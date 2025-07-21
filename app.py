@@ -39,14 +39,15 @@ MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
 PARTICIPANTS_CACHE_FILE = 'participants.json'
+import subprocess
+
 def get_version():
     try:
-        version = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
-        return version
-    except Exception:
+        count = subprocess.check_output(['git', 'rev-list', '--count', 'HEAD']).decode().strip()
+        return f"1.{count}"
+    except:
         return "dev"
-def normalize_boat_name(name):
-    return name.strip().lower().replace(' ', '_').replace('-', '_')
+
 
 
 #cache
@@ -615,7 +616,6 @@ def index():
     except:
         tournament = "Big Rock"
 
-    # Static fallback logos
     logo_map = {
         "Big Rock": "/static/images/WHITELOGOBR.png",
         "Kids": "/static/images/WHITELOGOBR.png",
@@ -625,15 +625,10 @@ def index():
 
     logo_url = logo_map.get(tournament, "/static/images/WHITELOGOBR.png")
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
-
-    # Load version from version.txt
-    try:
-        with open("version.txt") as f:
-            version = f.read().strip()
-    except FileNotFoundError:
-        version = "dev"
+    version = get_version()
 
     return render_template("index.html", logo_url=logo_url, theme_class=theme_class, version=version)
+
 
 
 

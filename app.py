@@ -139,6 +139,20 @@ def scrape_leaderboard():
 
     return leaderboard
 
+# Helper to filter unresolved hookups
+def get_unresolved_hookups(events):
+    resolved_ids = {
+        e['hookup_id'] for e in events
+        if e.get('hookup_id') and e.get('action', '').lower() in [
+            'released', 'boated', 'pulled hook', 'wrong species'
+        ]
+    }
+    return [
+        e for e in events
+        if e.get('action', '').lower() == 'hooked up'
+        and e.get('hookup_id') not in resolved_ids
+    ]
+
 # Flask Routes
 @app.route("/scrape/participants")
 def participants_route():
@@ -151,6 +165,27 @@ def events_route():
 @app.route("/scrape/leaderboard")
 def leaderboard_route():
     return jsonify(scrape_leaderboard())
+
+@app.route("/hooked")
+def hooked():
+    events = scrape_events()
+    return jsonify(get_unresolved_hookups(events))
+
+@app.route("/scales")
+def scales():
+    events = scrape_events()
+    return jsonify([
+        e for e in events
+        if e.get("action", "").lower() == "boated"
+    ])
+
+@app.route("/released")
+def released():
+    events = scrape_events()
+    return jsonify([
+        e for e in events
+        if e.get("action", "").lower() == "released"
+    ])
 
 @app.route("/")
 def index():
@@ -172,6 +207,22 @@ def index():
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
 
     return render_template("index.html", logo_url=logo_url, theme_class=theme_class)
+
+@app.route("/settings-page")
+def settings_page():
+    return app.send_static_file("settings.html")
+
+@app.route("/leaderboard")
+def leaderboard_page():
+    return app.send_static_file("leaderboard.html")
+
+@app.route("/participants")
+def participants_page():
+    return app.send_static_file("participants.html")
+
+@app.route("/gallery")
+def gallery_page():
+    return app.send_static_file("gallery.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

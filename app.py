@@ -585,12 +585,8 @@ def index():
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
     version = get_version()
 
-    return render_template(
-        "index.html",
-        theme_class=theme_class,
-        version=version,
-        settings=settings  # ✅ this line fixes the error
-    )
+  return render_template("index.html", theme_class=theme_class, version=version, settings=settings)
+
 
     
 

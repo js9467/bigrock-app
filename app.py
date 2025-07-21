@@ -322,32 +322,33 @@ def scrape_participants(tournament):
             }
             """)
 
-          for entry in entries:
-    name = entry['name'].strip()
-    image_url = entry['image']
+                  for entry in entries:
+            name = entry['name'].strip()
+            image_url = entry['image']
 
-    # 🚫 Skip known junk labels
-    skip_names = [
-        'sponsor',
-        'tournament logo',
-        'participants',
-        'follow',
-        'river center junior angler tournament',
-        'junior angler tournament'
-    ]
-    if name.lower() in skip_names or len(name) <= 2:
-        print(f"⏩ Skipping non-participant label: {name}")
-        continue
+            # 🚫 Skip known junk labels
+            skip_names = [
+                'sponsor',
+                'tournament logo',
+                'participants',
+                'follow',
+                'river center junior angler tournament',
+                'junior angler tournament'
+            ]
+            if name.lower() in skip_names or len(name) <= 2:
+                print(f"⏩ Skipping non-participant label: {name}")
+                continue
 
-    # ✅ Valid participant (angler or boat)
-    local_image = cache_boat_image(name, image_url)
-    participant = {
-        "uid": generate_uid(tournament, name),
-        "boat": name,
-        "image": local_image
-    }
-    save_participant_to_master(participant)
-    boats.append(participant)
+            # ✅ Valid participant (angler or boat)
+            local_image = cache_boat_image(name, image_url)
+            participant = {
+                "uid": generate_uid(tournament, name),
+                "boat": name,
+                "image": local_image
+            }
+            save_participant_to_master(participant)
+            boats.append(participant)
+
 
 
 

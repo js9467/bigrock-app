@@ -7,8 +7,18 @@ from datetime import datetime, time, timedelta
 import random
 import subprocess
 import time
+from bs4 import BeautifulSoup
+
+
 from playwright.sync_api import sync_playwright
-import threading
+from bs4 import BeautifulSoup
+
+from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
+
+import requests
+
+from playwright.sync_api import sync_playwright
 
 try:
     from playwright.sync_api import sync_playwright
@@ -23,11 +33,8 @@ SETTINGS_FILE = 'settings.json'
 MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
-PARTICIPANTS_MASTER_FILE = 'participants_master.json'
-REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
-REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
-EVENTS_CACHES = {}  # tournament_key: {"last_time": 0, "data": []}
-PARTICIPANTS_CACHES = {}  # tournament_key: {"last_time": 0, "data": []}
+PARTICIPANTS_CACHE_FILE = 'participants.json'
+import subprocess
 
 def get_version():
     try:
@@ -36,11 +43,13 @@ def get_version():
     except FileNotFoundError:
         return "dev"
 
-known_boat_images = {}
 
-def normalize_boat_name(name):
-    return name.strip().lower().replace(' ', '_').replace('-', '_')
 
+
+
+
+
+#cache
 def cache_boat_image(name, image_url):
     """Download and cache image to static/images/boats/, return local path."""
     safe_name = normalize_boat_name(name)
@@ -49,10 +58,11 @@ def cache_boat_image(name, image_url):
     filename = f"{safe_name}{ext}"
     local_path = os.path.join("static", "images", "boats", filename)
     relative_path = f"/static/images/boats/{filename}"
+   
 
     if not os.path.exists(local_path):
         try:
-            response = requests.get(image_url, timeout=10, verify=False)
+            response = requests.get(image_url, timeout=10)
             if response.status_code == 200:
                 with open(local_path, "wb") as f:
                     f.write(response.content)
@@ -65,12 +75,15 @@ def cache_boat_image(name, image_url):
 
     return relative_path
 
+REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
+REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
+
 def load_remote_settings(force=False):
     now = time.time()
     if not force and now - REMOTE_SETTINGS_CACHE["last_fetch"] < 300:
         return REMOTE_SETTINGS_CACHE["data"]
     try:
-        response = requests.get(REMOTE_SETTINGS_URL, timeout=5, verify=False)
+        response = requests.get(REMOTE_SETTINGS_URL, timeout=5)
         response.raise_for_status()
         data = response.json()
         REMOTE_SETTINGS_CACHE["data"] = data
@@ -80,6 +93,48 @@ def load_remote_settings(force=False):
     except Exception as e:
         print(f"⚠️ Failed to load remote settings: {e}")
         return REMOTE_SETTINGS_CACHE["data"]
+
+EVENTS_CACHES = {}  # tournament_key: {"last_time": 0, "data": []}
+
+def scrape_activities(url):
+    events = []
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+            page = context.new_page()
+
+            print(f"🔗 Navigating to {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_selector("#feed-all article", timeout=15000)
+            feed_items = page.query_selector_all("#feed-all article")
+
+            print(f"✅ Found {len(feed_items)} activity items")
+
+            for item in feed_items:
+                try:
+                    boat = item.query_selector("h4").inner_text().strip()
+                    description = item.query_selector("p strong").inner_text().strip()
+                    timestamp = item.query_selector("p.pull-right").inner_text().strip()
+
+                    events.append({
+                        "boat": boat,
+                        "message": description,
+                        "time": timestamp,
+                        "action": description.lower(),
+                        "image": "/static/images/placeholder.png"
+                    })
+                except Exception as e:
+                    print(f"⚠️ Failed to parse one item: {e}")
+
+            context.close()
+            browser.close()
+
+    except Exception as e:
+        print(f"❌ Scrape failed: {e}")
+
+    return events
 
 def scrape_events(tournament):
     remote = load_remote_settings()
@@ -102,49 +157,11 @@ def scrape_events(tournament):
     if cache["data"] and now - cache["last_time"] < 300:
         return cache["data"]
 
-    events = []
-
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36", ignore_https_errors=True)
-            page = context.new_page()
-
-            print(f"🔗 Navigating to {url}")
-            page.goto(url, wait_until="domcontentloaded", timeout=120000)  # Increased timeout and consistent wait_until
-            try:
-                page.wait_for_selector("#feed-all article", timeout=60000)  # Increased timeout
-            except:
-                print("No activities found or selector timeout.")
-            feed_items = page.query_selector_all("#feed-all article")
-
-            print(f"✅ Found {len(feed_items)} activity items for {tournament}")
-
-            for item in feed_items:
-                try:
-                    boat = item.query_selector("h4").inner_text().strip()
-                    description = item.query_selector("p strong").inner_text().strip()
-                    timestamp = item.query_selector("p.pull-right").inner_text().strip()
-
-                    events.append({
-                        "boat": boat,
-                        "message": description,
-                        "time": timestamp,
-                        "action": description.lower(),
-                        "image": "/static/images/placeholder.png"
-                    })
-                except Exception as e:
-                    print(f"⚠️ Failed to parse one item: {e}")
-
-            context.close()
-            browser.close()
-
-    except Exception as e:
-        print(f"❌ Scrape failed for {tournament}: {e}")
-
+    events = scrape_activities(url)
     cache["data"] = events
     cache["last_time"] = now
     return events
+
 
 def get_current_tournament():
     try:
@@ -154,6 +171,8 @@ def get_current_tournament():
     except Exception as e:
         print("⚠️ Could not load tournament from settings:", e)
         return "Big Rock"
+
+PARTICIPANTS_MASTER_FILE = 'participants_master.json'
 
 def generate_uid(tournament, name):
     return f"{tournament.lower().replace(' ', '_')}_{normalize_boat_name(name).replace(' ', '_')}"
@@ -168,6 +187,8 @@ def save_participant_to_master(entry):
         data.append(entry)
         with open(PARTICIPANTS_MASTER_FILE, 'w') as f:
             json.dump(data, f, indent=2)
+
+
 
 def get_mac_address():
     try:
@@ -249,6 +270,7 @@ def check_internet():
     except subprocess.CalledProcessError:
         return False
 
+
 def check_video_trigger():
     settings = load_settings()
     tournament = settings.get('tournament', 'Kids')
@@ -269,6 +291,11 @@ def check_video_trigger():
             except ValueError:
                 continue
     return {'trigger': False}
+
+from flask import render_template_string
+
+
+PARTICIPANTS_CACHES = {}  # tournament_key: {"last_time": 0, "data": []}
 
 def scrape_participants(tournament):
     print(f"🔍 Launching Playwright to scrape participants for {tournament}...")
@@ -298,13 +325,11 @@ def scrape_participants(tournament):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            context = browser.new_context(ignore_https_errors=True, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=120000)  # Changed to domcontentloaded and increased timeout
-            try:
-                page.wait_for_selector("img", timeout=60000)  # Increased timeout
-            except:
-                print("No images found or selector timeout for participants.")
+            page.goto(url, wait_until="networkidle", timeout=30000)
+            page.wait_for_selector("img", timeout=15000)
+
             entries = page.evaluate("""
             () => {
                 const boats = [];
@@ -347,6 +372,7 @@ def scrape_participants(tournament):
     cache["last_time"] = now
     return boats
 
+# demo events 
 def generate_demo_events(tournament):
     import random
     from datetime import datetime, timedelta
@@ -445,6 +471,10 @@ def generate_demo_events(tournament):
     # Return in reverse chronological order (newest first)
     return sorted(timeline, key=lambda x: datetime.strptime(x["time"], "Jul %d @ %I:%M %p"), reverse=True)
 
+
+
+
+# scrape leaderboard 
 def scrape_leaderboard(tournament):
     if not check_internet():
         return load_cache(tournament)['leaderboard']
@@ -456,7 +486,7 @@ def scrape_leaderboard(tournament):
         return load_cache(tournament)['leaderboard']
 
     try:
-        response = requests.get(url, timeout=5, verify=False)
+        response = requests.get(url, timeout=5)
         response.raise_for_status()
         print(f"Leaderboard response status ({tournament}): {response.status_code}")
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -480,14 +510,15 @@ def scrape_leaderboard(tournament):
     except Exception as e:
         print(f"Scraping error (leaderboard, {tournament}): {e}")
         return load_cache(tournament)['leaderboard']
+# scrape gallery 
 
 def scrape_gallery():
     if not check_internet():
         settings = load_settings()
         return load_cache(settings['tournament'])['gallery']
     try:
-        url = 'https://thebigrock.smugmug.com/2025-GALLERY'  # TODO: Make tournament-specific if needed
-        response = requests.get(url, timeout=5, verify=False)
+        url = 'https://thebigrock.smugmug.com/2025-GALLERY'
+        response = requests.get(url, timeout=5)
         response.raise_for_status()
         print(f"Gallery response status: {response.status_code}")
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -511,6 +542,10 @@ def scrape_gallery():
         settings = load_settings()
         return load_cache(settings['tournament'])['gallery']
 
+
+# routes
+
+        
 @app.route('/')
 def index():
     try:
@@ -532,6 +567,9 @@ def index():
     version = get_version()
 
     return render_template("index.html", logo_url=logo_url, theme_class=theme_class, version=version)
+
+
+
 
 @app.route('/settings-page')
 def settings_page():
@@ -582,6 +620,8 @@ def get_participants():
 
     return jsonify(filtered)
 
+
+
 @app.route('/wifi', methods=['GET', 'POST'])
 def wifi():
     if request.method == 'POST':
@@ -631,6 +671,8 @@ def events():
 
     return jsonify(events)
 
+
+
 @app.route('/leaderboard')
 def leaderboard():
     settings = load_settings()
@@ -638,6 +680,10 @@ def leaderboard():
     if settings['data_source'] in ['historical', 'demo']:
         return jsonify(load_historical_data(tournament).get('leaderboard', []))
     return jsonify(scrape_leaderboard(tournament))
+
+from dateutil import parser
+
+from datetime import datetime
 
 @app.route('/hooked')
 def hooked():
@@ -669,6 +715,10 @@ def hooked():
 
     return jsonify(hooked)
 
+
+
+
+
 @app.route('/scales')
 def scales():
     settings = load_settings()
@@ -685,6 +735,7 @@ def scales():
         event for event in events
         if event.get('action', '').lower() == 'headed to scales'
     ])
+
 
 @app.route('/api/events')
 def get_events():
@@ -703,6 +754,7 @@ def check_video_trigger_endpoint():
 @app.route('/wifi-status')
 def wifi_status():
     return jsonify({'connected': check_internet()})
+
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -799,6 +851,8 @@ def bluetooth():
             return jsonify({'status': 'error', 'message': str(e)})
     return jsonify([])
 
+import threading
+
 def refresh_data_loop(interval=600):  # 10 minutes
     def refresh():
         try:
@@ -817,8 +871,13 @@ def refresh_data_loop(interval=600):  # 10 minutes
 
     refresh()
 
+
+
+# Example run
 if __name__ == "__main__":
     refresh_data_loop(600)  # Start background loop every 10 min
+
+
     import os
     if os.environ.get("FLASK_RUN_FROM_CLI") != "false":
         app.run(host='0.0.0.0', port=5000)

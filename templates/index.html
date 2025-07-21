@@ -107,32 +107,29 @@
   </footer>
 
   <script src="/static/main.js"></script>
- <script>
+  <script>
 new Vue({
   el: '#app',
- data: {
-  settings: {
-    tournament: 'Big Rock'
+  data: {
+    settings: {
+      tournament: 'Big Rock'
+    },
+    allTournaments: {},
+    followedBoats: [],
+    radioPlaying: false,
+    isSleepMode: false,
+    displayedEvents: [],
+    activeHookedBoats: [],
+    activeScalesBoats: [],
+    galleryImages: [],
+    currentImageIndex: 0,
+    showVideoPopup: false,
+    videoBoat: '',
+    videoETA: '',
+    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
+    showVideo: false,
+    error: null
   },
-  allTournaments: {},
-  followedBoats: [],
-  radioPlaying: false,
-  isSleepMode: false,
-  isHookedUpMinimized: false,
-  isScalesMinimized: false,
-  displayedEvents: [],
-  activeHookedBoats: [],
-  activeScalesBoats: [],
-  galleryImages: [],
-  currentImageIndex: 0,
-  showVideoPopup: false,
-  videoBoat: '',
-  videoETA: '',
-  videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
-  showVideo: false,
-  error: null
-},
-
   computed: {
     logoSrc() {
       const t = this.settings?.tournament;
@@ -180,34 +177,8 @@ new Vue({
         player.src = '';
       }
     },
-    watchLive() {
-      this.showVideo = true;
-      this.showVideoPopup = false;
-    },
-    closeVideo() {
-      this.showVideo = false;
-    },
-    dismissVideoPopup() {
-      this.showVideoPopup = false;
-    },
-    formatTime(time) {
-      if (!time) return '';
-      const date = new Date(time);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    },
-    formatETA(eta) {
-      if (!eta) return '';
-      const date = new Date(eta);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    },
     handleImageError(event) {
-      event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
-    },
-    toggleHookedUpMinimized() {
-      this.isHookedUpMinimized = !this.isHookedUpMinimized;
-    },
-    toggleScalesMinimized() {
-      this.isScalesMinimized = !this.isScalesMinimized;
+      event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
     }
   },
   mounted() {

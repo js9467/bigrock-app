@@ -56,6 +56,23 @@ new Vue({
         console.error('Failed to fetch tournament settings:', e);
       }
     },
+    async loadRemoteTournaments() { ... },
+
+  loadSettings() { ... },
+
+  loadEvents() { ... },
+
+  toggleRadio() {     // 👈 INSERT HERE
+    this.radioPlaying = !this.radioPlaying;
+    const radioPlayer = document.getElementById('radio-player');
+    if (this.radioPlaying) {
+      radioPlayer.src = "/static/vhf.mp3";
+      radioPlayer.play().catch(err => console.error("Radio play error:", err));
+    } else {
+      radioPlayer.pause();
+      radioPlayer.src = "";
+    }
+  },
     loadSettings() {
       fetch('/settings')
         .then(res => res.json())

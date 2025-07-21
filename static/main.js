@@ -510,4 +510,4 @@ async loadEvents() {
             this.appMounted = true;
         });
 },
-});
+})

@@ -322,30 +322,33 @@ def scrape_participants(tournament):
             }
             """)
 
-           for entry in entries:
+          for entry in entries:
     name = entry['name'].strip()
     image_url = entry['image']
 
-    # 🚫 Skip non-participant labels (section headers, logos)
-    skip_terms = ['tournament', 'participants', 'logo', 'follow']
-    if any(term in name.lower() for term in skip_terms):
-        print(f"⏩ Skipping non-participant: {name}")
+    # 🚫 Skip known junk labels
+    skip_names = [
+        'sponsor',
+        'tournament logo',
+        'participants',
+        'follow',
+        'river center junior angler tournament',
+        'junior angler tournament'
+    ]
+    if name.lower() in skip_names or len(name) <= 2:
+        print(f"⏩ Skipping non-participant label: {name}")
         continue
 
-    # 🚫 Skip ultra-generic short labels (1-word with <3 characters)
-    if len(name) < 3:
-        print(f"⏩ Skipping too-short name: {name}")
-        continue
-
-    # ✅ Otherwise, treat as valid participant (boat or angler)
+    # ✅ Valid participant (angler or boat)
     local_image = cache_boat_image(name, image_url)
     participant = {
         "uid": generate_uid(tournament, name),
-        "boat": name,  # Keep using "boat" as key even if it's an angler
+        "boat": name,
         "image": local_image
     }
     save_participant_to_master(participant)
     boats.append(participant)
+
 
 
             context.close()

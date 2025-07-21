@@ -317,7 +317,6 @@ def scrape_participants(tournament):
 
     cache = PARTICIPANTS_CACHES[cache_key]
     now = time.time()
-    # Comment out for testing: if now - cache["last_time"] < 300: ...
 
     try:
         with sync_playwright() as p:
@@ -326,7 +325,6 @@ def scrape_participants(tournament):
             page = context.new_page()
             page.goto(url, wait_until="networkidle", timeout=60000)
 
-            # Debugging HTML snippet
             html_content = page.content()
             print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")
 
@@ -335,42 +333,37 @@ def scrape_participants(tournament):
             except:
                 print("No participant list found or selector timeout.")
 
-            # Tournament-specific filters (add to config if needed)
             exclude_patterns = config.get("exclude_patterns", [",", "2025 Edisto Invitational Billfish"])
-            # e.g., in settings: {"edisto_invitational": {"exclude_patterns": [",", "2025 Edisto"]}}
-
             name_selector = config.get("name_selector", "h1, h2, h3, h4, h5, h6, span.name, div.name, p.name, .participant-name, .title, .boat-name")
             image_selector = config.get("image_selector", "img")
 
             entries = page.evaluate(f"""
-            () => {{
-                const boats = [];
-                const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');  // Prioritize boat-specific classes
-                participantContainers.forEach(container => {{
-                    const nameTag = container.querySelector('{name_selector}');
-                    const imgTag = container.querySelector('{image_selector}');
-                    const name = nameTag?.textContent?.trim();
-                    let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');  // Handle lazy-loaded images
-                    if (image && !image.startsWith('http')) {{
-                        image = `https:${{image}}`;
-                    }}
-                    if (name) {{
-                        boats.push({{ name, image: image || '' }});
-                    }}
-                }});
-                return boats;
-            }}
+                () => {{
+                    const boats = [];
+                    const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
+                    participantContainers.forEach(container => {{
+                        const nameTag = container.querySelector('{name_selector}');
+                        const imgTag = container.querySelector('{image_selector}');
+                        const name = nameTag?.textContent?.trim();
+                        let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
+                        if (image && !image.startsWith('http')) {{
+                            image = `https:${{image}}`;
+                        }}
+                        if (name) {{
+                            boats.push({{ name, image: image || '' }});
+                        }}
+                    }});
+                    return boats;
+                }}
             """)
 
             print(f"Found {len(entries)} potential participants for {tournament}")
 
             for entry in entries:
                 name = entry['name'].strip()
-                # Enhanced filtering: skip headers, anglers, duplicates, etc.
                 if not name or any(pattern in name for pattern in exclude_patterns):
                     print(f"Skipping invalid entry: {name}")
                     continue
-                # Additional validation (optional): e.g., if len(name) > 50 or name.islower(): continue
 
                 image_url = entry['image']
                 local_image = cache_boat_image(name, image_url)
@@ -379,7 +372,7 @@ def scrape_participants(tournament):
                     "boat": name,
                     "image": local_image
                 }
-                # Check for duplicates before saving
+
                 if participant not in boats:
                     save_participant_to_master(participant)
                     boats.append(participant)
@@ -397,41 +390,8 @@ def scrape_participants(tournament):
 
     cache["data"] = boats
     cache["last_time"] = now
-    return boats;
-            }}
-            """)
-
-            print(f"Found {len(entries)} potential participants for {tournament}")
-
-            for entry in entries:
-                name = entry['name']
-                # Filter out headers or non-participant data
-                if any(keyword in name.lower() for keyword in ["header", "title", "angler", "sponsor"]):
-                    continue
-                image_url = entry['image']
-                local_image = cache_boat_image(name, image_url)
-                participant = {
-                    "uid": generate_uid(tournament, name),
-                    "boat": name,
-                    "image": local_image
-                }
-                save_participant_to_master(participant)
-                boats.append(participant)
-
-            context.close()
-            browser.close()
-
-            print(f"✅ Scraped and cached {len(boats)} participants for {tournament}")
-
-    except Exception as e:
-        print(f"❌ Playwright error for {tournament}: {e}")
-        print(f"URL: {url}")
-        print(f"Config: {config}")
-        boats = []
-
-    cache["data"] = boats
-    cache["last_time"] = now
     return boats
+
 
 # demo events 
 def generate_demo_events(tournament):

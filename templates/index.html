@@ -11,12 +11,11 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body :class="themeClass">
-
   <div id="app">
     <header>
       {% raw %}
       <img v-if="logoSrc" :src="logoSrc" alt="Tournament Logo">
-      <h1>Reel Time Liveboard!!!</h1>
+      <h1>Reel Time Liveboard!!!!</h1>
       <div class="control-buttons">
         <a href="/leaderboard" class="button">Leaderboard</a>
         <a href="/participants" class="button">Participants</a>
@@ -31,7 +30,6 @@
 
     <div v-if="!isSleepMode">
       <div class="widgets">
-
         <div class="hooked-up">
           <div class="widget-header">
             <h3>Hooked Up</h3>
@@ -61,7 +59,6 @@
             <div v-if="activeScalesBoats.length === 0" class="no-scales">No boats headed to scales</div>
           </div>
         </div>
-
       </div>
 
       <div class="event-feed" ref="eventFeed">
@@ -106,164 +103,83 @@
     Version: {{ version }}
   </footer>
 
-  <script src="/static/main.js"></script>
   <script>
-new Vue({
-  el: '#app',
-  data: {
-    settings: {
-      tournament: 'Big Rock'
+  new Vue({
+    el: '#app',
+    data: {
+      settings: { tournament: 'Big Rock' },
+      allTournaments: {},
+      followedBoats: [],
+      radioPlaying: false,
+      isSleepMode: false,
+      displayedEvents: [],
+      activeHookedBoats: [],
+      activeScalesBoats: [],
+      galleryImages: [],
+      currentImageIndex: 0,
+      showVideoPopup: false,
+      videoBoat: '',
+      videoETA: '',
+      videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
+      showVideo: false,
+      error: null
     },
-    allTournaments: {},
-    followedBoats: [],
-    radioPlaying: false,
-    isSleepMode: false,
-    displayedEvents: [],
-    activeHookedBoats: [],
-    activeScalesBoats: [],
-    galleryImages: [],
-    currentImageIndex: 0,
-    showVideoPopup: false,
-    videoBoat: '',
-    videoETA: '',
-    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
-    showVideo: false,
-    error: null
-  },
-  computed: {
-    logoSrc() {
-      const t = this.settings?.tournament;
-      const tournament = this.allTournaments?.[t];
-      return tournament?.logo || '';
+    computed: {
+      logoSrc() {
+        const t = this.settings?.tournament;
+        const tournament = this.allTournaments?.[t];
+        return tournament?.logo || '';
+      },
+      themeClass() {
+        return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
+      }
     },
-    themeClass() {
-      return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
-    }
-  },
-  methods: {
-    async loadSettings() {
-      try {
-        const res = await fetch('/settings');
-        if (res.ok) {
-          const data = await res.json();
-          this.settings = { ...this.settings, ...data };
-          this.followedBoats = data.followed_boats || [];
+    methods: {
+      async loadSettings() {
+        try {
+          const res = await fetch('/settings');
+          if (res.ok) {
+            const data = await res.json();
+            this.settings = { ...this.settings, ...data };
+            this.followedBoats = data.followed_boats || [];
+          }
+        } catch (e) {
+          console.error('Failed to load settings:', e);
         }
-      } catch (e) {
-        console.error('Failed to load settings:', e);
-      }
-    },
-    async loadRemoteTournaments() {
-      try {
-        const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
-        if (res.ok) {
-          this.allTournaments = await res.json();
+      },
+      async loadRemoteTournaments() {
+        try {
+          const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          if (res.ok) {
+            this.allTournaments = await res.json();
+          }
+        } catch (e) {
+          console.error('Failed to load remote tournaments:', e);
         }
-      } catch (e) {
-        console.error('Failed to load remote tournaments:', e);
-      }
-    },
-    goToSettings() {
-      window.location.href = '/settings-page';
-    },
-    toggleRadio() {
-      this.radioPlaying = !this.radioPlaying;
-      const player = document.getElementById('radio-player');
-      if (this.radioPlaying) {
-        player.src = 'https://your-radio-stream-url'; // Replace with your stream
-        player.play();
-      } else {
-        player.pause();
-        player.src = '';
-      }
-    },
-<script>
-new Vue({
-  el: '#app',
-  data: {
-    participants: [],
-    followedBoats: [],
-    settings: {
-      tournament: 'Big Rock'
-    },
-    allTournaments: {},
-    error: null
-  },
-  computed: {
-    logoSrc() {
-      const t = this.settings?.tournament;
-      const tournament = this.allTournaments?.[t];
-      return tournament?.logo || '';
-    },
-    themeClass() {
-      return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
-    }
-  },
-  methods: {
-    async loadParticipants() {
-      try {
-        this.error = null;
-        const response = await fetch('/api/participants');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        this.participants = await response.json() || [];
-      } catch (e) {
-        this.error = 'Failed to load participants: ' + e.message;
-        this.participants = [];
-      }
-    },
-    async loadSettings() {
-      try {
-        const response = await fetch('/settings');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const settings = await response.json();
-        this.settings = { ...this.settings, ...settings };
-        this.followedBoats = settings.followed_boats || [];
-      } catch (e) {
-        console.error('Error loading settings:', e);
-      }
-    },
-    async loadRemoteTournaments() {
-      try {
-        const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
-        if (response.ok) {
-          this.allTournaments = await response.json();
+      },
+      goToSettings() {
+        window.location.href = '/settings-page';
+      },
+      toggleRadio() {
+        this.radioPlaying = !this.radioPlaying;
+        const player = document.getElementById('radio-player');
+        if (this.radioPlaying) {
+          player.src = 'https://your-radio-stream-url';
+          player.play();
+        } else {
+          player.pause();
+          player.src = '';
         }
-      } catch (e) {
-        console.error('Failed to fetch tournament list:', e);
+      },
+      handleImageError(event) {
+        event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
       }
     },
-    toggleFollow(name) {
-      if (this.followedBoats.includes(name)) {
-        this.followedBoats = this.followedBoats.filter(b => b !== name);
-      } else {
-        this.followedBoats.push(name);
-      }
-      this.saveSettings();
-    },
-    async saveSettings() {
-      try {
-        await fetch('/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ followed_boats: this.followedBoats })
-        });
-      } catch (e) {
-        console.error('Error saving settings:', e);
-      }
-    },
-    handleImageError(event) {
-      event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
-    },
-    goBack() {
-      window.location.href = '/';
+    mounted() {
+      this.loadSettings();
+      this.loadRemoteTournaments();
     }
-  },
-  mounted() {
-    this.loadSettings();
-    this.loadParticipants();
-    this.loadRemoteTournaments();
-  }
-});
-</script>
+  });
+  </script>
 </body>
 </html>

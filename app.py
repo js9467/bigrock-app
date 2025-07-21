@@ -63,7 +63,7 @@ def cache_boat_image(name, image_url):
     filename = f"{safe_name}{ext}"
     local_path = os.path.join("static", "images", "boats", filename)
     relative_path = f"/static/images/boats/{filename}"
-
+   
 
     if not os.path.exists(local_path):
         try:
@@ -571,7 +571,7 @@ def scrape_gallery():
 
 # routes
 
-
+        
 @app.route('/')
 def index():
     try:
@@ -584,12 +584,10 @@ def index():
 
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
     version = get_version()
-
-  return render_template("index.html", theme_class=theme_class, version=version, settings=settings)
     return render_template("index.html", theme_class=theme_class, version=version, settings=settings)
 
 
-
+    
 
 
 
@@ -789,7 +787,7 @@ def settings():
             return jsonify({'status': 'error', 'message': 'Invalid JSON'}), 400
         save_settings(settings_data)
         return jsonify({'status': 'success'})
-
+    
     current_settings = load_settings()
     return jsonify(current_settings)
 
@@ -904,6 +902,3 @@ if __name__ == '__main__':
 
 
 
-    import os
-    if os.environ.get("FLASK_RUN_FROM_CLI") != "false":
-        app.run(host='0.0.0.0', port=5000)

@@ -160,6 +160,10 @@
       goToSettings() {
         window.location.href = '/settings-page';
       },
+      toggleHookedUpMinimized() {
+  this.isHookedUpMinimized = !this.isHookedUpMinimized;
+},
+
       toggleRadio() {
         this.radioPlaying = !this.radioPlaying;
         const player = document.getElementById('radio-player');

@@ -46,7 +46,12 @@ def get_version():
 known_boat_images = {}
 
 def normalize_boat_name(name):
-    return name.strip().lower().replace(' ', '_').replace('-', '_')
+    return name.strip().lower()\
+        .replace(',', '')\
+        .replace(' ', '_')\
+        .replace('-', '_')\
+        .replace('__', '_')  # Collapse double underscores
+
 
 
 #cache

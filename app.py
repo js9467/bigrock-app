@@ -39,7 +39,12 @@ MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
 PARTICIPANTS_CACHE_FILE = 'participants.json'
-
+def get_version():
+    try:
+        version = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+        return version
+    except Exception:
+        return "dev"
 def normalize_boat_name(name):
     return name.strip().lower().replace(' ', '_').replace('-', '_')
 
@@ -603,14 +608,15 @@ def scrape_gallery():
         
 @app.route('/')
 def index():
+    # Load tournament settings
     try:
         with open("settings.json", "r") as f:
             settings = json.load(f)
             tournament = settings.get("tournament", "Big Rock")
-    except:
+    except Exception:
         tournament = "Big Rock"
 
-    # Static fallback logos
+    # Define static fallback logos
     logo_map = {
         "Big Rock": "/static/images/WHITELOGOBR.png",
         "Kids": "/static/images/WHITELOGOBR.png",
@@ -621,7 +627,7 @@ def index():
     logo_url = logo_map.get(tournament, "/static/images/WHITELOGOBR.png")
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
 
-    # Load Git version
+    # Load version from version.txt
     try:
         with open("version.txt") as f:
             version = f.read().strip()

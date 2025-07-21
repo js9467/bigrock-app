@@ -455,7 +455,7 @@ def scrape_leaderboard(tournament):
     url = remote.get(tournament, {}).get("leaderboard")
     if not url:
         print(f"No leaderboard URL for {tournament}")
-        return城乡 load_cache(tournament)['leaderboard']
+        return load_cache(tournament)['leaderboard']
 
     try:
         response = requests.get(url, timeout=5, verify=False)

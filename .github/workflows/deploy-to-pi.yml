@@ -2,7 +2,7 @@ name: Auto Deploy to Raspberry Pi
 
 on:
   push:
-    branches: [main]
+    branches: [main]  # Adjust if your main branch is named differently
 
 jobs:
   deploy:
@@ -14,7 +14,8 @@ jobs:
 
       - name: Generate version from Git commit count
         run: |
-          echo "1.$(git rev-list --count HEAD)" > version.txt
+          VERSION="1.$(git rev-list --count HEAD)"
+          echo "$VERSION" > version.txt
 
       - name: Get list of changed files
         id: changed
@@ -47,4 +48,5 @@ jobs:
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
           script: |
+            echo "Restarting bigrock.service..."
             sudo systemctl restart bigrock.service

@@ -1,0 +1,46 @@
+name: Auto Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [main]  # Change this if your main branch is named differently
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get list of changed files
+        id: changed
+        run: |
+          git fetch origin main --depth=2
+          FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          echo "$FILES" > files.txt
+          echo "files=$(paste -sd "," files.txt)" >> $GITHUB_OUTPUT
+          if grep -Ei '\.py$' files.txt; then
+            echo "py_changed=true" >> $GITHUB_ENV
+          else
+            echo "py_changed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Upload changed files to Raspberry Pi
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: 64.99.148.73
+          username: pi
+          key: ${{ secrets.PI_SSH_KEY }}
+          source: ${{ steps.changed.outputs.files }}
+          target: /home/pi/bigrock-app
+
+      - name: Restart service only if a .py file changed
+        if: env.py_changed == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 64.99.148.73
+          username: pi
+          key: ${{ secrets.PI_SSH_KEY }}
+          script: |
+            echo "Restarting bigrock.service..."
+            sudo systemctl restart bigrock.service

@@ -1,3 +1,4 @@
+
 new Vue({
   el: '#app',
   data: {
@@ -33,34 +34,36 @@ new Vue({
     showVideo: false,
     videoBoat: '',
     videoETA: '',
-    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5Q3--y1ayc6Evw'
+    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5Q3--y1ayc6Evw',
+    isHookedUpMinimized: false,
+    isScalesMinimized: false
   },
   computed: {
     logoSrc() {
-      const t = this.settings?.tournament;
-      const tournament = this.allTournaments?.[t];
-      return tournament?.logo || '';
+      const t = this.settings && this.settings.tournament;
+      const tournament = this.allTournaments && this.allTournaments[t];
+      return tournament && tournament.logo ? tournament.logo : '';
     },
     themeClass() {
       return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
     }
   },
   methods: {
-    async loadRemoteTournaments() {
-      try {
-        const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
-        if (response.ok) {
-          this.allTournaments = await response.json();
-        }
-      } catch (e) {
-        console.error('Failed to fetch tournament settings:', e);
-      }
+    loadRemoteTournaments() {
+      fetch('https://js9467.github.io/Brtourney/settings.json')
+        .then(response => response.json())
+        .then(data => {
+          this.allTournaments = data;
+        })
+        .catch(e => {
+          console.error('Failed to fetch tournament settings:', e);
+        });
     },
     loadSettings() {
       fetch('/settings')
         .then(res => res.json())
         .then(data => {
-          this.settings = { ...this.settings, ...data };
+          Object.assign(this.settings, data);
         });
     },
     loadEvents() {
@@ -71,12 +74,30 @@ new Vue({
           this.displayedEvents = data;
         });
     },
-    // other methods like toggleRadio, watchLive, handleImageError, etc.
+    toggleRadio() {
+      this.radioPlaying = !this.radioPlaying;
+      const radioPlayer = document.getElementById('radio-player');
+      if (this.radioPlaying) {
+        radioPlayer.src = "/static/vhf.mp3";
+        radioPlayer.play().catch(err => console.error("Radio play error:", err));
+      } else {
+        radioPlayer.pause();
+        radioPlayer.src = "";
+      }
+    },
+    goToSettings() {
+      window.location.href = '/settings-page';
+    },
+    toggleHookedUpMinimized() {
+      this.isHookedUpMinimized = !this.isHookedUpMinimized;
+    },
+    toggleScalesMinimized() {
+      this.isScalesMinimized = !this.isScalesMinimized;
+    }
   },
   mounted() {
     this.loadSettings();
     this.loadEvents();
-    this.loadRemoteTournaments(); // ← now included!
-    // optionally other initializers
+    this.loadRemoteTournaments();
   }
 });

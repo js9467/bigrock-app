@@ -127,7 +127,7 @@ def scrape_events(tournament):
 
             print(f"✅ Found {len(feed_items)} activity items for {tournament}")
 
-            for item in feed_items:
+        for item in feed_items:
     try:
         boat = item.query_selector("h4").inner_text().strip() if item.query_selector("h4") else "Unknown"
         paragraph = item.query_selector("p").inner_text().strip()

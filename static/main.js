@@ -466,8 +466,7 @@ async loadEvents() {
     } else {
         playStream(primaryStream, false);
     }
-}
-,
+},
     mounted() {
     console.log('Vue instance mounted for:', window.location.pathname);
     this.isLoading = true;

@@ -322,7 +322,7 @@ def scrape_participants(tournament):
             }
             """)
 
-                  for entry in entries:
+            for entry in entries:
             name = entry['name'].strip()
             image_url = entry['image']
 

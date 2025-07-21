@@ -337,7 +337,7 @@ def scrape_participants(tournament):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            context = browser.new_context(ignore_https_errors=True, user_agent="...")
+            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36", ignore_https_errors=True)
             page = context.new_page()
             page.goto(url, wait_until="networkidle", timeout=60000)
 

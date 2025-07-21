@@ -47,6 +47,22 @@ new Vue({
   },
   methods: {
     async loadRemoteTournaments() {
+    // ...
+  },
+  loadSettings() {
+    // ...
+  },
+  loadEvents() {
+    // ...
+  },
+  toggleRadio() {
+    // ...
+  },
+  goToSettings() {
+    window.location.href = '/settings-page';
+  }
+}
+    async loadRemoteTournaments() {
       try {
         const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
         if (response.ok) {

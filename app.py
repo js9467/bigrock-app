@@ -35,6 +35,14 @@ HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
 PARTICIPANTS_CACHE_FILE = 'participants.json'
 import subprocess
+def normalize_boat_name(name):
+    return (
+        name.strip().lower()
+        .replace(",", "")
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("__", "_")
+    )
 
 def get_version():
     try:

@@ -317,39 +317,62 @@ def scrape_participants(tournament):
 
     cache = PARTICIPANTS_CACHES[cache_key]
     now = time.time()
-    if now - cache["last_time"] < 300:
-        print(f"Using cached participants for {tournament}")
-        return cache["data"]
+    # Comment out for testing
+    # if now - cache["last_time"] < 300:
+    #     print(f"Using cached participants for {tournament}")
+    #     return cache["data"]
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            context = browser.new_context(ignore_https_errors=True, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+            context = browser.new_context(
+                ignore_https_errors=True,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+            )
             page = context.new_page()
             page.goto(url, wait_until="networkidle", timeout=60000)
-            try:
-                page.wait_for_selector("img", timeout=30000)
-            except:
-                print("No images found or selector timeout for participants.")
-            entries = page.evaluate("""
-            () => {
-                const boats = [];
-                document.querySelectorAll('img').forEach(img => {
-                  const src = img.getAttribute('src');
-                  const parent = img.closest('div');
-                  const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
-                  const name = nameTag?.textContent?.trim();
 
-                  if (src && name) {
-                    boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
-                  }
-                });
+            # Debugging: Log HTML snippet
+            html_content = page.content()
+            print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")
+
+            # Wait for participant-specific selector
+            try:
+                page.wait_for_selector(".participant, .angler, .boat, tbody, .entry-list", timeout=30000)
+            except:
+                print("No participant list found or selector timeout.")
+
+            # Use tournament-specific selectors if available
+            name_selector = config.get("name_selector", "h1, h2, h3, h4, h5, h6, span.name, div.name, p.name, .participant-name, .title, .angler")
+            image_selector = config.get("image_selector", "img")
+
+            entries = page.evaluate(f"""
+            () => {{
+                const boats = [];
+                const participantContainers = document.querySelectorAll('div, li, article, section');
+                participantContainers.forEach(container => {{
+                    const nameTag = container.querySelector('{name_selector}');
+                    const imgTag = container.querySelector('{image_selector}');
+                    const name = nameTag?.textContent?.trim();
+                    let image = imgTag?.getAttribute('src');
+                    if (image && !image.startsWith('http')) {{
+                        image = `https:${{image}}`;
+                    }}
+                    if (name) {{
+                        boats.push({{ name, image: image || '' }});
+                    }}
+                }});
                 return boats;
-            }
+            }}
             """)
+
+            print(f"Found {len(entries)} potential participants for {tournament}")
 
             for entry in entries:
                 name = entry['name']
+                # Filter out headers or non-participant data
+                if any(keyword in name.lower() for keyword in ["header", "title", "angler", "sponsor"]):
+                    continue
                 image_url = entry['image']
                 local_image = cache_boat_image(name, image_url)
                 participant = {
@@ -367,6 +390,8 @@ def scrape_participants(tournament):
 
     except Exception as e:
         print(f"❌ Playwright error for {tournament}: {e}")
+        print(f"URL: {url}")
+        print(f"Config: {config}")
         boats = []
 
     cache["data"] = boats

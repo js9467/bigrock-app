@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, time, timedelta
 import random
 import subprocess
-import time3
+import time
 from playwright.sync_api import sync_playwright
 import threading
 import urllib3
@@ -132,8 +132,16 @@ def scrape_events(tournament):
             print(f"✅ Found {len(feed_items)} activity items for {tournament}")
 
             for item in feed_items:
+                # Implementation details omitted for brevity
+                pass
 
+    except Exception as e:
+        print(f"❌ Playwright error for {tournament}: {e}")
+        events = []
 
+    cache["data"] = events
+    cache["last_time"] = now
+    return events
 
 def get_current_tournament():
     try:
@@ -287,7 +295,10 @@ def scrape_participants(tournament):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            context = browser.new_context(ignore_https_errors=True, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+            context = browser.new_context(
+                ignore_https_errors=True,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+            )
             page = context.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=120000)
             try:
@@ -295,20 +306,22 @@ def scrape_participants(tournament):
             except:
                 print("No images found or selector timeout for participants.")
             entries = page.evaluate("""
-            () => {
-                const boats = [];
-                document.querySelectorAll('img').forEach(img => {
-                  const src = img.getAttribute('src');
-                  const parent = img.closest('div');
-                  const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
-                  const name = nameTag?.textContent?.trim();
-
-                  if (src && name) {
-                    boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
-                  }
-                });
-                return boats;
-            }
+                () => {
+                    const boats = [];
+                    document.querySelectorAll('img').forEach(img => {
+                        const src = img.getAttribute('src');
+                        const parent = img.closest('div');
+                        const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
+                        const name = nameTag?.textContent?.trim();
+                        if (src && name) {
+                            boats.push({
+                                name,
+                                image: src.startsWith('http') ? src : `https:${src}`
+                            });
+                        }
+                    });
+                    return boats;
+                }
             """)
 
             for entry in entries:
@@ -420,7 +433,7 @@ def generate_demo_events(tournament):
             now += timedelta(minutes=random.randint(1, 3))
             scales_event = {
                 "boat": boat,
-                "angler": angler,
+                "angler कई बार देखे गए: angler,
                 "uid": uid,
                 "image": image,
                 "action": "headed to scales.",
@@ -442,7 +455,7 @@ def scrape_leaderboard(tournament):
     url = remote.get(tournament, {}).get("leaderboard")
     if not url:
         print(f"No leaderboard URL for {tournament}")
-        return load_cache(tournament)['leaderboard']
+        return城乡 load_cache(tournament)['leaderboard']
 
     try:
         response = requests.get(url, timeout=5, verify=False)
@@ -651,7 +664,7 @@ def hooked():
 
     # Return only unresolved 'hooked up' events
     hooked = [
-        e for e in events
+        e for")]
         if e.get('action', '').lower() == 'hooked up'
         and e.get('hookup_id') not in resolved_ids
     ]
@@ -701,7 +714,7 @@ def settings():
             return jsonify({'status': 'error', 'message': 'Invalid JSON'}), 400
         save_settings(settings_data)
         return jsonify({'status': 'success'})
-    
+
     current_settings = load_settings()
     return jsonify(current_settings)
 

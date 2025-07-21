@@ -336,77 +336,36 @@ def scrape_participants(tournament):
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36", ignore_https_errors=True)
+            browser = p.chromium.launch(headless=False)  # Turn off headless for testing
+            context = browser.new_context(
+                ignore_https_errors=True,
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/114.0.0.0 Safari/537.36"
+                )
+            )
             page = context.new_page()
-            page.goto(url, wait_until="networkidle", timeout=60000)
+            print(f"🌐 Navigating to: {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
-            html_content = page.content()
-            print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")
+            # Optional screenshot for debugging
+            safe_name = tournament.lower().replace(" ", "_").replace("/", "_")
+            page.screenshot(path=f"screenshots/{safe_name}_participants_debug.png")
 
-            try:
-                page.wait_for_selector(".participant, .boat, .entry-list", timeout=30000)
-            except:
-                print("No participant list found or selector timeout.")
+            # Your scraping logic goes here...
+            # (Keep your original scraping/parsing logic)
 
-            exclude_patterns = config.get("exclude_patterns", [",", "2025 Edisto Invitational Billfish"])
-            name_selector = config.get("name_selector", "h1, h2, h3, h4, h5, h6, span.name, div.name, p.name, .participant-name, .title, .boat-name")
-            image_selector = config.get("image_selector", "img")
-
-            entries = page.evaluate(f"""
-                () => {{
-                    const boats = [];
-                    const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
-                    participantContainers.forEach(container => {{
-                        const nameTag = container.querySelector('{name_selector}');
-                        const imgTag = container.querySelector('{image_selector}');
-                        const name = nameTag?.textContent?.trim();
-                        let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
-                        if (image && !image.startsWith('http')) {{
-                            image = `https:${{image}}`;
-                        }}
-                        if (name) {{
-                            boats.push({{ name, image: image || '' }});
-                        }}
-                    }});
-                    return boats;
-                }}
-            """)
-
-            print(f"Found {len(entries)} potential participants for {tournament}")
-
-            for entry in entries:
-                name = entry['name'].strip()
-                if not name or any(pattern in name for pattern in exclude_patterns):
-                    print(f"Skipping invalid entry: {name}")
-                    continue
-
-                image_url = entry['image']
-                local_image = cache_boat_image(name, image_url)
-                participant = {
-                    "uid": generate_uid(tournament, name),
-                    "boat": name,
-                    "image": local_image
-                }
-
-                if participant not in boats:
-                    save_participant_to_master(participant)
-                    boats.append(participant)
-
-            context.close()
             browser.close()
-
-            print(f"✅ Scraped and cached {len(boats)} valid boats for {tournament}")
 
     except Exception as e:
         print(f"❌ Playwright error for {tournament}: {e}")
-        print(f"URL: {url}")
-        print(f"Config: {config}")
-        boats = []
+        return []
 
-    cache["data"] = boats
     cache["last_time"] = now
+    cache["data"] = boats
     return boats
+
 
 
 # demo events 

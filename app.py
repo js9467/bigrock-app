@@ -112,50 +112,59 @@ def scrape_events(tournament):
     events = []
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36", ignore_https_errors=True)
-            page = context.new_page()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            ignore_https_errors=True
+        )
+        page = context.new_page()
 
-            print(f"🔗 Navigating to {url}")
-            page.goto(url, wait_until="domcontentloaded", timeout=120000)
-            try:
-                page.wait_for_selector("#feed-all article", timeout=60000)
-            except:
-                print("No activities found or selector timeout.")
-            feed_items = page.query_selector_all("#feed-all article")
+        print(f"🔗 Navigating to {url}")
+        page.goto(url, wait_until="domcontentloaded", timeout=120000)
+        try:
+            page.wait_for_selector("#feed-all article", timeout=60000)
+        except:
+            print("No activities found or selector timeout.")
+        feed_items = page.query_selector_all("#feed-all article")
 
-            print(f"✅ Found {len(feed_items)} activity items for {tournament}")
+        print(f"✅ Found {len(feed_items)} activity items for {tournament}")
 
         for item in feed_items:
-    try:
-        boat = item.query_selector("h4").inner_text().strip() if item.query_selector("h4") else "Unknown"
-        paragraph = item.query_selector("p").inner_text().strip()
-        timestamp = item.query_selector("p.pull-right").inner_text().strip() if item.query_selector("p.pull-right") else ""
+            try:
+                boat = item.query_selector("h4").inner_text().strip() if item.query_selector("h4") else "Unknown"
+                paragraph = item.query_selector("p").inner_text().strip()
+                timestamp = item.query_selector("p.pull-right").inner_text().strip() if item.query_selector("p.pull-right") else ""
 
-        # Ignore tournament headers and plain name-only rows
-        if (
-            paragraph.lower().startswith("2025") or
-            re.match(r"^[a-z ,.'-]+$", paragraph.lower())  # simple name-only line
-        ):
-            continue
+                # Ignore tournament headers and plain name-only rows
+                if (
+                    paragraph.lower().startswith("2025") or
+                    re.match(r"^[a-z ,.'-]+$", paragraph.lower())  # simple name-only line
+                ):
+                    continue
 
-        description = paragraph
+                description = paragraph
 
-        events.append({
-            "boat": boat,
-            "message": description,
-            "time": timestamp,
-            "action": description.lower(),
-            "image": "/static/images/placeholder.png"
-        })
-    except Exception as e:
-        print(f"⚠️ Failed to parse one item: {e}")
+                events.append({
+                    "boat": boat,
+                    "message": description,
+                    "time": timestamp,
+                    "action": description.lower(),
+                    "image": "/static/images/placeholder.png"
+                })
+            except Exception as e:
+                print(f"⚠️ Failed to parse one item: {e}")
 
+        context.close()
+        browser.close()
 
-    cache["data"] = events
-    cache["last_time"] = now
-    return events
+except Exception as e:
+    print(f"❌ Scrape failed for {tournament}: {e}")
+
+cache["data"] = events
+cache["last_time"] = now
+return events
+
 
 def get_current_tournament():
     try:

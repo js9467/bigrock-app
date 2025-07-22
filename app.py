@@ -281,7 +281,7 @@ def check_video_trigger():
     if settings['data_source'] == 'historical':
         events = load_historical_data(tournament).get('events', [])
     elif settings['data_source'] == 'demo':
-        events = generate_demo_events(tournament)
+        events = get_timed_demo_events(tournament)
     else:
         events = scrape_events(tournament)
     now = datetime.now()
@@ -399,103 +399,44 @@ def scrape_participants(tournament):
 
 
 # demo events 
-def generate_demo_events(tournament):
-    import random
-    from datetime import datetime, timedelta
+from dateutil import parser as dtparser
 
-    tournament_key = tournament.lower().replace(" ", "_")
-    events = []
-
-    # Load real participants for this tournament
-    participants = []
-    if os.path.exists(PARTICIPANTS_MASTER_FILE):
-        with open(PARTICIPANTS_MASTER_FILE, "r") as f:
-            all_participants = json.load(f)
-            participants = [
-                p for p in all_participants if p["uid"].startswith(tournament_key)
-            ]
-
-    if not participants:
-        print("⚠️ No participants found for demo mode.")
+def get_timed_demo_events(tournament):
+    """Replay historical events in real time based on their original timing."""
+    events = load_historical_data(tournament).get('events', [])
+    if not events:
+        print("⚠️ No historical events available for demo.")
         return []
 
     now = datetime.now()
-    timeline = []
 
-    random.shuffle(participants)
-    sample_boats = participants[:6]  # limit to 6 for less crowding
+    # Assume first event's timestamp defines T0
+    first_event_time = None
+    parsed_events = []
+    for e in events:
+        try:
+            # Example format: 'Jul 20 @ 03:14 PM'
+            e_time = datetime.strptime(e['time'], '%b %d @ %I:%M %p')
+            e_time = e_time.replace(year=now.year)  # use current year
+            if not first_event_time:
+                first_event_time = e_time
+            delta = (e_time - first_event_time).total_seconds()
+            parsed_events.append((delta, e))  # store offset from start
+        except Exception as err:
+            print(f"⛔ Timestamp parse failed: {e['time']}, error: {err}")
+            continue
 
-    for p in sample_boats:
-        angler = p.get("angler", p.get("boat", "Unknown Angler"))
-        boat = p.get("boat", "Unknown Boat")
-        uid = p.get("uid")
-        image = p.get("image", "/static/images/placeholder.png")
+    # Recalculate which events should be shown by "now"
+    start_time = datetime.now()
+    elapsed = (start_time - start_time.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
+    demo_time = elapsed  # seconds since midnight
 
-        # Random delay before this boat hooks up (30s–3min)
-        hookup_delay_sec = random.randint(30, 180)
-        now += timedelta(seconds=hookup_delay_sec)
+    live_events = [
+        e for delay, e in parsed_events if delay <= demo_time
+    ]
 
-        # Step 1: Hooked Up
-        hookup_event = {
-            "boat": boat,
-            "angler": angler,
-            "uid": uid,
-            "image": image,
-            "action": "hooked up.",
-            "message": f"{angler} hooked up.",
-            "time": now.strftime("Jul %d @ %I:%M %p"),
-            "hookup_id": f"{uid}_{now.strftime('%H%M%S')}"
-        }
-        timeline.append(hookup_event)
+    return sorted(live_events, key=lambda x: x['time'], reverse=True)
 
-        # Random delay before outcome (2–10 minutes)
-        resolution_delay = random.randint(2, 10)
-        now += timedelta(minutes=resolution_delay)
-
-        # Step 2: Follow-up result (weighted)
-        result_action, result_type = random.choices(
-            population=[
-                ("pulled hook.", "pulled"),
-                ("wrong species.", "wrong"),
-                ("released a blue marlin.", "released"),
-                ("released a white marlin.", "released"),
-                ("boated a blue marlin.", "boated"),
-                ("boated a white marlin.", "boated"),
-            ],
-            weights=[3, 2, 4, 4, 1, 2],
-            k=1
-        )[0]
-
-        resolution_event = {
-            "boat": boat,
-            "angler": angler,
-            "uid": uid,
-            "image": image,
-            "action": result_action,
-            "message": f"{angler} {result_action}",
-            "time": now.strftime("Jul %d @ %I:%M %p"),
-            "hookup_id": hookup_event["hookup_id"]
-        }
-        timeline.append(resolution_event)
-
-        # Step 3: Headed to Scales — only for boated blue marlin
-        if result_action == "boated a blue marlin.":
-            now += timedelta(minutes=random.randint(1, 3))
-            scales_event = {
-                "boat": boat,
-                "angler": angler,
-                "uid": uid,
-                "image": image,
-                "action": "headed to scales.",
-                "message": f"{angler} is headed to scales with a blue marlin.",
-                "time": now.strftime("Jul %d @ %I:%M %p"),
-                "hookup_id": hookup_event["hookup_id"],
-                "eta": (datetime.now() + timedelta(minutes=random.randint(5, 15))).strftime("%I:%M %p")
-            }
-            timeline.append(scales_event)
-
-    # Return in reverse chronological order (newest first)
-    return sorted(timeline, key=lambda x: datetime.strptime(x["time"], "Jul %d @ %I:%M %p"), reverse=True)
 
 
 

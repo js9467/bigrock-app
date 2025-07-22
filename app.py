@@ -761,10 +761,13 @@ def hooked():
     # Match any resolution keyword inside the action string
     resolution_keywords = ['released', 'boated', 'pulled hook', 'wrong species']
     resolved_ids = {
-        e['hookup_id'] for e in events
-        if e.get('hookup_id') and any(keyword in e.get('action', '').lower() for keyword in resolution_keywords)
-        and parser.parse(e['time'].replace("@", " ")) <= now
-    }
+    e['hookup_id'] for e in events
+    if e.get('hookup_id') and any(
+        keyword in e.get('action', '').lower() for keyword in 
+        ['released', 'boated', 'pulled hook', 'wrong species']
+    )
+    and parser.parse(e['time'].replace("@", " ")) <= now
+}
 
     # Only show 'hooked up' events that occurred and aren't resolved
     hooked = [

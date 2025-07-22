@@ -39,7 +39,8 @@
   </div>
   <div class="widget-content scrollable" :class="{ minimized: isHookedUpMinimized }">
     <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
-      <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+     <img :src="getBoatImage(hook.boat)" alt="Boat Image" class="boat-image" @error="handleImageError">
+
       <span>{{ hook.boat }}</span>
       <span>{{ formatTime(hook.time) }}</span>
     </div>

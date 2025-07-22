@@ -282,10 +282,16 @@ def inject_hooked_up_events(events, tournament_uid):
     boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
 
     injected = []
-    for event in events:
-        boat = event.get('boat', '').strip()
-        if not boat:
-            continue
+    valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
+
+for event in events:
+    boat = event.get('boat', '').strip()
+    action = event.get('action', '').strip().lower()
+
+    # ✅ Skip events that don't contain a valid action (no resolution context)
+    if not boat or not action or not any(keyword in action for keyword in valid_actions):
+        continue
+
 
         # Create hookup_id
         try:

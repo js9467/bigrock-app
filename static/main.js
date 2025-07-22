@@ -69,7 +69,8 @@ computed: {
 
         const enriched = {
           ...event,
-          image: event.image || this.boatImages[boat] || '/static/images/placeholder.png'
+          image: event.image || this.boatImages[boat.toLowerCase()] || '/static/images/placeholder.png'
+
         };
         results.push(enriched);
       }

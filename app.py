@@ -64,6 +64,7 @@ def cache_boat_image(name, image_url):
     filename = f"{safe_name}{ext}"
     local_path = os.path.join("static", "images", "boats", filename)
     relative_path = f"/static/images/boats/{filename}"
+   
 
     if not os.path.exists(local_path):
         try:
@@ -71,7 +72,7 @@ def cache_boat_image(name, image_url):
             if response.status_code == 200:
                 with open(local_path, "wb") as f:
                     f.write(response.content)
-                print(f"📥 Cached image for {name}")
+                print(f"Downloaded image for {name}")
             else:
                 print(f"⚠️ Failed to download image for {name}: HTTP {response.status_code}")
         except Exception as e:
@@ -79,9 +80,8 @@ def cache_boat_image(name, image_url):
             return "/static/images/placeholder.png"
 
     return relative_path
-    
 
-REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
+REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtournament/settings.json"
 REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
 
 def load_remote_settings(force=False):
@@ -237,38 +237,48 @@ def get_events_for_mode():
     else:  # 'current' or default
         return scrape_events(tournament)
 
-def add_hooked_up_events(events):
-    new_events = []
-    for event in events:
-        action_lower = event['action'].lower()
-        if 'released' in action_lower or 'boated' in action_lower:
-            try:
-                time_str = event['time'].replace("@", " ")
-                event_dt = parser.parse(time_str)
-                hooked_dt = event_dt - timedelta(minutes=30)
-                hooked_time = hooked_dt.strftime("%I:%M %p")
-                hooked_event = {
-                    "boat": event["boat"],
-                    "message": f"{event['boat']} is Hooked Up!",
-                    "time": hooked_time,
-                    "action": "hooked up",
-                    "image": event["image"]
-                }
-                new_events.append(hooked_event)
-            except Exception as e:
-                print(f"Error adding hooked up for {event}: {e}")
+def enhance_with_hookups(events):
+    from dateutil import parser
+    from datetime import timedelta, datetime
+    import random
 
-    all_events = events + new_events
-
-    def get_dt(e):
+    parsed_events = []
+    for e in events:
         try:
-            return parser.parse(e['time'].replace("@", " "))
+            dt = parser.parse(e['time'].replace("@", " "))
+            parsed_events.append((dt, e))
         except:
-            return datetime.min
+            continue
 
-    all_events.sort(key=get_dt, reverse=True)
+    parsed_events.sort(key=lambda x: x[0])  # ascending
 
-    return all_events
+    enhanced = []
+    hookup_counter = 0
+    resolved_actions = ['released', 'boated', 'pulled hook', 'wrong species']
+
+    for dt, e in parsed_events:
+        action_lower = e.get('action', '').lower()
+        if any(ra in action_lower for ra in resolved_actions):
+            # Generate preceding hookup
+            delta_min = random.randint(10, 60)
+            hookup_dt = dt - timedelta(minutes=delta_min)
+            hookup_time = hookup_dt.strftime('%I:%M %p')
+            hookup_message = "Hooked Up"
+            hookup_event = {
+                "boat": e['boat'],
+                "message": hookup_message,
+                "time": hookup_time,
+                "action": "hooked up",
+                "image": e['image']
+            }
+            hookup_id = f"demo_{hookup_counter}"
+            hookup_event['hookup_id'] = hookup_id
+            e['hookup_id'] = hookup_id
+            enhanced.append(hookup_event)
+            hookup_counter += 1
+        enhanced.append(e)
+
+    return enhanced
 
 def save_settings(settings):
     old_settings = load_settings()
@@ -288,8 +298,10 @@ def save_settings(settings):
                     demo_data = json.load(f)
             except Exception as e:
                 print(f"Error loading demo data: {e}")
+        raw_events = scrape_events(tournament)
+        enhanced_events = enhance_with_hookups(raw_events)
         demo_data[tournament] = {
-            'events': add_hooked_up_events(scrape_events(tournament)),
+            'events': enhanced_events,
             'leaderboard': scrape_leaderboard(tournament)
         }
         try:
@@ -343,9 +355,13 @@ def load_demo_data(tournament):
         try:
             with open(DEMO_DATA_FILE, 'r') as f:
                 data = json.load(f)
-                return data.get(tournament, {'events': [], 'leaderboard': []})
+                demo_data = data.get(tournament, {'events': [], 'leaderboard': []})
+                print(f"✅ Loaded demo data for {tournament}: {len(demo_data['events'])} events")
+                return demo_data
         except Exception as e:
-            print(f"Error loading demo data: {e}")
+            print(f"❌ Error loading demo data for {tournament}: {e}")
+    else:
+        print(f"⚠️ Demo data file {DEMO_DATA_FILE} does not exist")
     return {'events': [], 'leaderboard': []}
 
 def check_internet():
@@ -398,6 +414,8 @@ def scrape_participants(tournament):
 
     cache = PARTICIPANTS_CACHES[cache_key]
     now = time.time()
+    if cache["data"] and now - cache["last_time"] < 300:
+        return cache["data"]
 
     try:
         with sync_playwright() as p:
@@ -428,7 +446,7 @@ def scrape_participants(tournament):
                         const name = nameTag?.textContent?.trim();
                         let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
                         if (image && !image.startsWith('http')) {{
-                            image = `https:${{image}}`;
+                            image = `https:${image}`;
                         }}
                         if (name) {{
                             boats.push({{ name, image: image || '' }});
@@ -476,6 +494,7 @@ def scrape_participants(tournament):
 
 from dateutil import parser
 
+from dateutil import parser
 from datetime import datetime
 
 def filter_demo_events(events):
@@ -502,7 +521,7 @@ def filter_demo_events(events):
         filtered.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")), reverse=True)
     except Exception as e:
         print(f"⚠️ Failed to sort events: {e}")
-        # Fallback to unsorted filtered events to avoid crashing
+        # Fallback to unsorted
         pass
     
     # Add unparsable events at the end (newest first assumption)
@@ -548,7 +567,7 @@ def scrape_leaderboard(tournament):
                 parts = text.split(',')
                 if len(parts) >= 2:
                     boat = parts[0].replace('1.', '').replace('2.', '').replace('3.', '').strip()
-                    points = parts[-1].strip() if 'Points' in parts[-1] or 'lb' in parts[-1] else text.split(' ')[-1].strip()
+                    points = parts[-1].strip() if 'Points' in parts[-1] or 'lb' in parts[-1] else text.split(' ') [-1].strip()
                     leaderboard.append({'boat': boat, 'points': points})
         if not leaderboard:
             print(f"No leaderboard found for {tournament}, using cache")
@@ -561,7 +580,6 @@ def scrape_leaderboard(tournament):
     except Exception as e:
         print(f"Scraping error (leaderboard, {tournament}): {e}")
         return load_cache(tournament)['leaderboard']
-
 # scrape gallery 
 
 def scrape_gallery():
@@ -593,7 +611,6 @@ def scrape_gallery():
         print(f"Scraping error (gallery): {e}")
         settings = load_settings()
         return load_cache(settings['tournament'])['gallery']
-
 
 
 # routes
@@ -643,7 +660,7 @@ def get_participants():
 
     prefix = tournament.lower().replace(" ", "_")
 
-    # Load from master file
+    # 🟢 Load from master file
     all_participants = []
     if os.path.exists(PARTICIPANTS_MASTER_FILE):
         try:
@@ -654,7 +671,7 @@ def get_participants():
 
     filtered = [p for p in all_participants if p['uid'].startswith(prefix)]
 
-    # If nothing cached, scrape and retry
+    # 🟡 If nothing cached, scrape and retry
     if not filtered:
         print(f"⚠️ No participants found for '{prefix}', scraping...")
         scrape_participants(tournament)
@@ -743,19 +760,19 @@ from datetime import datetime
 def hooked():
     events = get_events_for_mode()
 
+    resolved_actions = ['released', 'boated', 'pulled hook', 'wrong species']
+
     # Build a set of resolved hookup_ids
-    resolved = {
+    resolved_ids = {
         e['hookup_id'] for e in events
-        if e.get('hookup_id') and e.get('action').lower() in [
-            'released', 'boated', 'pulled hook', 'wrong species'
-        ]
+        if e.get('hookup_id') and any(ra in e.get('action', '').lower() for ra in resolved_actions)
     }
 
     # Return only unresolved 'hooked up' events
     hooked = [
         e for e in events
-        if e.get('action').lower() == 'hooked up'
-        and e.get('hookup_id') not in resolved
+        if e.get('action', '').lower() == 'hooked up'
+        and e.get('hookup_id') not in resolved_ids
     ]
 
     return jsonify(hooked)
@@ -770,7 +787,7 @@ def scales():
         events = get_events_for_mode()
         scales_events = [
             event for event in events
-            if isinstance(event, dict) and event.get('action').lower() == 'headed to scales'
+            if isinstance(event, dict) and event.get('action', '').lower() == 'headed to scales'
         ]
         print(f"✅ Returning {len(scales_events)} scales events for {get_current_tournament()}")
         return jsonify(scales_events)
@@ -864,7 +881,7 @@ def bluetooth():
         mac = request.args.get('mac')
         try:
             # Run the pairing and trust commands
-            commands = f"agent on\n default-agent\n pair {mac}\n trust {mac}\n connect {mac}\n"
+            commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
             subprocess.check_output(['bluetoothctl'], input=commands.encode(), stderr=subprocess.STDOUT)
 
             # Set the Bluetooth speaker as default in PipeWire

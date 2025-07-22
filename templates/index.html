@@ -32,21 +32,19 @@
     <div v-if="!isSleepMode">
       <div class="widgets">
 
-<div class="hooked-up">
+ <div class="hooked-up">
   <div class="widget-header">
     <h3>Hooked Up</h3>
     <button @click="toggleHookedUpMinimized">{{ isHookedUpMinimized ? '+' : '-' }}</button>
   </div>
   <div class="widget-content scrollable" :class="{ minimized: isHookedUpMinimized }">
-  <div v-for="hook in enrichedHookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
-  <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
-  <span>{{ hook.boat }}</span>
-  <span>{{ formatTime(hook.time) }}</span>
-</div>
-
+    <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
+      <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+      <span>{{ hook.boat }}</span>
+      <span>{{ formatTime(hook.time) }}</span>
+    </div>
     <div v-if="hookedBoats.length === 0" class="no-hookups">No boats hooked up</div>
   </div>
-</div>
 
 
 

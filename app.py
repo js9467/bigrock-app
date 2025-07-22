@@ -428,35 +428,53 @@ def scrape_participants(tournament):
 
 from dateutil import parser
 
+from dateutil import parser
+from datetime import datetime
+
 def filter_demo_events(events):
     current_time = datetime.now().time()
     filtered = []
+    unparsable_events = []
+    
     for event in events:
+        if not isinstance(event, dict) or 'time' not in event or 'action' not in event:
+            print(f"⚠️ Invalid event structure: {event}")
+            continue
         try:
             event_dt = parser.parse(event['time'])
             event_time = event_dt.time()
             if event_time <= current_time:
                 filtered.append(event)
         except Exception as e:
-            print(f"⚠️ Failed to parse time '{event.get('time', '')}': {e}")
-            # Include if parse fails
-            filtered.append(event)
-    # Sort by full parsed datetime descending (preserves original chronological order, newest first)
-    filtered.sort(key=lambda e: parser.parse(e['time']), reverse=True)
+            print(f"⚠️ Failed to parse time '{event.get('time', '')}' in event {event}: {e}")
+            unparsable_events.append(event)
+    
+    # Include unparsable events to avoid data loss, but sort only parsable ones
+    try:
+        filtered.sort(key=lambda e: parser.parse(e['time']), reverse=True)
+    except Exception as e:
+        print(f"⚠️ Failed to sort events: {e}")
+        # Fallback to unsorted filtered events to avoid crashing
+        pass
+    
+    # Add unparsable events at the end (newest first assumption)
+    filtered.extend(unparsable_events)
+    print(f"✅ Filtered {len(filtered)} demos, including {len(unparsable_events)} unparsable events")
     return filtered
 
-def get_events_for_mode():
-    settings = load_settings()
-    data_source = settings.get('data_source', 'current')
-    tournament = settings.get('tournament', 'Big Rock')
-    if data_source == 'historical':
-        return load_historical_data(tournament).get('events', [])
-    elif data_source == 'demo':
-        demo_data = load_demo_data(tournament)
-        all_events = demo_data.get('events', [])
-        return filter_demo_events(all_events)
+def load_demo_data(tournament):
+    if os.path.exists(DEMO_DATA_FILE):
+        try:
+            with open(DEMO_DATA_FILE, 'r') as f:
+                data = json.load(f)
+                demo_data = data.get(tournament, {'events': [], 'leaderboard': []})
+                print(f"✅ Loaded demo data for {tournament}: {len(demo_data['events'])} events")
+                return demo_data
+        except Exception as e:
+            print(f"❌ Error loading demo data for {tournament}: {e}")
     else:
-        return scrape_events(tournament)
+        print(f"⚠️ Demo data file {DEMO_DATA_FILE} does not exist")
+    return {'events': [], 'leaderboard': []}
 
 
 # scrape leaderboard 
@@ -692,12 +710,17 @@ def hooked():
 
 @app.route('/scales')
 def scales():
-    events = get_events_for_mode()
-
-    return jsonify([
-        event for event in events
-        if event.get('action', '').lower() == 'headed to scales'
-    ])
+    try:
+        events = get_events_for_mode()
+        scales_events = [
+            event for event in events
+            if isinstance(event, dict) and event.get('action', '').lower() == 'headed to scales'
+        ]
+        print(f"✅ Returning {len(scales_events)} scales events for {get_current_tournament()}")
+        return jsonify(scales_events)
+    except Exception as e:
+        print(f"❌ Error in /scales endpoint: {e}")
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 
 @app.route('/api/events')

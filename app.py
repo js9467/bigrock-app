@@ -268,48 +268,57 @@ def save_settings(settings):
 
 from copy import deepcopy
 
-def inject_hooked_up_events(events):
+import json
+import random
+from datetime import datetime, timedelta
+from copy import deepcopy
+
+def inject_hooked_up_events(events, tournament_uid):
+    # Load participants master data
+    with open('participants_master.json') as f:
+        participants = json.load(f)
+
+    # Map for quick lookup
+    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
+
     injected = []
     for event in events:
-        if 'boat' not in event or 'time' not in event:
+        boat = event.get('boat', '').strip()
+        if not boat:
             continue
 
+        # Create hookup_id
         try:
-            event_dt = parser.parse(event['time'].replace("@", " "))
+            event_dt = datetime.strptime(event['time'], "Jun %d @%I:%M %p")  # Adjust format if needed
         except:
-            continue
+            event_dt = datetime.now()
 
-        # Create a unique ID to link the "hooked up" and final event
-        hookup_id = f"{normalize_boat_name(event['boat'])}_{event_dt.timestamp()}"
-
-        # Injected hooked up event (10–30 min before)
         delta = timedelta(minutes=random.randint(10, 30))
-        hooked_time = (event_dt - delta).strftime('%b %d @%I:%M %p')
+        hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
+        hookup_id = f"{boat.lower().replace(' ', '_')}_{int((event_dt - delta).timestamp())}"
 
+        # Lookup image from participants_master
+        image = boat_image_map.get(boat.upper(), "/static/images/placeholder.png")
 
+        # Create hooked-up event
         hooked_event = {
-            "boat": event['boat'],
-            "message": f"{event['boat']} is Hooked Up!",
+            "boat": boat,
+            "message": f"{boat} is Hooked Up!",
             "time": hooked_time,
             "action": "hooked up",
             "hookup_id": hookup_id,
-            "image": "/static/images/placeholder.png"
+            "image": image
         }
 
-        # Assign hookup_id to the real event too
-        event_copy = deepcopy(event)
-        event_copy['hookup_id'] = hookup_id
+        # Also assign hookup_id to actual event
+        real_event = deepcopy(event)
+        real_event['hookup_id'] = hookup_id
 
         injected.append(hooked_event)
-        injected.append(event_copy)
-
-    # Sort by timestamp ascending
-    try:
-        injected.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")))
-    except:
-        pass
+        injected.append(real_event)
 
     return injected
+
 
 def load_cache(tournament):
     if os.path.exists(CACHE_FILE):

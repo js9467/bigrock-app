@@ -68,9 +68,8 @@ computed: {
           const boatKey = boat?.toLowerCase();
           const enriched = {
             ...event,
-            image: (!event.image || event.image.includes('placeholder'))
-              ? this.boatImages[boatKey] || '/static/images/placeholder.png'
-              : event.image
+            image: this.boatImages[boatKey] || '/static/images/placeholder.png'
+
           };
 
           results.push(enriched);

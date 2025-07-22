@@ -33,44 +33,6 @@ SETTINGS_FILE = 'settings.json'
 MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
-from datetime import datetime
-from dateutil import parser as dtparser
-
-DEMO_EVENTS_CACHE = {}
-
-def get_timed_demo_events(tournament):
-    cache_key = tournament.lower().replace(" ", "_")
-    now = datetime.now()
-
-    # Cache parsed events
-    if cache_key in DEMO_EVENTS_CACHE:
-        parsed_events = DEMO_EVENTS_CACHE[cache_key]
-    else:
-        events = load_historical_data(tournament).get('events', [])
-        parsed_events = []
-
-        for i, e in enumerate(events):
-            try:
-                parsed_time = datetime.strptime(e['time'], '%b %d @ %I:%M %p')
-                parsed_time = parsed_time.replace(year=now.year)
-                e['parsed_time'] = parsed_time
-                e['action'] = e.get('action', '').lower()
-                if not e.get('hookup_id'):
-                    e['hookup_id'] = f"{normalize_boat_name(e['boat'])}_{i:03d}"
-                parsed_events.append(e)
-            except Exception as err:
-                print(f"⛔ Failed to parse event time: {e.get('time')}")
-                continue
-
-        # Sort oldest to newest
-        parsed_events.sort(key=lambda x: x['parsed_time'])
-        DEMO_EVENTS_CACHE[cache_key] = parsed_events
-
-    # Filter to only events that would have occurred by now
-    current_time = now.replace(year=parsed_events[0]['parsed_time'].year)
-    return [e for e in parsed_events if e['parsed_time'].time() <= current_time.time()]
-
-
 PARTICIPANTS_CACHE_FILE = 'participants.json'
 import subprocess
 
@@ -93,21 +55,6 @@ def normalize_boat_name(name):
 
 
 #cache
-def get_cached_demo_events(tournament):
-    now = time.time()
-    cache_key = tournament.lower().replace(" ", "_")
-
-    # Regenerate if over 5 min old
-    if (cache_key not in DEMO_EVENTS_CACHE) or (now - DEMO_EVENTS_CACHE[cache_key]['last_generated'] > 300):
-        print(f"🔁 Generating new demo events for {tournament}")
-        demo_events = get_timed_demo_events(tournament)
-        DEMO_EVENTS_CACHE[cache_key] = {
-            "events": demo_events,
-            "last_generated": now
-        }
-
-    return DEMO_EVENTS_CACHE[cache_key]['events']
-
 def cache_boat_image(name, image_url):
     """Download and cache image to static/images/boats/, return local path."""
     safe_name = normalize_boat_name(name)
@@ -334,7 +281,7 @@ def check_video_trigger():
     if settings['data_source'] == 'historical':
         events = load_historical_data(tournament).get('events', [])
     elif settings['data_source'] == 'demo':
-        events = get_cached_demo_events(tournament)
+        events = generate_demo_events(tournament)
     else:
         events = scrape_events(tournament)
     now = datetime.now()
@@ -449,6 +396,106 @@ def scrape_participants(tournament):
     cache["data"] = boats
     cache["last_time"] = now
     return boats
+
+
+# demo events 
+def generate_demo_events(tournament):
+    import random
+    from datetime import datetime, timedelta
+
+    tournament_key = tournament.lower().replace(" ", "_")
+    events = []
+
+    # Load real participants for this tournament
+    participants = []
+    if os.path.exists(PARTICIPANTS_MASTER_FILE):
+        with open(PARTICIPANTS_MASTER_FILE, "r") as f:
+            all_participants = json.load(f)
+            participants = [
+                p for p in all_participants if p["uid"].startswith(tournament_key)
+            ]
+
+    if not participants:
+        print("⚠️ No participants found for demo mode.")
+        return []
+
+    now = datetime.now()
+    timeline = []
+
+    random.shuffle(participants)
+    sample_boats = participants[:6]  # limit to 6 for less crowding
+
+    for p in sample_boats:
+        angler = p.get("angler", p.get("boat", "Unknown Angler"))
+        boat = p.get("boat", "Unknown Boat")
+        uid = p.get("uid")
+        image = p.get("image", "/static/images/placeholder.png")
+
+        # Random delay before this boat hooks up (30s–3min)
+        hookup_delay_sec = random.randint(30, 180)
+        now += timedelta(seconds=hookup_delay_sec)
+
+        # Step 1: Hooked Up
+        hookup_event = {
+            "boat": boat,
+            "angler": angler,
+            "uid": uid,
+            "image": image,
+            "action": "hooked up.",
+            "message": f"{angler} hooked up.",
+            "time": now.strftime("Jul %d @ %I:%M %p"),
+            "hookup_id": f"{uid}_{now.strftime('%H%M%S')}"
+        }
+        timeline.append(hookup_event)
+
+        # Random delay before outcome (2–10 minutes)
+        resolution_delay = random.randint(2, 10)
+        now += timedelta(minutes=resolution_delay)
+
+        # Step 2: Follow-up result (weighted)
+        result_action, result_type = random.choices(
+            population=[
+                ("pulled hook.", "pulled"),
+                ("wrong species.", "wrong"),
+                ("released a blue marlin.", "released"),
+                ("released a white marlin.", "released"),
+                ("boated a blue marlin.", "boated"),
+                ("boated a white marlin.", "boated"),
+            ],
+            weights=[3, 2, 4, 4, 1, 2],
+            k=1
+        )[0]
+
+        resolution_event = {
+            "boat": boat,
+            "angler": angler,
+            "uid": uid,
+            "image": image,
+            "action": result_action,
+            "message": f"{angler} {result_action}",
+            "time": now.strftime("Jul %d @ %I:%M %p"),
+            "hookup_id": hookup_event["hookup_id"]
+        }
+        timeline.append(resolution_event)
+
+        # Step 3: Headed to Scales — only for boated blue marlin
+        if result_action == "boated a blue marlin.":
+            now += timedelta(minutes=random.randint(1, 3))
+            scales_event = {
+                "boat": boat,
+                "angler": angler,
+                "uid": uid,
+                "image": image,
+                "action": "headed to scales.",
+                "message": f"{angler} is headed to scales with a blue marlin.",
+                "time": now.strftime("Jul %d @ %I:%M %p"),
+                "hookup_id": hookup_event["hookup_id"],
+                "eta": (datetime.now() + timedelta(minutes=random.randint(5, 15))).strftime("%I:%M %p")
+            }
+            timeline.append(scales_event)
+
+    # Return in reverse chronological order (newest first)
+    return sorted(timeline, key=lambda x: datetime.strptime(x["time"], "Jul %d @ %I:%M %p"), reverse=True)
 
 
 
@@ -670,7 +717,7 @@ def hooked():
     if settings['data_source'] == 'historical':
         events = load_historical_data(tournament).get('events', [])
     elif settings['data_source'] == 'demo':
-        eevents = get_cached_demo_events(tournament)
+        events = generate_demo_events(tournament)
     else:
         events = scrape_events(tournament)
 
@@ -852,6 +899,3 @@ def refresh_data_loop(interval=600):  # 10 minutes
 # Example run
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
-
-
-

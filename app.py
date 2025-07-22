@@ -713,6 +713,11 @@ def events():
         events = get_events_for_mode()
         settings = load_settings()
         tournament = settings.get("tournament", "Big Rock")
+
+        # 🔁 Inject hookup IDs if not in demo mode
+        if settings.get("data_source") != "demo":
+            events = inject_hooked_up_events(events)
+
         prefix = tournament.lower().replace(" ", "_")
 
         if os.path.exists(PARTICIPANTS_MASTER_FILE):
@@ -737,6 +742,7 @@ def events():
     except Exception as e:
         print(f"❌ Error in /events route: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
 
 @app.route('/leaderboard')
 def leaderboard():

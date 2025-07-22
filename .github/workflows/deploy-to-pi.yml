@@ -16,9 +16,9 @@ jobs:
           fetch-tags: true  # Ensures we get all tags
 
       - name: Generate dynamic version based on commit count
-  run: |
-    VERSION="2.$(git rev-list --count HEAD)"
-    echo "$VERSION" > version.txt
+        run: |
+        VERSION="2.$(git rev-list --count HEAD)"
+        echo "$VERSION" > version.txt
 
 
       - name: Get list of changed files

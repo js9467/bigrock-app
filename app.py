@@ -237,27 +237,37 @@ def get_events_for_mode():
     else:  # 'current' or default
         return scrape_events(tournament)
 
-def save_settings(settings):
-    old_settings = load_settings()
-    try:
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=4)
-    except Exception as e:
-        print(f"Error saving settings: {e}")
-    
-    # Check if switching to demo mode or changing tournament in demo mode
-if settings_data.get('data_source') == 'demo' and (
-    old_settings.get('data_source') != 'demo' or
-    old_settings.get('tournament') != settings_data.get('tournament')
-):
-    tournament = settings_data.get('tournament')
-    demo_data = {}
+def save_settings(settings_data):
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings_data, f, indent=4)
 
-    try:
-        with open(DEMO_DATA_FILE, 'r') as f:
-            demo_data = json.load(f)
-    except Exception as e:
-        print(f"Error loading demo data: {e}")
+    old_settings = load_settings()
+    # ✅ Trigger demo data generation on first entry or tournament change
+    if settings_data.get('data_source') == 'demo' and (
+        old_settings.get('data_source') != 'demo' or
+        old_settings.get('tournament') != settings_data.get('tournament')
+    ):
+        tournament = settings_data.get('tournament')
+        demo_data = {}
+
+        try:
+            with open(DEMO_DATA_FILE, 'r') as f:
+                demo_data = json.load(f)
+        except Exception as e:
+            print(f"Error loading demo data: {e}")
+
+        demo_data[tournament] = {
+            'events': inject_hooked_up_events(scrape_events(tournament), tournament),
+            'leaderboard': scrape_leaderboard(tournament)
+        }
+
+        try:
+            with open(DEMO_DATA_FILE, 'w') as f:
+                json.dump(demo_data, f, indent=4)
+            print(f"✅ Cached demo data for {tournament}")
+        except Exception as e:
+            print(f"Error writing demo data file: {e}")
+
 
     demo_data[tournament] = {
         'events': inject_hooked_up_events(scrape_events(tournament), tournament),

@@ -237,24 +237,26 @@ def get_events_for_mode():
     else:  # 'current' or default
         return scrape_events(tournament)
 
-def save_settings(settings_data):
+def save_settings(settings):
     with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings_data, f, indent=4)
+        json.dump(settings, f, indent=4)
 
-    old_settings = load_settings()
-    # ✅ Trigger demo data generation on first entry or tournament change
-    print("✅ ENTERED DEMO DATA GENERATION BLOCK")
-
-    if settings_data.get('data_source') == 'demo' and (
-        old_settings.get('data_source') != 'demo' or
-        old_settings.get('tournament') != settings_data.get('tournament')
-    ):
-        tournament = settings_data.get('tournament')
-        demo_data = {}
-
+    if settings.get('data_source') == 'demo':
+        tournament = settings.get('tournament')  # <-- ✅ Define it here
         try:
             with open(DEMO_DATA_FILE, 'r') as f:
                 demo_data = json.load(f)
+        except:
+            demo_data = {}
+
+        demo_data[tournament] = {
+            'events': inject_hooked_up_events(scrape_events(tournament), tournament),
+            'leaderboard': scrape_leaderboard(tournament)
+        }
+
+        with open(DEMO_DATA_FILE, 'w') as f:
+            json.dump(demo_data, f, indent=4)
+
         except Exception as e:
             print(f"Error loading demo data: {e}")
 

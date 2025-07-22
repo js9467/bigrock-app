@@ -243,6 +243,8 @@ def save_settings(settings_data):
 
     old_settings = load_settings()
     # ✅ Trigger demo data generation on first entry or tournament change
+    print("✅ ENTERED DEMO DATA GENERATION BLOCK")
+
     if settings_data.get('data_source') == 'demo' and (
         old_settings.get('data_source') != 'demo' or
         old_settings.get('tournament') != settings_data.get('tournament')

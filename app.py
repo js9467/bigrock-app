@@ -246,7 +246,7 @@ def save_settings(settings):
         print(f"Error saving settings: {e}")
     
     # Check if switching to demo mode or changing tournament in demo mode
-    if settings.get('data_source') == 'demo' and (
+if settings.get('data_source') == 'demo' and (
     old_settings.get('data_source') != 'demo' or
     old_settings.get('tournament') != settings.get('tournament')
 ):

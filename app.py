@@ -244,22 +244,39 @@ def save_settings(settings):
             json.dump(settings, f, indent=4)
     except Exception as e:
         print(f"Error saving settings: {e}")
-    
-    # Check if switching to demo mode or changing tournament in demo mode
-    if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
-    tournament = settings.get('tournament', 'Big Rock')
-    tournament_uid = tournament.lower().replace(" ", "_")
+        return  # ⬅ optionally early return on error
 
-    scraped = scrape_events(tournament)
-    injected = inject_hooked_up_events(scraped, tournament_uid)
+    # ✅ Now aligned correctly
+    if settings.get('data_source') == 'demo' and (
+        old_settings.get('data_source') != 'demo' or
+        old_settings.get('tournament') != settings.get('tournament')
+    ):
+        tournament = settings.get('tournament', 'Big Rock')
+        tournament_uid = tournament.lower().replace(" ", "_")
 
-    demo_data = {}
-    if os.path.exists(DEMO_DATA_FILE):
+        scraped = scrape_events(tournament)
+        injected = inject_hooked_up_events(scraped, tournament_uid)
+
+        demo_data = {}
+        if os.path.exists(DEMO_DATA_FILE):
+            try:
+                with open(DEMO_DATA_FILE, 'r') as f:
+                    demo_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading demo data: {e}")
+
+        demo_data[tournament] = {
+            'events': injected,
+            'leaderboard': scrape_leaderboard(tournament)
+        }
+
         try:
-            with open(DEMO_DATA_FILE, 'r') as f:
-                demo_data = json.load(f)
+            with open(DEMO_DATA_FILE, 'w') as f:
+                json.dump(demo_data, f, indent=4)
+            print(f"✅ Cached demo data for {tournament}")
         except Exception as e:
-            print(f"Error loading demo data: {e}")
+            print(f"Error saving demo data: {e}")
+
 
     demo_data[tournament] = {
         'events': injected,

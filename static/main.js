@@ -535,7 +535,7 @@ async loadEvents() {
     },
 mounted() {
     console.log('Vue instance mounted for:', window.location.pathname);
-    
+    window.app = this;
     // Load tournament settings first
     fetch("https://js9467.github.io/Brtourney/settings.json")
         .then(res => res.json())

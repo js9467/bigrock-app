@@ -69,7 +69,8 @@ computed: {
 
         const enriched = {
           ...event,
-          image: event.image || this.boatImages[boat.toLowerCase()] || '/static/images/placeholder.png'
+          image: event.image || this.boatImages[boat?.toLowerCase()] || '/static/images/placeholder.png'
+
 
         };
         results.push(enriched);
@@ -173,9 +174,12 @@ async loadEvents() {
 
         // ✅ Use 'boat' instead of missing 'name'
         this.boatImages = this.participants.reduce((acc, participant) => {
-            acc[participant.boat] = participant.image;
-            return acc;
-        }, {});
+    if (participant.name && participant.image) {
+        acc[participant.name.toLowerCase()] = participant.image;
+    }
+    return acc;
+}, {});
+
 
         console.log('✅ Participants loaded:', this.participants.map(p => p.boat));
     } catch (e) {

@@ -757,27 +757,33 @@ from datetime import datetime
 def hooked():
     events = get_events_for_mode()
     now = datetime.now()
+    current_year = now.year
+
+    def parse_event_time(e):
+        try:
+            dt = parser.parse(e['time'].replace("@", " "))
+            return dt.replace(year=current_year)
+        except:
+            return None
 
     # Match any resolution keyword inside the action string
     resolution_keywords = ['released', 'boated', 'pulled hook', 'wrong species']
     resolved_ids = {
-    e['hookup_id'] for e in events
-    if e.get('hookup_id') and any(
-        keyword in e.get('action', '').lower() for keyword in 
-        ['released', 'boated', 'pulled hook', 'wrong species']
-    )
-    and parser.parse(e['time'].replace("@", " ")) <= now
-}
+        e['hookup_id'] for e in events
+        if e.get('hookup_id')
+        and any(keyword in e.get('action', '').lower() for keyword in resolution_keywords)
+        and (et := parse_event_time(e)) is not None and et <= now
+    }
 
-    # Only show 'hooked up' events that occurred and aren't resolved
     hooked = [
         e for e in events
         if e.get('action', '').lower() == 'hooked up'
-        and parser.parse(e['time'].replace("@", " ")) <= now
+        and (et := parse_event_time(e)) is not None and et <= now
         and e.get('hookup_id') not in resolved_ids
     ]
 
     return jsonify(hooked)
+
 
 
 

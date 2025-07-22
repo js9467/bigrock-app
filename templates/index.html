@@ -13,6 +13,10 @@
 <body :class="themeClass">
 
   <div id="app">
+   <div v-if="isDemoMode" class="demo-banner">
+  ⚠️ You are in demo mode
+</div>
+
     <header>
       {% raw %}
       <img v-if="logoSrc" :src="logoSrc" alt="Tournament Logo">

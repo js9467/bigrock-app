@@ -321,14 +321,10 @@ def inject_hooked_up_events(events, tournament_uid):
             print(f"⛔️ Skipping event: '{action}' from {boat}")
             continue
 
-        try:
-            from dateutil import parser
-
-try:
-    event_dt = parser.parse(event['time'].replace("@", ""))
-except Exception:
-    event_dt = datetime.now()
-        except Exception:
+                try:
+            event_dt = parser.parse(event['time'].replace("@", ""))
+        except Exception as e:
+            print(f"⚠️ Failed to parse event time '{event.get('time')}' for boat {boat}: {e}")
             event_dt = datetime.now()
 
         delta = timedelta(minutes=random.randint(10, 30))

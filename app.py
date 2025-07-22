@@ -753,22 +753,20 @@ def leaderboard():
 from dateutil import parser
 
 from datetime import datetime
-
 @app.route('/hooked')
 def hooked():
     events = get_events_for_mode()
     now = datetime.now()
 
-    # Build lookup of resolved hookup_ids whose time has passed
+    # Match any resolution keyword inside the action string
+    resolution_keywords = ['released', 'boated', 'pulled hook', 'wrong species']
     resolved_ids = {
         e['hookup_id'] for e in events
-        if e.get('hookup_id') and e.get('action', '').lower() in [
-            'released', 'boated', 'pulled hook', 'wrong species'
-        ]
+        if e.get('hookup_id') and any(keyword in e.get('action', '').lower() for keyword in resolution_keywords)
         and parser.parse(e['time'].replace("@", " ")) <= now
     }
 
-    # Only show 'hooked up' events that have occurred and are not resolved
+    # Only show 'hooked up' events that occurred and aren't resolved
     hooked = [
         e for e in events
         if e.get('action', '').lower() == 'hooked up'
@@ -777,7 +775,6 @@ def hooked():
     ]
 
     return jsonify(hooked)
-
 
 
 

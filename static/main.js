@@ -55,7 +55,39 @@ computed: {
 }
 
 ,
-    activeHookedBoats() {
+    hookedBoats() {
+  const active = new Set();
+  const results = [];
+
+  for (const event of this.events) {
+    const lower = (event.action || '').toLowerCase();
+    const boat = event.boat;
+
+    if (lower.includes('hooked up')) {
+      if (!active.has(boat)) {
+        active.add(boat);
+
+        const enriched = {
+          ...event,
+          image: event.image || this.boatImages[boat] || '/static/images/placeholder.png'
+        };
+        results.push(enriched);
+      }
+    } else if (
+      lower.includes('released') ||
+      lower.includes('boated') ||
+      lower.includes('pulled hook') ||
+      lower.includes('wrong species')
+    ) {
+      active.delete(boat);
+      const index = results.findIndex(e => e.boat === boat);
+      if (index !== -1) results.splice(index, 1);
+    }
+  }
+
+  return results;
+}
+activeHookedBoats() {
         const active = new Set();
         const results = [];
 

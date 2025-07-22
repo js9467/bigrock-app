@@ -42,11 +42,7 @@ new Vue({
         
     },
 computed: {
-  isDemoMode() {
-    return this.settings?.mode === 'demo' || this.settings?.demo_mode === true;
-  },
-}
-    followedBoats() {
+  followedBoats() {
     return this.settings.followed_boats || [];
   },
   logoSrc() {
@@ -57,45 +53,45 @@ computed: {
     const logo = this.allTournaments[t].logo;
     return logo ? logo : '/static/images/WHITELOGOBR.png';
   },
-  enrichedHookedBoats() {
-  const active = new Map();
-  const resolvedHookups = new Set();
+  hookedBoats() {
+    const active = new Set();
+    const results = [];
 
-  for (const event of this.events) {
-    const action = (event.action || '').toLowerCase();
-    const hookupId = event.hookup_id;
-    const boat = event.boat;
-    const boatKey = boat?.toLowerCase();
+    for (const event of this.events) {
+      const lower = (event.action || '').toLowerCase();
+      const boat = event.boat;
 
-    if (action.includes('hooked up')) {
-      if (!resolvedHookups.has(hookupId)) {
-        active.set(hookupId, {
-          ...event,
-          image: this.boatImages[boatKey] || '/static/images/placeholder.png'
-        });
+      if (lower.includes('hooked up')) {
+        if (!active.has(boat)) {
+          active.add(boat);
+
+          const boatKey = boat?.toLowerCase();
+          const enriched = {
+            ...event,
+            image: this.boatImages[boatKey] || '/static/images/placeholder.png'
+
+          };
+
+          results.push(enriched);
+        }
+      } else if (
+        lower.includes('released') ||
+        lower.includes('boated') ||
+        lower.includes('pulled hook') ||
+        lower.includes('wrong species')
+      ) {
+        active.delete(boat);
+        const index = results.findIndex(e => e.boat === boat);
+        if (index !== -1) results.splice(index, 1);
       }
-    } else if (
-      hookupId &&
-      (
-        action.includes('boated') ||
-        action.includes('released') ||
-        action.includes('pulled hook') ||
-        action.includes('wrong species')
-      )
-    ) {
-      resolvedHookups.add(hookupId);
-      active.delete(hookupId);
     }
-  }
 
-  return Array.from(active.values());
-}
-,
+    return results;
+  },
   activeScalesBoats() {
     return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
   }
 },
-
 
 
     methods: {

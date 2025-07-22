@@ -284,14 +284,24 @@ def inject_hooked_up_events(events, tournament_uid):
     injected = []
     valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
 
-for event in events:
-    boat = event.get('boat', '').strip()
-    action = event.get('action', '').strip().lower()
+def inject_hooked_up_events(events, tournament_uid):
+    # Load participants master data
+    with open('participants_master.json') as f:
+        participants = json.load(f)
 
-    # ✅ Skip events that don't contain a valid action (no resolution context)
-    if not boat or not action or not any(keyword in action for keyword in valid_actions):
-        continue
+    # Map for quick lookup
+    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
 
+    injected = []
+    valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
+
+    for event in events:
+        boat = event.get('boat', '').strip()
+        action = event.get('action', '').strip().lower()
+
+        # ✅ Skip events that don't contain a valid action (no resolution context)
+        if not boat or not action or not any(keyword in action for keyword in valid_actions):
+            continue
 
         # Create hookup_id
         try:
@@ -324,6 +334,7 @@ for event in events:
         injected.append(real_event)
 
     return injected
+
 
 
 def load_cache(tournament):

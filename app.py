@@ -64,6 +64,7 @@ def cache_boat_image(name, image_url):
     filename = f"{safe_name}{ext}"
     local_path = os.path.join("static", "images", "boats", filename)
     relative_path = f"/static/images/boats/{filename}"
+   
 
     if not os.path.exists(local_path):
         try:
@@ -79,7 +80,9 @@ def cache_boat_image(name, image_url):
             return "/static/images/placeholder.png"
 
     return relative_path
-    
+
+REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
+REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
 
 def load_remote_settings(force=False):
     now = time.time()
@@ -194,7 +197,7 @@ def save_participant_to_master(entry):
 
 def get_mac_address():
     try:
-        mac = subprocess.check_output(['cat', '/sys/class/net/wlan0/address']).decode().strip().replace(':', ''replace(':', '')[-4:].lower()
+        mac = subprocess.check_output(['cat', '/sys/class/net/wlan0/address']).decode().strip().replace(':', '')[-4:].lower()
         return mac
     except Exception as e:
         print(f"Error getting MAC address: {e}")
@@ -206,69 +209,33 @@ def load_settings():
             with open(SETTINGS_FILE, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error loading settings: {e}"")
+            print(f"Error loading settings: {e}")
     return {
         'sounds': {'hooked': True, 'released': True, 'boated': True},
         'followed_boats': [],
         'effects_volume': 0.5,
         'radio_volume': 0.5,
-        'tournament': 'Kids': 'Kids',
+        'tournament': 'Kids',
         'wifi_ssid': None,
         'wifi_password': None,
-        'data_source': 'current': 'current',
+        'data_source': 'current',
         'disable_sleep_mode': False
     }
 
 def get_events_for_mode():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
-    settings.get("tournament", "Big Rock")
-    data_source = settings.get("data_source", "current')
+    data_source = settings.get("data_source", "current")
 
     if data_source == "demo":
         demo = load_demo_data(tournament)
         return filter_demo_events(demo.get("events", []))
 
     elif data_source == "historical":
-        data_source = "historical":
         return load_historical_data(tournament).get("events", [])
 
     else:  # 'current' or default
-        # default
         return scrape_events(tournament)
-
-def add_hooked_up_events(events):
-    new_events = []
-    for event in events:
-        action_lower = event['action'].lower()
-        if 'released' in action_lower or 'boated' in action_lower:
-            try:
-                time_str = event['time'].replace("@", " ")
-                event_dt = parser.parse(time_str)
-                hooked_dt = event_dt - timedelta(minutes=30)
-                hooked_time = hooked_dt.strftime("%I:%M %p")
-                hooked_event = {
-                    "boat": event["boat"],
-                    "message": f"{event['boat']} is Hooked Up!",
-                    "time": hooked_time,
-                    "action": "hooked up",
-                    "image": event["image"]
-                }
-                new_events.append(hooked_event)
-            except Exception as e:
-                print(f"Error adding hooked up for {event}: {e}")
-
-    all_events = events + new_events
-
-    def get_dt(e):
-        try:
-            return parser.parse(e['time'].replace("@", " "))
-        except:
-            return datetime.min
-
-    all_events.sort(key=get_dt, reverse=True)
-
-    return all_events
 
 def save_settings(settings):
     old_settings = load_settings()
@@ -280,7 +247,7 @@ def save_settings(settings):
     
     # Check if switching to demo mode or changing tournament in demo mode
     if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
-        tournament = settings.get('tournament', 'Big Rock'))
+        tournament = settings.get('tournament', 'Big Rock')
         demo_data = {}
         if os.path.exists(DEMO_DATA_FILE):
             try:
@@ -289,7 +256,7 @@ def save_settings(settings):
             except Exception as e:
                 print(f"Error loading demo data: {e}")
         demo_data[tournament] = {
-            'events': add_hooked_up_events(scrape_events(tournament)),
+            'events': scrape_events(tournament),
             'leaderboard': scrape_leaderboard(tournament)
         }
         try:
@@ -562,7 +529,6 @@ def scrape_leaderboard(tournament):
     except Exception as e:
         print(f"Scraping error (leaderboard, {tournament}): {e}")
         return load_cache(tournament)['leaderboard']
-
 # scrape gallery 
 
 def scrape_gallery():
@@ -596,13 +562,12 @@ def scrape_gallery():
         return load_cache(settings['tournament'])['gallery']
 
 
-
 # routes
 
         
 @app.route('/')
 def index():
-    # try:
+    try:
         with open("settings.json", "r") as f:
             settings = json.load(f)
             tournament = settings.get("tournament", "Big Rock")
@@ -612,7 +577,7 @@ def index():
 
     theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
     version = get_version()
-    return render_template("index.html", theme_class=theme_class, version=version, version, settings=settings)
+    return render_template("index.html", theme_class=theme_class, version=version, settings=settings)
 
 
     
@@ -625,11 +590,10 @@ def index():
 @app.route('/settings-page')
 def settings_page():
     return app.send_static_file('settings.html')
-    return app.send_static_file('settings.html')
 
-@app.route("/participants')
+@app.route("/participants")
 def participants_page():
-    return app.send_static_file('participants.html')
+    return app.send_static_file("participants.html")
 
 @app.route('/api/participants')
 def get_participants():
@@ -645,18 +609,18 @@ def get_participants():
 
     prefix = tournament.lower().replace(" ", "_")
 
-    # Load from master file
+    # 🟢 Load from master file
     all_participants = []
     if os.path.exists(PARTICIPANTS_MASTER_FILE):
         try:
             with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
                 all_participants = json.load(f)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             print("⚠️ Master participant file is corrupt or empty.")
 
     filtered = [p for p in all_participants if p['uid'].startswith(prefix)]
 
-    # If nothing cached, scrape and retry
+    # 🟡 If nothing cached, scrape and retry
     if not filtered:
         print(f"⚠️ No participants found for '{prefix}', scraping...")
         scrape_participants(tournament)
@@ -667,7 +631,7 @@ def get_participants():
                 try:
                     all_participants = json.load(f)
                     filtered = [p for p in all_participants if p['uid'].startswith(prefix)]
-                except json.JSONDecodeError as e:
+                except json.JSONDecodeError:
                     print("⚠️ Master file still broken after scrape.")
 
     return jsonify(filtered)
@@ -746,9 +710,9 @@ def hooked():
     events = get_events_for_mode()
 
     # Build a set of resolved hookup_ids
-    resolved = {
+    resolved_ids = {
         e['hookup_id'] for e in events
-        if e.get('hookup_id') and e.get('action').lower() in [
+        if e.get('hookup_id') and e.get('action', '').lower() in [
             'released', 'boated', 'pulled hook', 'wrong species'
         ]
     }
@@ -756,8 +720,8 @@ def hooked():
     # Return only unresolved 'hooked up' events
     hooked = [
         e for e in events
-        if e.get('action').lower() == 'hooked up'
-        and e.get('hookup_id') not in resolved
+        if e.get('action', '').lower() == 'hooked up'
+        and e.get('hookup_id') not in resolved_ids
     ]
 
     return jsonify(hooked)
@@ -772,7 +736,7 @@ def scales():
         events = get_events_for_mode()
         scales_events = [
             event for event in events
-            if isinstance(event, dict) and event.get('action').lower() == 'headed to scales'
+            if isinstance(event, dict) and event.get('action', '').lower() == 'headed to scales'
         ]
         print(f"✅ Returning {len(scales_events)} scales events for {get_current_tournament()}")
         return jsonify(scales_events)
@@ -836,7 +800,7 @@ def bluetooth():
 
             scan_proc.stdin.write('power on\n')
             scan_proc.stdin.write('agent on\n')
- scan_proc.stdin.write('default-agent\n')
+            scan_proc.stdin.write('default-agent\n')
             scan_proc.stdin.write('scan on\n')
             scan_proc.stdin.flush()
             time.sleep(5)
@@ -846,7 +810,7 @@ def bluetooth():
             time.sleep(1)
 
             scan_proc.stdin.write('exit\n')
-            scan_proc.flush()
+            scan_proc.stdin.flush()
 
             stdout, _ = scan_proc.communicate(timeout=10)
 
@@ -866,7 +830,7 @@ def bluetooth():
         mac = request.args.get('mac')
         try:
             # Run the pairing and trust commands
-            commands = f"agent on\n default-agent\n pair {mac}\n trust {mac}\n connect {mac}\n"
+            commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
             subprocess.check_output(['bluetoothctl'], input=commands.encode(), stderr=subprocess.STDOUT)
 
             # Set the Bluetooth speaker as default in PipeWire
@@ -887,7 +851,7 @@ def bluetooth():
     elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jsonify({'status': 'success'})
+            return jupytext({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
@@ -918,3 +882,5 @@ def refresh_data_loop(interval=600):  # 10 minutes
 # Example run
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
+
+

@@ -33,7 +33,44 @@ SETTINGS_FILE = 'settings.json'
 MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
-DEMO_EVENTS_CACHE = {}  # tournament_key: {"events": [...], "last_generated": timestamp}
+from datetime import datetime
+from dateutil import parser as dtparser
+
+DEMO_EVENTS_CACHE = {}
+
+def get_timed_demo_events(tournament):
+    cache_key = tournament.lower().replace(" ", "_")
+    now = datetime.now()
+
+    # Cache parsed events
+    if cache_key in DEMO_EVENTS_CACHE:
+        parsed_events = DEMO_EVENTS_CACHE[cache_key]
+    else:
+        events = load_historical_data(tournament).get('events', [])
+        parsed_events = []
+
+        for i, e in enumerate(events):
+            try:
+                parsed_time = datetime.strptime(e['time'], '%b %d @ %I:%M %p')
+                parsed_time = parsed_time.replace(year=now.year)
+                e['parsed_time'] = parsed_time
+                e['action'] = e.get('action', '').lower()
+                if not e.get('hookup_id'):
+                    e['hookup_id'] = f"{normalize_boat_name(e['boat'])}_{i:03d}"
+                parsed_events.append(e)
+            except Exception as err:
+                print(f"⛔ Failed to parse event time: {e.get('time')}")
+                continue
+
+        # Sort oldest to newest
+        parsed_events.sort(key=lambda x: x['parsed_time'])
+        DEMO_EVENTS_CACHE[cache_key] = parsed_events
+
+    # Filter to only events that would have occurred by now
+    current_time = now.replace(year=parsed_events[0]['parsed_time'].year)
+    return [e for e in parsed_events if e['parsed_time'].time() <= current_time.time()]
+
+
 PARTICIPANTS_CACHE_FILE = 'participants.json'
 import subprocess
 
@@ -412,47 +449,6 @@ def scrape_participants(tournament):
     cache["data"] = boats
     cache["last_time"] = now
     return boats
-
-
-# demo events 
-from dateutil import parser as dtparser
-
-def get_timed_demo_events(tournament):
-    """Replay historical events in real time based on their original timing."""
-    events = load_historical_data(tournament).get('events', [])
-    if not events:
-        print("⚠️ No historical events available for demo.")
-        return []
-
-    now = datetime.now()
-
-    # Assume first event's timestamp defines T0
-    first_event_time = None
-    parsed_events = []
-    for e in events:
-        try:
-            # Example format: 'Jul 20 @ 03:14 PM'
-            e_time = datetime.strptime(e['time'], '%b %d @ %I:%M %p')
-            e_time = e_time.replace(year=now.year)  # use current year
-            if not first_event_time:
-                first_event_time = e_time
-            delta = (e_time - first_event_time).total_seconds()
-            parsed_events.append((delta, e))  # store offset from start
-        except Exception as err:
-            print(f"⛔ Timestamp parse failed: {e['time']}, error: {err}")
-            continue
-
-    # Recalculate which events should be shown by "now"
-    start_time = datetime.now()
-    elapsed = (start_time - start_time.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
-    demo_time = elapsed  # seconds since midnight
-
-    live_events = [
-        e for delay, e in parsed_events if delay <= demo_time
-    ]
-
-    return sorted(live_events, key=lambda x: x['time'], reverse=True)
-
 
 
 

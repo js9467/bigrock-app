@@ -52,7 +52,7 @@ computed: {
 
     const logo = this.allTournaments[t].logo;
     return logo ? logo : '/static/images/WHITELOGOBR.png';
-}
+},
 
     activeHookedBoats() {
         const active = new Set();

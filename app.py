@@ -222,6 +222,21 @@ def load_settings():
         'disable_sleep_mode': False
     }
 
+def get_events_for_mode():
+    settings = load_settings()
+    tournament = settings.get("tournament", "Big Rock")
+    data_source = settings.get("data_source", "current")
+
+    if data_source == "demo":
+        demo = load_demo_data(tournament)
+        return filter_demo_events(demo.get("events", []))
+
+    elif data_source == "historical":
+        return load_historical_data(tournament).get("events", [])
+
+    else:  # 'current' or default
+        return scrape_events(tournament)
+
 def save_settings(settings):
     old_settings = load_settings()
     try:

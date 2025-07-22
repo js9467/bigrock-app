@@ -13,13 +13,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          fetch-tags: true  # Ensures we get all tags
 
       - name: Generate dynamic version based on commit count
         run: |
-        VERSION="2.$(git rev-list --count HEAD)"
-        echo "$VERSION" > version.txt
-
+          VERSION="2.$(git rev-list --count HEAD)"
+          echo "$VERSION" > version.txt
+          echo "Generated version: $VERSION"
 
       - name: Get list of changed files
         id: changed

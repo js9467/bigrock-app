@@ -175,7 +175,6 @@ async loadEvents() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         this.participants = await response.json() || [];
 
-        // ✅ Use 'boat' instead of missing 'name'
         this.boatImages = this.participants.reduce((acc, participant) => {
     if (participant.boat && participant.image) {
         acc[participant.boat.toLowerCase()] = participant.image;

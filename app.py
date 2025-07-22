@@ -441,7 +441,8 @@ def filter_demo_events(events):
             print(f"⚠️ Invalid event structure: {event}")
             continue
         try:
-            event_dt = parser.parse(event['time'])
+            event_time_str = event['time'].replace("@", " ")
+            event_dt = parser.parse(event_time_str)
             event_time = event_dt.time()
             if event_time <= current_time:
                 filtered.append(event)
@@ -451,7 +452,7 @@ def filter_demo_events(events):
     
     # Include unparsable events to avoid data loss, but sort only parsable ones
     try:
-        filtered.sort(key=lambda e: parser.parse(e['time']), reverse=True)
+        filtered.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")), reverse=True)
     except Exception as e:
         print(f"⚠️ Failed to sort events: {e}")
         # Fallback to unsorted filtered events to avoid crashing

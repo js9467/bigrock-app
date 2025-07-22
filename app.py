@@ -276,13 +276,15 @@ from copy import deepcopy
 
 
 def inject_hooked_up_events(events, tournament_uid):
-    # Load participants master data
+    from datetime import datetime, timedelta
+    from copy import deepcopy
+    import random
+    import json
+
     with open('participants_master.json') as f:
         participants = json.load(f)
 
-    # Map for quick lookup
     boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
-
     injected = []
     valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
 
@@ -290,24 +292,21 @@ def inject_hooked_up_events(events, tournament_uid):
         boat = event.get('boat', '').strip()
         action = event.get('action', '').strip().lower()
 
-        # ✅ Skip events that don't contain a valid action (no resolution context)
         if not boat or not action or not any(keyword in action for keyword in valid_actions):
+            print(f"⛔️ Skipping event: '{action}' from {boat}")
             continue
 
-        # Create hookup_id
         try:
-            event_dt = datetime.strptime(event['time'], "Jun %d @%I:%M %p")  # Adjust format if needed
-        except:
+            event_dt = datetime.strptime(event['time'], "Jun %d @%I:%M %p")
+        except Exception:
             event_dt = datetime.now()
 
         delta = timedelta(minutes=random.randint(10, 30))
         hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
         hookup_id = f"{boat.lower().replace(' ', '_')}_{int((event_dt - delta).timestamp())}"
 
-        # Lookup image from participants_master
         image = boat_image_map.get(boat.upper(), "/static/images/placeholder.png")
 
-        # Create hooked-up event
         hooked_event = {
             "boat": boat,
             "message": f"{boat} is Hooked Up!",
@@ -317,7 +316,6 @@ def inject_hooked_up_events(events, tournament_uid):
             "image": image
         }
 
-        # Also assign hookup_id to actual event
         real_event = deepcopy(event)
         real_event['hookup_id'] = hookup_id
 
@@ -325,6 +323,7 @@ def inject_hooked_up_events(events, tournament_uid):
         injected.append(real_event)
 
     return injected
+
 
 
 

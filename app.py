@@ -273,16 +273,7 @@ import random
 from datetime import datetime, timedelta
 from copy import deepcopy
 
-def inject_hooked_up_events(events, tournament_uid):
-    # Load participants master data
-    with open('participants_master.json') as f:
-        participants = json.load(f)
 
-    # Map for quick lookup
-    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
-
-    injected = []
-    valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
 
 def inject_hooked_up_events(events, tournament_uid):
     # Load participants master data

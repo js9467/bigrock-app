@@ -282,18 +282,20 @@ def inject_hooked_up_events(events):
         # Create a unique ID to link the "hooked up" and final event
         hookup_id = f"{normalize_boat_name(event['boat'])}_{event_dt.timestamp()}"
 
-        # Injected hooked up event (10–30 min before)
-        delta = timedelta(minutes=random.randint(10, 30))
-        hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
+    # Injected hooked up event (10–30 min before)
+delta = timedelta(minutes=random.randint(10, 30))
+hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
+hooked_event = {
+    "boat": event['boat'],
+    "message": f"{event['boat']} is Hooked Up!",
+    "time": hooked_time,
+    "action": "hooked up",
+    "hookup_id": hookup_id,
+    "image": "/static/images/placeholder.png"
+}
 
-        hooked_event = {
-            "boat": event['boat'],
-            "message": f"{event['boat']} is Hooked Up!",
-            "time": hooked_time,
-            "action": "hooked up",
-            "hookup_id": hookup_id,
-            "image": "/static/images/placeholder.png"
-        }
+
+
 
         # Assign hookup_id to the real event too
         event_copy = deepcopy(event)

@@ -54,44 +54,6 @@ computed: {
     return logo ? logo : '/static/images/WHITELOGOBR.png';
   },
   hookedBoats() {
-  const active = new Set();
-  const results = [];
-
-  for (const event of this.events) {
-    const lower = (event.action || '').toLowerCase();
-    const boat = event.boat;
-
-    if (lower.includes('hooked up')) {
-      if (!active.has(boat)) {
-        active.add(boat);
-
-        const boatKey = boat?.toLowerCase();  // ✅ normalize case
-        const enriched = {
-          ...event,
-          image: (!event.image || event.image.includes('placeholder'))
-            ? this.boatImages[boatKey] || '/static/images/placeholder.png'
-            : event.image
-        };
-
-        results.push(enriched);
-      }
-    } else if (
-      lower.includes('released') ||
-      lower.includes('boated') ||
-      lower.includes('pulled hook') ||
-      lower.includes('wrong species')
-    ) {
-      active.delete(boat);
-      const index = results.findIndex(e => e.boat === boat);
-      if (index !== -1) results.splice(index, 1);
-    }
-  }
-
-  return results;
-}
-
-  },
-  activeHookedBoats() {
     const active = new Set();
     const results = [];
 
@@ -102,7 +64,16 @@ computed: {
       if (lower.includes('hooked up')) {
         if (!active.has(boat)) {
           active.add(boat);
-          results.push(event);
+
+          const boatKey = boat?.toLowerCase();
+          const enriched = {
+            ...event,
+            image: (!event.image || event.image.includes('placeholder'))
+              ? this.boatImages[boatKey] || '/static/images/placeholder.png'
+              : event.image
+          };
+
+          results.push(enriched);
         }
       } else if (
         lower.includes('released') ||
@@ -115,13 +86,12 @@ computed: {
         if (index !== -1) results.splice(index, 1);
       }
     }
+
     return results;
-  },
-  activeScalesBoats() {
-    return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
   }
 },
 
+  
 
     methods: {
         formatTime(timeStr) {

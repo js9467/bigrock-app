@@ -399,7 +399,8 @@ async loadEvents() {
     const primaryStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
     const fallbackStream = 'https://playertest.longtailvideo.com/adaptive/bbbfull/bbbfull.m3u8';
     const fallbackMessage = '🎣 Tournament VHF currently unavailable. Using test stream.';
-
+    const isDemo = this.settings.data_source === 'demo';
+    const fallbackMessage = isDemo ? `${fallbackMessageBase} You are in demo mode.` : fallbackMessageBase;
     const playStream = (url, isFallback = false) => {
         if (Hls.isSupported()) {
             this.hls = new Hls();

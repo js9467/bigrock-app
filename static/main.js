@@ -54,39 +54,42 @@ computed: {
     return logo ? logo : '/static/images/WHITELOGOBR.png';
   },
   hookedBoats() {
-    const active = new Set();
-    const results = [];
+  const active = new Set();
+  const results = [];
 
-    for (const event of this.events) {
-      const lower = (event.action || '').toLowerCase();
-      const boat = event.boat;
+  for (const event of this.events) {
+    const lower = (event.action || '').toLowerCase();
+    const boat = event.boat;
 
-      if (lower.includes('hooked up')) {
-        if (!active.has(boat)) {
-          active.add(boat);
+    if (lower.includes('hooked up')) {
+      if (!active.has(boat)) {
+        active.add(boat);
 
-          const enriched = {
-            ...event,
-            image: (!event.image || event.image.includes('placeholder'))
-              ? this.boatImages[boat?.toLowerCase()] || '/static/images/placeholder.png'
-              : event.image
-          };
+        const boatKey = boat?.toLowerCase();  // ✅ normalize case
+        const enriched = {
+          ...event,
+          image: (!event.image || event.image.includes('placeholder'))
+            ? this.boatImages[boatKey] || '/static/images/placeholder.png'
+            : event.image
+        };
 
-          results.push(enriched);
-        }
-      } else if (
-        lower.includes('released') ||
-        lower.includes('boated') ||
-        lower.includes('pulled hook') ||
-        lower.includes('wrong species')
-      ) {
-        active.delete(boat);
-        const index = results.findIndex(e => e.boat === boat);
-        if (index !== -1) results.splice(index, 1);
+        results.push(enriched);
       }
+    } else if (
+      lower.includes('released') ||
+      lower.includes('boated') ||
+      lower.includes('pulled hook') ||
+      lower.includes('wrong species')
+    ) {
+      active.delete(boat);
+      const index = results.findIndex(e => e.boat === boat);
+      if (index !== -1) results.splice(index, 1);
     }
+  }
 
-    return results;
+  return results;
+}
+
   },
   activeHookedBoats() {
     const active = new Set();

@@ -753,14 +753,20 @@ from datetime import datetime
 @app.route('/hooked')
 def hooked():
     events = get_events_for_mode()
+    now = datetime.now()
 
-    # Build a set of resolved hookup_ids
-    resolved_ids = {
-        e['hookup_id'] for e in events
+    # Build a set of resolved hookup_ids where final event time has passed
+    resolved_ids = set()
+    for e in events:
         if e.get('hookup_id') and e.get('action', '').lower() in [
             'released', 'boated', 'pulled hook', 'wrong species'
-        ]
-    }
+        ]:
+            try:
+                event_time = parser.parse(e['time'].replace("@", " "))
+                if event_time <= now:
+                    resolved_ids.add(e['hookup_id'])
+            except:
+                continue
 
     # Return only unresolved 'hooked up' events
     hooked = [
@@ -770,10 +776,6 @@ def hooked():
     ]
 
     return jsonify(hooked)
-
-
-
-
 
 @app.route('/scales')
 def scales():

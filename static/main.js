@@ -44,8 +44,8 @@ new Vue({
 computed: {
   isDemoMode() {
     return this.settings.data_source === 'demo';
-  }
-} followedBoats() {
+  },
+  followedBoats() {
     return this.settings.followed_boats || [];
   },
   logoSrc() {

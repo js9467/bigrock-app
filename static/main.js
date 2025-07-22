@@ -70,10 +70,11 @@ computed: {
 
         const enriched = {
           ...event,
-          image: event.image || this.boatImages[boat?.toLowerCase()] || '/static/images/placeholder.png'
-
-
+          image: (!event.image || event.image.includes('placeholder'))
+            ? this.boatImages[boat?.toLowerCase()] || '/static/images/placeholder.png'
+            : event.image
         };
+
         results.push(enriched);
       }
     } else if (
@@ -89,6 +90,8 @@ computed: {
   }
 
   return results;
+}
+
 },
 activeHookedBoats() {
         const active = new Set();

@@ -495,53 +495,61 @@ async loadEvents() {
             deep: true
         }
     },
-    mounted() {
-  fetch("https://js9467.github.io/Brtourney/settings.json")
-    .then(res => res.json())
-    .then(data => {
-      this.allTournaments = data;
-    });
-}{
+mounted() {
     console.log('Vue instance mounted for:', window.location.pathname);
-    this.isLoading = true;
-    this.loadSettings();
-    this.checkSleepMode();
-    this.checkWifiStatus();
 
-    // Resume radio if it was playing
-    if (localStorage.getItem('radioPlaying') === 'true') {
-        this.toggleRadio();
-    }
+    // Load tournament settings first
+    fetch("https://js9467.github.io/Brtourney/settings.json")
+        .then(res => res.json())
+        .then(data => {
+            this.allTournaments = data;
 
-    this.loadParticipants()
-        .then(() => {
-            console.log('Initial data load complete');
-            return this.loadLeaderboard();
-        })
-        .then(() => {
-            this.isLoading = false;
-            this.appMounted = true;
-            console.log('Leaderboard page data loaded');
+            this.isLoading = true;
+            this.loadSettings();
+            this.checkSleepMode();
+            this.checkWifiStatus();
 
-            if (window.location.pathname !== '/leaderboard') {
-                this.loadEvents();
-                this.loadHookedBoats();
-                this.loadScalesBoats();
-                this.checkVideoTrigger();
-
-                // 🔁 Auto-refresh every 30 seconds
-                setInterval(() => {
-                    this.loadEvents();
-                    this.loadHookedBoats();
-                    this.loadScalesBoats();
-                }, 30000);
+            // Resume radio if it was playing
+            if (localStorage.getItem('radioPlaying') === 'true') {
+                this.toggleRadio();
             }
+
+            this.loadParticipants()
+                .then(() => {
+                    console.log('Initial data load complete');
+                    return this.loadLeaderboard();
+                })
+                .then(() => {
+                    this.isLoading = false;
+                    this.appMounted = true;
+                    console.log('Leaderboard page data loaded');
+
+                    if (window.location.pathname !== '/leaderboard') {
+                        this.loadEvents();
+                        this.loadHookedBoats();
+                        this.loadScalesBoats();
+                        this.checkVideoTrigger();
+
+                        // 🔁 Auto-refresh every 30 seconds
+                        setInterval(() => {
+                            this.loadEvents();
+                            this.loadHookedBoats();
+                            this.loadScalesBoats();
+                        }, 30000);
+                    }
+                })
+                .catch(err => {
+                    this.error = 'Error in initial data load: ' + err.message;
+                    console.error('Error in initial data load:', err);
+                    this.isLoading = false;
+                    this.appMounted = true;
+                });
+
         })
         .catch(err => {
-            this.error = 'Error in initial data load: ' + err.message;
-            console.error('Error in initial data load:', err);
-            this.isLoading = false;
-            this.appMounted = true;
+            this.error = 'Failed to fetch tournament settings: ' + err.message;
+            console.error('Settings fetch error:', err);
         });
 },
+
 });

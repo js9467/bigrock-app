@@ -246,10 +246,10 @@ def save_settings(settings):
         print(f"Error saving settings: {e}")
     
     # Check if switching to demo mode or changing tournament in demo mode
-    if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
+        if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
     tournament = settings.get('tournament', 'Big Rock')
     tournament_uid = tournament.lower().replace(" ", "_")
-    
+
     scraped = scrape_events(tournament)
     injected = inject_hooked_up_events(scraped, tournament_uid)
 
@@ -272,6 +272,7 @@ def save_settings(settings):
         print(f"✅ Cached demo data for {tournament}")
     except Exception as e:
         print(f"Error saving demo data: {e}")
+
 
 from copy import deepcopy
 

@@ -268,6 +268,11 @@ def save_settings(settings):
 
 from copy import deepcopy
 
+def is_resolution_event(action):
+    action_lower = action.lower()
+    resolution_terms = ['released', 'boated', 'pulled hook', 'wrong species']
+    return any(term in action_lower for term in resolution_terms)
+
 def inject_hooked_up_events(events):
     injected = []
     for event in events:
@@ -277,6 +282,11 @@ def inject_hooked_up_events(events):
         try:
             event_dt = parser.parse(event['time'].replace("@", " "))
         except:
+            continue
+
+        # Only inject if it's a resolution event
+        if not is_resolution_event(event['action']):
+            injected.append(event)
             continue
 
         # Create a unique ID to link the "hooked up" and final event
@@ -507,9 +517,7 @@ def filter_demo_events(events):
 
             # ✅ Allow future events if they're resolving a hookup
             if event_time <= current_time or (
-                event.get("hookup_id") and event.get("action", "").lower() in [
-                    "boated", "released", "pulled hook", "wrong species"
-                ]
+                event.get("hookup_id") and is_resolution_event(event.get("action", ""))
             ):
                 filtered.append(event)
         except Exception as e:
@@ -619,12 +627,12 @@ def index():
     try:
         with open("settings.json", "r") as f:
             settings = json.load(f)
-            tournament = settings.get("tournament", "Big Rock")
+            tournament = settings.get("tournament', 'Big Rock')
     except:
         settings = {"tournament": "Big Rock"}
         tournament = "Big Rock"
 
-    theme_class = f"theme-{tournament.lower().replace(' ', '-')}"
+    theme_class = f"theme-{tournament.lower().replace(' ', '')}"
     version = get_version()
     return render_template("index.html", theme_class=theme_class, version=version, settings=settings)
 
@@ -641,7 +649,7 @@ def settings_page():
     return app.send_static_file('settings.html')
 
 @app.route("/participants")
-def participants_page():
+def settings_page():
     return app.send_static_file("participants.html")
 
 @app.route('/api/participants')
@@ -713,11 +721,6 @@ def events():
         events = get_events_for_mode()
         settings = load_settings()
         tournament = settings.get("tournament", "Big Rock")
-
-        # 🔁 Inject hookup IDs if not in demo mode
-        if settings.get("data_source") != "demo":
-            events = inject_hooked_up_events(events)
-
         prefix = tournament.lower().replace(" ", "_")
 
         if os.path.exists(PARTICIPANTS_MASTER_FILE):
@@ -743,7 +746,6 @@ def events():
         print(f"❌ Error in /events route: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-
 @app.route('/leaderboard')
 def leaderboard():
     settings = load_settings()
@@ -768,9 +770,7 @@ def hooked():
     # Build a set of resolved hookup_ids where final event time has passed
     resolved_ids = set()
     for e in events:
-        if e.get('hookup_id') and e.get('action', '').lower() in [
-            'released', 'boated', 'pulled hook', 'wrong species'
-        ]:
+        if e.get('hookup_id') and is_resolution_event(e.get('action', '')):
             try:
                 event_time = parser.parse(e['time'].replace("@", " "))
                 if event_time <= now:
@@ -908,7 +908,7 @@ def bluetooth():
     elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jupytext({'status': 'success'})
+            return jsonify({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})

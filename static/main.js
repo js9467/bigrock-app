@@ -68,8 +68,9 @@ computed: {
           const boatKey = boat?.toLowerCase();
           const enriched = {
             ...event,
-            image: this.boatImages[boatKey] || '/static/images/placeholder.png'
-
+            image: (!event.image || event.image.includes('placeholder'))
+              ? this.boatImages[boatKey] || '/static/images/placeholder.png'
+              : event.image
           };
 
           results.push(enriched);
@@ -87,12 +88,13 @@ computed: {
     }
 
     return results;
-  },
-  activeScalesBoats() {
+  }
+},
+activeScalesBoats() {
     return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
   }
 },
-
+  
 
     methods: {
         formatTime(timeStr) {

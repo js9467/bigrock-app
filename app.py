@@ -301,15 +301,15 @@ from copy import deepcopy
 
 
 def inject_hooked_up_events(events, tournament_uid):
-    from datetime import datetime, timedelta
-    from copy import deepcopy
-    import random
-    import json
-
     with open('participants_master.json') as f:
         participants = json.load(f)
 
-    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
+    # Map boat names to image paths
+    boat_image_map = {
+        p['boat'].strip().upper(): p['image']
+        for p in participants if 'image' in p
+    }
+
     injected = []
     valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
 
@@ -321,7 +321,7 @@ def inject_hooked_up_events(events, tournament_uid):
             print(f"⛔️ Skipping event: '{action}' from {boat}")
             continue
 
-                try:
+        try:
             event_dt = parser.parse(event['time'].replace("@", ""))
         except Exception as e:
             print(f"⚠️ Failed to parse event time '{event.get('time')}' for boat {boat}: {e}")

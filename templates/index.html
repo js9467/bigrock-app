@@ -111,38 +111,7 @@
 
   <script src="/static/main.js"></script>
   <script>
-new Vue({
-  el: '#app',
-  data: {
-    settings: {
-      tournament: 'Big Rock'
-    },
-    allTournaments: {},
-    followedBoats: [],
-    radioPlaying: false,
-    isSleepMode: false,
-    displayedEvents: [],
-    activeHookedBoats: [],
-    activeScalesBoats: [],
-    galleryImages: [],
-    currentImageIndex: 0,
-    showVideoPopup: false,
-    videoBoat: '',
-    videoETA: '',
-    videoUrl: 'https://www.youtube.com/embed/live_stream?channel=UCuJ4Y3Z5Z5cJQbWxI6wovmw',
-    showVideo: false,
-    error: null
-  },
-  computed: {
-    logoSrc() {
-      const t = this.settings?.tournament;
-      const tournament = this.allTournaments?.[t];
-      return tournament?.logo || '';
-    },
-    themeClass() {
-      return 'theme-' + (this.settings.tournament || 'default').toLowerCase().replace(/\s+/g, '-');
-    }
-  },
+
   methods: {
     async loadSettings() {
       try {

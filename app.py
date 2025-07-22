@@ -7,9 +7,6 @@ from datetime import datetime, time, timedelta
 import random
 import subprocess
 import time
-from bs4 import BeautifulSoup
-
-
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
@@ -150,7 +147,7 @@ def scrape_events(tournament):
                     events.append({
                         "boat": boat,
                         "message": description,
-                        "time": timestamp,
+                        "time": description.lower(),
                         "action": description.lower(),
                         "image": "/static/images/placeholder.png"
                     })
@@ -186,6 +183,7 @@ def save_participant_to_master(entry):
     data = []
     if os.path.exists(PARTICIPANTS_MASTER_FILE):
         with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
+            data = json.load(f)
             data = json.load(f)
 
     if not any(p["uid"] == entry["uid"] for p in data):
@@ -256,8 +254,8 @@ def save_settings(settings):
             except Exception as e:
                 print(f"Error loading demo data: {e}")
         demo_data[tournament] = {
-           'events': inject_hooked_up_events(scrape_events(tournament)),
-    'leaderboard': scrape_leaderboard(tournament)
+            'events': scrape_events(tournament),
+            'leaderboard': scrape_leaderboard(tournament)
         }
         try:
             with open(DEMO_DATA_FILE, 'w') as f:
@@ -265,62 +263,6 @@ def save_settings(settings):
             print(f"✅ Cached demo data for {tournament}")
         except Exception as e:
             print(f"Error saving demo data: {e}")
-
-from copy import deepcopy
-
-def inject_hooked_up_events(events):
-    injected = []
-    for event in events:
-        if 'boat' not in event or 'time' not in event:
-            continue
-
-        try:
-            event_dt = parser.parse(event['time'].replace("@", " "))
-        except:
-            continue
-
-        # Create a unique ID to link the "hooked up" and final event
-        hookup_id = f"{normalize_boat_name(event['boat'])}_{event_dt.timestamp()}"
-
-def inject_hooked_up_events(events):
-    injected = []
-    for event in events:
-        if 'boat' not in event or 'time' not in event:
-            continue
-
-        try:
-            event_dt = parser.parse(event['time'].replace("@", " "))
-        except:
-            continue
-
-       # Injected hooked up event (10–30 min before)
-hooked_dt = event_dt - timedelta(minutes=random.randint(10, 30))
-hooked_time = "@ " + hooked_dt.strftime('%I:%M %p')
-hooked_event = {
-    "boat": event['boat'],
-    "message": f"{event['boat']} is Hooked Up!",
-    "time": hooked_time,
-    "timestamp": hooked_dt.isoformat(),  # <-- ADD THIS
-    "action": "hooked up",
-    "hookup_id": hookup_id,
-    "image": "/static/images/placeholder.png"
-}
-
-        # Assign hookup_id to the real event too
-        event_copy = deepcopy(event)
-        event_copy['hookup_id'] = hookup_id
-
-        injected.append(hooked_event)
-        injected.append(event_copy)
-
-    # Sort by time ascending
-    try:
-        injected.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")))
-    except:
-        pass
-
-    return injected
-
 
 def load_cache(tournament):
     if os.path.exists(CACHE_FILE):
@@ -421,11 +363,13 @@ def scrape_participants(tournament):
 
     cache = PARTICIPANTS_CACHES[cache_key]
     now = time.time()
+    if cache["data"] and now - cache["last_time"] < 300:
+        return cache["data"]
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            context = browser.new_context(ignore_https_errors=True, user_agent="...")
+            context = browser.new_context(ignore_https_errors=True, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
             page = context.new_page()
             page.goto(url, wait_until="networkidle", timeout=60000)
 
@@ -437,7 +381,7 @@ def scrape_participants(tournament):
             except:
                 print("No participant list found or selector timeout.")
 
-            exclude_patterns = config.get("exclude_patterns", [",", "2025 Edisto Invitational Billfish"])
+            exclude_patterns = config.get("exclude_patterns", [ ",", "2025 Edisto Invitational Billfish"])
             name_selector = config.get("name_selector", "h1, h2, h3, h4, h5, h6, span.name, div.name, p.name, .participant-name, .title, .boat-name")
             image_selector = config.get("image_selector", "img")
 
@@ -448,20 +392,20 @@ def scrape_participants(tournament):
                     participantContainers.forEach(container => {{
                         const nameTag = container.query_selector('{name_selector}');
                         const imgTag = container.query_selector('{image_selector}');
-                        const name = nameTag?.textContent?.trim();
+                        const name = nameTag?.textContent()?.trim();
                         let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
                         if (image && !image.startsWith('http')) {{
-                            image = `https:${{image}}`;
+                            image = `https:// {image}`; 
                         }}
                         if (name) {{
-                            boats.push({{ name, image: image || '' }});
+                            boats.push({{ name, image: name image || '' }});
                         }}
                     }});
                     return boats;
                 }}
             """)
 
-            print(f"Found {len(entries)} potential participants for {tournament}")
+            print(f"✅ Found {len(entries)} potential participants for {tournament}")
 
             for entry in entries:
                 name = entry['name'].strip()
@@ -502,11 +446,16 @@ from dateutil import parser
 from dateutil import parser
 from datetime import datetime
 
+def is_resolution(action):
+    action_lower = action.lower()
+    return any(term in action_lower for term in ['released', 'boated', 'pulled hook', 'wrong species'])
+
 def filter_demo_events(events):
     current_time = datetime.now().time()
     filtered = []
     unparsable_events = []
     
+    parsed_events = []
     for event in events:
         if not isinstance(event, dict) or 'time' not in event or 'action' not in event:
             print(f"⚠️ Invalid event structure: {event}")
@@ -514,24 +463,61 @@ def filter_demo_events(events):
         try:
             event_time_str = event['time'].replace("@", " ")
             event_dt = parser.parse(event_time_str)
-            event_time = event_dt.time()
-            if event_time <= current_time:
-                filtered.append(event)
+            parsed_events.append((event_dt, event))
         except Exception as e:
             print(f"⚠️ Failed to parse time '{event.get('time', '')}' in event {event}: {e}")
             unparsable_events.append(event)
     
-    # Include unparsable events to avoid data loss, but sort only parsable ones
-    try:
-        filtered.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")), reverse=True)
-    except Exception as e:
-        print(f"⚠️ Failed to sort events: {e}")
-        # Fallback to unsorted filtered events to avoid crashing
-        pass
+    # Sort parsed_events ascending by time
+    parsed_events.sort(key=lambda x: x[0])
     
-    # Add unparsable events at the end (newest first assumption)
+    # Extract hooked and resolution events
+    hooked_parsed = [p for p in parsed_events if 'hooked up' in p[1]['action'].lower()]
+    res_parsed = [p for p in parsed_events if is_resolution(p[1]['action'])]
+    
+    # Find unmatched resolutions
+    resolved_hooked = set()
+    unmatched_res = []
+    for res_dt, res_event in res_parsed:
+        boat = res_event['boat'].upper()
+        candidate = None
+        cand_dt = None
+        for h_dt, h_event in hooked_parsed:
+            if h_event['boat'].upper() == boat and h_dt < res_dt and h_event not in resolved_hooked and (cand_dt is None or h_dt > cand_dt):
+                candidate = h_event
+                cand_dt = h_dt
+        if candidate:
+            resolved_hooked.add(candidate)
+        else:
+            unmatched_res.append((res_dt, res_event))
+    
+    # Insert synthetic hooked up for unmatched resolutions
+    inserted_hooked = []
+    for res_dt, res_event in unmatched_res:
+        minutes_before = 30 + random.randint(10, 50)  # Around 40-80 minutes
+        hookup_dt = res_dt - timedelta(minutes=minutes_before)
+        boat = res_event['boat'].upper()
+        hookup_event = {
+            "boat": res_event['boat'],
+            "message": f"{boat} is Hooked Up",
+            "time": hookup_dt.strftime("%I:%M %p"),
+            "action": "hooked up",
+            "image": res_event.get('image', "/static/images/placeholder.png")
+        }
+        inserted_hooked.append((hookup_dt, hookup_event))
+    
+    # Combine all
+    all_parsed = parsed_events + inserted_hooked
+    # Sort descending
+    all_parsed.sort(key=lambda x: x[0], reverse=True)
+    
+    # Filter based on current time
+    now = datetime.now()
+    filtered = [event for dt, event in all_parsed if dt <= now]
+    
+    # Include unparsable events
     filtered.extend(unparsable_events)
-    print(f"✅ Filtered {len(filtered)} demos, including {len(unparsable_events)} unparsable events")
+    print(f"✅ Filtered {len(filtered)} demo events, including {len(unparsable_events)} unparsable and {len(inserted_hooked)} inserted hooked up events")
     return filtered
 
 def load_demo_data(tournament):
@@ -585,6 +571,7 @@ def scrape_leaderboard(tournament):
     except Exception as e:
         print(f"Scraping error (leaderboard, {tournament}): {e}")
         return load_cache(tournament)['leaderboard']
+
 # scrape gallery 
 
 def scrape_gallery():
@@ -600,7 +587,7 @@ def scrape_gallery():
         images = []
         for img in soup.select('img.sm-gallery-image, img.sm-image'):
             src = img.get('src')
-            if src and src.startswith('https://'):
+            if src and src.startsWith('https://'):
                 images.append(src)
         if not images:
             print("No gallery images found, using cache")
@@ -665,7 +652,7 @@ def get_participants():
 
     prefix = tournament.lower().replace(" ", "_")
 
-    # 🟢 Load from master file
+    # Load from master file
     all_participants = []
     if os.path.exists(PARTICIPANTS_MASTER_FILE):
         try:
@@ -676,7 +663,7 @@ def get_participants():
 
     filtered = [p for p in all_participants if p['uid'].startswith(prefix)]
 
-    # 🟡 If nothing cached, scrape and retry
+    # If nothing cached, scrape and retry
     if not filtered:
         print(f"⚠️ No participants found for '{prefix}', scraping...")
         scrape_participants(tournament)
@@ -727,7 +714,7 @@ def events():
                 participants = json.load(f)
 
             name_to_image = {
-                normalize_boat_name(p['boat']): p['image']
+                normalize_boat_name(p['boat']) : p['image']
                 for p in participants
                 if p['uid'].startswith(prefix)
             }
@@ -765,22 +752,41 @@ from datetime import datetime
 def hooked():
     events = get_events_for_mode()
 
-    # Build a set of resolved hookup_ids
-    resolved_ids = {
-        e['hookup_id'] for e in events
-        if e.get('hookup_id') and e.get('action', '').lower() in [
-            'released', 'boated', 'pulled hook', 'wrong species'
-        ]
-    }
+    # Parse times
+    parsed_events = []
+    for e in events:
+        try:
+            dt = parser.parse(e['time'].replace("@", " "))
+            parsed_events.append((dt, e))
+        except:
+            continue  # skip unparsable
 
-    # Return only unresolved 'hooked up' events
-    hooked = [
-        e for e in events
-        if e.get('action', '').lower() == 'hooked up'
-        and e.get('hookup_id') not in resolved_ids
-    ]
+    # Sort asc
+    parsed_events.sort(key=lambda x: x[0])
 
-    return jsonify(hooked)
+    hooked_parsed = [p for p in parsed_events if 'hooked up' in p[1]['action'].lower()]
+
+    res_parsed = [p for p in parsed_events if is_resolution(p[1]['action'])]
+
+    resolved = set()
+
+    for res_dt, res_event in res_parsed:
+        boat = res_event['boat'].upper()
+        candidate = None
+        cand_dt = None
+        for h_dt, h_event in hooked_parsed:
+            if h_event['boat'].upper() == boat and h_dt < res_dt and h_event not in resolved and (cand_dt is None or h_dt > cand_dt):
+                candidate = h_event
+                cand_dt = h_dt
+        if candidate:
+            resolved.add(candidate)
+
+    unresolved = [h_event for h_dt, h_event in hooked_parsed if h_event not in resolved]
+
+    # Sort unresolved desc
+    unresolved.sort(key=lambda e: parser.parse(e['time']), reverse=True)
+
+    return jsonify(unresolved)
 
 
 
@@ -907,7 +913,7 @@ def bluetooth():
     elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jupytext({'status': 'success'})
+            return jsonify({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
@@ -938,5 +944,3 @@ def refresh_data_loop(interval=600):  # 10 minutes
 # Example run
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
-
-

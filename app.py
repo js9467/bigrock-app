@@ -759,7 +759,7 @@ def hooked():
     events = get_events_for_mode()
     now = datetime.now()
 
-    # Build a set of resolved hookup_ids where final event time has passed
+    # Track which hookups have already resolved
     resolved_ids = set()
     for e in events:
         if e.get('hookup_id') and e.get('action', '').lower() in [
@@ -772,14 +772,21 @@ def hooked():
             except:
                 continue
 
-    # Return only unresolved 'hooked up' events
-    hooked = [
-        e for e in events
-        if e.get('action', '').lower() == 'hooked up'
-        and e.get('hookup_id') not in resolved_ids
-    ]
+    # Show only "hooked up" events that have occurred AND not yet resolved
+    hooked = []
+    for e in events:
+        if e.get('action', '').lower() != 'hooked up':
+            continue
+        try:
+            event_time = parser.parse(e['time'].replace("@", " "))
+            if event_time <= now and e.get('hookup_id') not in resolved_ids:
+                hooked.append(e)
+        except:
+            continue
 
     return jsonify(hooked)
+
+
 
 @app.route('/scales')
 def scales():

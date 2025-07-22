@@ -72,7 +72,7 @@ def cache_boat_image(name, image_url):
             if response.status_code == 200:
                 with open(local_path, "wb") as f:
                     f.write(response.content)
-                print(f"Downloaded image for {name}")
+                print(f"📥 Cached image for {name}")
             else:
                 print(f"⚠️ Failed to download image for {name}: HTTP {response.status_code}")
         except Exception as e:
@@ -81,7 +81,7 @@ def cache_boat_image(name, image_url):
 
     return relative_path
 
-REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtournament/settings.json"
+REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
 REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
 
 def load_remote_settings(force=False):
@@ -237,49 +237,6 @@ def get_events_for_mode():
     else:  # 'current' or default
         return scrape_events(tournament)
 
-def enhance_with_hookups(events):
-    from dateutil import parser
-    from datetime import timedelta, datetime
-    import random
-
-    parsed_events = []
-    for e in events:
-        try:
-            dt = parser.parse(e['time'].replace("@", " "))
-            parsed_events.append((dt, e))
-        except:
-            continue
-
-    parsed_events.sort(key=lambda x: x[0])  # ascending
-
-    enhanced = []
-    hookup_counter = 0
-    resolved_actions = ['released', 'boated', 'pulled hook', 'wrong species']
-
-    for dt, e in parsed_events:
-        action_lower = e.get('action', '').lower()
-        if any(ra in action_lower for ra in resolved_actions):
-            # Generate preceding hookup
-            delta_min = random.randint(10, 60)
-            hookup_dt = dt - timedelta(minutes=delta_min)
-            hookup_time = hookup_dt.strftime('%I:%M %p')
-            hookup_message = "Hooked Up"
-            hookup_event = {
-                "boat": e['boat'],
-                "message": hookup_message,
-                "time": hookup_time,
-                "action": "hooked up",
-                "image": e['image']
-            }
-            hookup_id = f"demo_{hookup_counter}"
-            hookup_event['hookup_id'] = hookup_id
-            e['hookup_id'] = hookup_id
-            enhanced.append(hookup_event)
-            hookup_counter += 1
-        enhanced.append(e)
-
-    return enhanced
-
 def save_settings(settings):
     old_settings = load_settings()
     try:
@@ -298,10 +255,8 @@ def save_settings(settings):
                     demo_data = json.load(f)
             except Exception as e:
                 print(f"Error loading demo data: {e}")
-        raw_events = scrape_events(tournament)
-        enhanced_events = enhance_with_hookups(raw_events)
         demo_data[tournament] = {
-            'events': enhanced_events,
+            'events': scrape_events(tournament),
             'leaderboard': scrape_leaderboard(tournament)
         }
         try:
@@ -355,13 +310,9 @@ def load_demo_data(tournament):
         try:
             with open(DEMO_DATA_FILE, 'r') as f:
                 data = json.load(f)
-                demo_data = data.get(tournament, {'events': [], 'leaderboard': []})
-                print(f"✅ Loaded demo data for {tournament}: {len(demo_data['events'])} events")
-                return demo_data
+                return data.get(tournament, {'events': [], 'leaderboard': []})
         except Exception as e:
-            print(f"❌ Error loading demo data for {tournament}: {e}")
-    else:
-        print(f"⚠️ Demo data file {DEMO_DATA_FILE} does not exist")
+            print(f"Error loading demo data: {e}")
     return {'events': [], 'leaderboard': []}
 
 def check_internet():
@@ -414,8 +365,6 @@ def scrape_participants(tournament):
 
     cache = PARTICIPANTS_CACHES[cache_key]
     now = time.time()
-    if cache["data"] and now - cache["last_time"] < 300:
-        return cache["data"]
 
     try:
         with sync_playwright() as p:
@@ -446,7 +395,7 @@ def scrape_participants(tournament):
                         const name = nameTag?.textContent?.trim();
                         let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
                         if (image && !image.startsWith('http')) {{
-                            image = `https:${image}`;
+                            image = `https:${{image}}`;
                         }}
                         if (name) {{
                             boats.push({{ name, image: image || '' }});
@@ -521,7 +470,7 @@ def filter_demo_events(events):
         filtered.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")), reverse=True)
     except Exception as e:
         print(f"⚠️ Failed to sort events: {e}")
-        # Fallback to unsorted
+        # Fallback to unsorted filtered events to avoid crashing
         pass
     
     # Add unparsable events at the end (newest first assumption)
@@ -567,7 +516,7 @@ def scrape_leaderboard(tournament):
                 parts = text.split(',')
                 if len(parts) >= 2:
                     boat = parts[0].replace('1.', '').replace('2.', '').replace('3.', '').strip()
-                    points = parts[-1].strip() if 'Points' in parts[-1] or 'lb' in parts[-1] else text.split(' ') [-1].strip()
+                    points = parts[-1].strip() if 'Points' in parts[-1] or 'lb' in parts[-1] else text.split(' ')[-1].strip()
                     leaderboard.append({'boat': boat, 'points': points})
         if not leaderboard:
             print(f"No leaderboard found for {tournament}, using cache")
@@ -760,12 +709,12 @@ from datetime import datetime
 def hooked():
     events = get_events_for_mode()
 
-    resolved_actions = ['released', 'boated', 'pulled hook', 'wrong species']
-
     # Build a set of resolved hookup_ids
     resolved_ids = {
         e['hookup_id'] for e in events
-        if e.get('hookup_id') and any(ra in e.get('action', '').lower() for ra in resolved_actions)
+        if e.get('hookup_id') and e.get('action', '').lower() in [
+            'released', 'boated', 'pulled hook', 'wrong species'
+        ]
     }
 
     # Return only unresolved 'hooked up' events
@@ -902,7 +851,7 @@ def bluetooth():
     elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jsonify({'status': 'success'})
+            return jupytext({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
@@ -933,3 +882,5 @@ def refresh_data_loop(interval=600):  # 10 minutes
 # Example run
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
+
+

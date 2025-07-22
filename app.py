@@ -256,7 +256,8 @@ def save_settings(settings):
             except Exception as e:
                 print(f"Error loading demo data: {e}")
         demo_data[tournament] = {
-           'events': inject_hooked_up_events(scrape_events(tournament)),
+           'events': inject_hooked_up_events(scrape_events(tournament), tournament)
+
     'leaderboard': scrape_leaderboard(tournament)
         }
         try:

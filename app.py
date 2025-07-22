@@ -237,6 +237,9 @@ def get_events_for_mode():
     else:  # 'current' or default
         return scrape_events(tournament)
 
+def is_demo_mode():
+    return settings.get("mode") == "demo"
+
 def save_settings(settings):
     old_settings = load_settings()
     try:
@@ -282,25 +285,9 @@ def inject_hooked_up_events(events, tournament_uid):
     boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
 
     injected = []
-    valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
-
-def inject_hooked_up_events(events, tournament_uid):
-    # Load participants master data
-    with open('participants_master.json') as f:
-        participants = json.load(f)
-
-    # Map for quick lookup
-    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
-
-    injected = []
-    valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
-
     for event in events:
         boat = event.get('boat', '').strip()
-        action = event.get('action', '').strip().lower()
-
-        # ✅ Skip events that don't contain a valid action (no resolution context)
-        if not boat or not action or not any(keyword in action for keyword in valid_actions):
+        if not boat:
             continue
 
         # Create hookup_id
@@ -334,7 +321,6 @@ def inject_hooked_up_events(events, tournament_uid):
         injected.append(real_event)
 
     return injected
-
 
 
 def load_cache(tournament):
@@ -662,9 +648,12 @@ def index():
 
 
 
-@app.route('/settings-page')
+@app.route("/settings")
 def settings_page():
-    return app.send_static_file('settings.html')
+    settings = load_settings()
+    settings["demo_mode"] = is_demo_mode()  
+    return jsonify(settings)
+
 
 @app.route("/participants")
 def participants_page():

@@ -1,6 +1,7 @@
 new Vue({
     el: '#app',
     data: {
+        allTournaments: {}
         events: [],
         displayedEvents: [],
         participants: [],
@@ -495,6 +496,12 @@ async loadEvents() {
         }
     },
     mounted() {
+  fetch("https://js9467.github.io/Brtourney/settings.json")
+    .then(res => res.json())
+    .then(data => {
+      this.allTournaments = data;
+    });
+}{
     console.log('Vue instance mounted for:', window.location.pathname);
     this.isLoading = true;
     this.loadSettings();

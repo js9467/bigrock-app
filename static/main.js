@@ -42,7 +42,11 @@ new Vue({
         
     },
 computed: {
-  followedBoats() {
+  isDemoMode() {
+    return this.settings?.mode === 'demo' || this.settings?.demo_mode === true;
+  },
+}
+    followedBoats() {
     return this.settings.followed_boats || [];
   },
   logoSrc() {

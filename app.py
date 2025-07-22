@@ -33,6 +33,7 @@ SETTINGS_FILE = 'settings.json'
 MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
 CACHE_FILE = 'cache.json'
+DEMO_EVENTS_CACHE = {}  # tournament_key: {"events": [...], "last_generated": timestamp}
 PARTICIPANTS_CACHE_FILE = 'participants.json'
 import subprocess
 
@@ -55,6 +56,21 @@ def normalize_boat_name(name):
 
 
 #cache
+def get_cached_demo_events(tournament):
+    now = time.time()
+    cache_key = tournament.lower().replace(" ", "_")
+
+    # Regenerate if over 5 min old
+    if (cache_key not in DEMO_EVENTS_CACHE) or (now - DEMO_EVENTS_CACHE[cache_key]['last_generated'] > 300):
+        print(f"🔁 Generating new demo events for {tournament}")
+        demo_events = get_timed_demo_events(tournament)
+        DEMO_EVENTS_CACHE[cache_key] = {
+            "events": demo_events,
+            "last_generated": now
+        }
+
+    return DEMO_EVENTS_CACHE[cache_key]['events']
+
 def cache_boat_image(name, image_url):
     """Download and cache image to static/images/boats/, return local path."""
     safe_name = normalize_boat_name(name)
@@ -281,7 +297,7 @@ def check_video_trigger():
     if settings['data_source'] == 'historical':
         events = load_historical_data(tournament).get('events', [])
     elif settings['data_source'] == 'demo':
-        events = get_timed_demo_events(tournament)
+        events = get_cached_demo_events(tournament)
     else:
         events = scrape_events(tournament)
     now = datetime.now()
@@ -658,7 +674,7 @@ def hooked():
     if settings['data_source'] == 'historical':
         events = load_historical_data(tournament).get('events', [])
     elif settings['data_source'] == 'demo':
-        events = generate_demo_events(tournament)
+        eevents = get_cached_demo_events(tournament)
     else:
         events = scrape_events(tournament)
 

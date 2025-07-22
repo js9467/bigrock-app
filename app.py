@@ -103,12 +103,12 @@ def scrape_events(tournament):
     remote = load_remote_settings()
     config = remote.get(tournament, {})
     if not config:
-        print(f"❌ No config for tournament: {tournament}""")
+        print(f"❌ No config for tournament: {tournament}")
         return []
 
     url = config.get("events")
     if not url:
-        print(f"❌ No events URL for {tournament} in remote settings."")
+        print(f"❌ No events URL for {tournament} in remote settings.")
         return []
 
     cache_key = tournament.replace(" ", "_").lower()
@@ -136,7 +136,7 @@ def scrape_events(tournament):
                 print("No activities found or selector timeout.")
             feed_items = page.query_selector_all("#feed-all article")
 
-            print(f"✅ Found {len(feed_items)} activity items for {len(tournament)}")
+            print(f"✅ Found {len(feed_items)} activity items for {tournament}")
 
             for item in feed_items:
                 try:

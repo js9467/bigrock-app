@@ -39,7 +39,7 @@ new Vue({
         wifiConnected: true,
         isLoading: true,
         appMounted: false,
-        window.app = this,
+        
     },
 computed: {
     followedBoats() {

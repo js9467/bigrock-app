@@ -117,38 +117,8 @@ computed: {
   activeScalesBoats() {
     return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
   }
-}
-,
-activeHookedBoats() {
-        const active = new Set();
-        const results = [];
-
-        for (const event of this.events) {
-            const lower = (event.action || '').toLowerCase();
-            const boat = event.boat;
-
-            if (lower.includes('hooked up')) {
-                if (!active.has(boat)) {
-                    active.add(boat);
-                    results.push(event);
-                }
-            } else if (
-                lower.includes('released') ||
-                lower.includes('boated') ||
-                lower.includes('pulled hook') ||
-                lower.includes('wrong species')
-            ) {
-                active.delete(boat);
-                const index = results.findIndex(e => e.boat === boat);
-                if (index !== -1) results.splice(index, 1);
-            }
-        }
-        return results;
-    },
-    activeScalesBoats() {
-        return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
-    }
 },
+
 
     methods: {
         formatTime(timeStr) {

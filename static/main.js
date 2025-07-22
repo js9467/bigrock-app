@@ -176,7 +176,7 @@ async loadEvents() {
         // ✅ Use 'boat' instead of missing 'name'
         this.boatImages = this.participants.reduce((acc, participant) => {
     if (participant.boat && participant.image) {
-        acc[participant.name.toLowerCase()] = participant.image;
+        acc[participant.boat.toLowerCase()] = participant.image;
     }
     return acc;
 }, {});

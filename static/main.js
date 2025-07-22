@@ -385,7 +385,65 @@ async loadEvents() {
         },
         toggleRadio() {
     const player = document.getElementById('radio-player');
-    const streamURL = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+    const primaryStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+    const fallbackStream = 'https://playertest.longtailvideo.com/adaptive/bbbfull/bbbfull.m3u8';
+    const fallbackNotice = '🎣 Tournament VHF currently unavailable. Using test stream.';
+
+    const playStream = (url, showFallbackMessage = false) => {
+        if (Hls.isSupported()) {
+            this.hls = new Hls();
+            this.hls.loadSource(url);
+            this.hls.attachMedia(player);
+
+            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                player.volume = this.settings.radio_volume || 0.3;
+                player.play().then(() => {
+                    this.radioPlaying = true;
+                    this.error = showFallbackMessage ? fallbackNotice : null;
+                    localStorage.setItem('radioPlaying', 'true');
+                }).catch(e => {
+                    console.error('Audio play error:', e);
+                    this.error = fallbackNotice;
+                    this.radioPlaying = false;
+                });
+            });
+
+            this.hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    console.warn('Stream error on', url, data);
+                    this.hls.destroy();
+                    this.hls = null;
+                    if (!showFallbackMessage) {
+                        playStream(fallbackStream, true);
+                    } else {
+                        this.error = fallbackNotice;
+                        this.radioPlaying = false;
+                    }
+                }
+            });
+
+        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+            player.src = url;
+            player.volume = this.settings.radio_volume || 0.3;
+            player.play().then(() => {
+                this.radioPlaying = true;
+                this.error = showFallbackMessage ? fallbackNotice : null;
+                localStorage.setItem('radioPlaying', 'true');
+            }).catch(e => {
+                if (!showFallbackMessage) {
+                    playStream(fallbackStream, true);
+                } else {
+                    console.error('Fallback play error:', e);
+                    this.error = fallbackNotice;
+                    this.radioPlaying = false;
+                }
+            });
+        } else {
+            this.error = fallbackNotice;
+            this.radioPlaying = false;
+            console.error('HLS not supported in this browser');
+        }
+    };
 
     if (this.radioPlaying) {
         if (this.hls) {
@@ -395,57 +453,13 @@ async loadEvents() {
         player.pause();
         player.src = '';
         this.radioPlaying = false;
+        this.error = null;
+        localStorage.setItem('radioPlaying', 'false');
     } else {
-        if (Hls.isSupported()) {
-            this.hls = new Hls();
-            this.hls.loadSource(streamURL);
-            this.hls.attachMedia(player);
-            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                player.volume = this.settings.radio_volume || 0.3;
-                player.play().catch(e => console.error('Audio play error:', e));
-                this.radioPlaying = true;
-                localStorage.setItem('radioPlaying', 'true');
-            });
-        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-            player.src = streamURL;
-            player.volume = this.settings.radio_volume || 0.3;
-            player.play().catch(e => console.error('Audio play error:', e));
-            this.radioPlaying = true;
-            localStorage.setItem('radioPlaying', 'true');
-        } else {
-            console.error('HLS not supported in this browser');
-        }
+        playStream(primaryStream, false);
     }
-
-    localStorage.setItem('radioPlaying', this.radioPlaying ? 'true' : 'false');
 }
 ,
-        goToSettings() {
-            window.location.href = '/settings-page';
-        },
-        goToParticipants() {
-            window.location.href = '/participants';
-        },
-        goToLeaderboard() {
-            window.location.href = '/leaderboard';
-        },
-        goBack() {
-            window.location.href = '/';
-        }
-    },
-    watch: {
-        settings: {
-            handler() {
-                this.saveSettings();
-                localStorage.setItem('radioVolume', this.settings.radio_volume);
-                const player = document.getElementById('radio-player');
-                if (player && this.radioPlaying) {
-                    player.volume = this.settings.radio_volume;
-                }
-            },
-            deep: true
-        }
-    },
     mounted() {
         fetch("https://js9467.github.io/Brtourney/settings.json")
             .then(res => res.json())

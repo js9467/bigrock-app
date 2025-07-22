@@ -627,7 +627,8 @@ def index():
     try:
         with open("settings.json", "r") as f:
             settings = json.load(f)
-            tournament = settings.get("tournament', 'Big Rock')
+            tournament = settings.get("tournament", "Big Rock")
+
     except:
         settings = {"tournament": "Big Rock"}
         tournament = "Big Rock"

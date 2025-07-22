@@ -53,7 +53,7 @@ computed: {
     const logo = this.allTournaments[t].logo;
     return logo ? logo : '/static/images/WHITELOGOBR.png';
   },
-  hookedBoats() {
+  enrichedHookedBoats() {
     const active = new Set();
     const results = [];
 
@@ -69,7 +69,6 @@ computed: {
           const enriched = {
             ...event,
             image: this.boatImages[boatKey] || '/static/images/placeholder.png'
-
           };
 
           results.push(enriched);
@@ -92,6 +91,7 @@ computed: {
     return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
   }
 },
+
 
 
     methods: {

@@ -53,74 +53,45 @@ computed: {
     const logo = this.allTournaments[t].logo;
     return logo ? logo : '/static/images/WHITELOGOBR.png';
   },
-  hookedBoats() {
-  const active = new Set();
-  const results = [];
+  enrichedHookedBoats() {
+  const active = new Map();
+  const resolvedHookups = new Set();
 
   for (const event of this.events) {
-    const lower = (event.action || '').toLowerCase();
+    const action = (event.action || '').toLowerCase();
+    const hookupId = event.hookup_id;
     const boat = event.boat;
+    const boatKey = boat?.toLowerCase();
 
-    if (lower.includes('hooked up')) {
-      if (!active.has(boat)) {
-        active.add(boat);
-
-        const boatKey = boat?.toLowerCase();  // ✅ normalize case
-        const enriched = {
+    if (action.includes('hooked up')) {
+      if (!resolvedHookups.has(hookupId)) {
+        active.set(hookupId, {
           ...event,
-          image: (!event.image || event.image.includes('placeholder'))
-            ? this.boatImages[boatKey] || '/static/images/placeholder.png'
-            : event.image
-        };
-
-        results.push(enriched);
+          image: this.boatImages[boatKey] || '/static/images/placeholder.png'
+        });
       }
     } else if (
-      lower.includes('released') ||
-      lower.includes('boated') ||
-      lower.includes('pulled hook') ||
-      lower.includes('wrong species')
+      hookupId &&
+      (
+        action.includes('boated') ||
+        action.includes('released') ||
+        action.includes('pulled hook') ||
+        action.includes('wrong species')
+      )
     ) {
-      active.delete(boat);
-      const index = results.findIndex(e => e.boat === boat);
-      if (index !== -1) results.splice(index, 1);
+      resolvedHookups.add(hookupId);
+      active.delete(hookupId);
     }
   }
 
-  return results;
+  return Array.from(active.values());
 }
-
-  },
-  activeHookedBoats() {
-    const active = new Set();
-    const results = [];
-
-    for (const event of this.events) {
-      const lower = (event.action || '').toLowerCase();
-      const boat = event.boat;
-
-      if (lower.includes('hooked up')) {
-        if (!active.has(boat)) {
-          active.add(boat);
-          results.push(event);
-        }
-      } else if (
-        lower.includes('released') ||
-        lower.includes('boated') ||
-        lower.includes('pulled hook') ||
-        lower.includes('wrong species')
-      ) {
-        active.delete(boat);
-        const index = results.findIndex(e => e.boat === boat);
-        if (index !== -1) results.splice(index, 1);
-      }
-    }
-    return results;
-  },
+,
   activeScalesBoats() {
     return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
   }
 },
+
 
 
     methods: {

@@ -466,7 +466,7 @@ async loadEvents() {
     } else {
         playStream(primaryStream, false);
     }
-}
+};
 
 
     this.loadParticipants()

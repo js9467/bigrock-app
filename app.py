@@ -52,6 +52,29 @@ def normalize_boat_name(name):
         .replace(' ', '_')\
         .replace('-', '_')\
         .replace('__', '_')  # Collapse double underscores
+def proper_case_event_message(msg):
+    match = re.match(r'^(.*?\b)(released|boated|hooked up)(.*)$', msg, re.IGNORECASE)
+    if match:
+        name, action, rest = match.groups()
+        name = ' '.join(word.capitalize() for word in name.strip().split())
+        return f"{name} {action.lower()}{rest}"
+    return msg  # fallback if no match
+
+for e in events:
+    norm_name = normalize_boat_name(e['boat'])
+    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+    if "message" in e:
+        e["message"] = proper_case_event_message(e["message"])
+
+        else:
+            print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
+
+        print(f"✅ Returning {len(events)} enriched events for {tournament}")
+        return jsonify(events)
+
+    except Exception as e:
+        print(f"❌ Error in /events route: {e}")
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 
 
@@ -676,21 +699,11 @@ def events():
                 if p['uid'].startswith(prefix)
             }
 
-    import re
-
-def proper_case_event_message(msg):
-    match = re.match(r'^(.*?\b)(released|boated|hooked up)(.*)$', msg, re.IGNORECASE)
-    if match:
-        name, action, rest = match.groups()
-        name = ' '.join(word.capitalize() for word in name.strip().split())
-        return f"{name} {action.lower()}{rest}"
-    return msg  # fallback if no match
-
-for e in events:
-    norm_name = normalize_boat_name(e['boat'])
-    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
-    if "message" in e:
-        e["message"] = proper_case_event_message(e["message"])
+            for e in events:
+                norm_name = normalize_boat_name(e['boat'])
+                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+                if "message" in e:
+                    e["message"] = proper_case_event_message(e["message"])
 
         else:
             print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
@@ -701,6 +714,8 @@ for e in events:
     except Exception as e:
         print(f"❌ Error in /events route: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
+
 
 @app.route('/leaderboard')
 def leaderboard():

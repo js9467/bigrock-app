@@ -676,9 +676,22 @@ def events():
                 if p['uid'].startswith(prefix)
             }
 
-            for e in events:
-                norm_name = normalize_boat_name(e['boat'])
-                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+    import re
+
+def proper_case_event_message(msg):
+    match = re.match(r'^(.*?\b)(released|boated|hooked up)(.*)$', msg, re.IGNORECASE)
+    if match:
+        name, action, rest = match.groups()
+        name = ' '.join(word.capitalize() for word in name.strip().split())
+        return f"{name} {action.lower()}{rest}"
+    return msg  # fallback if no match
+
+for e in events:
+    norm_name = normalize_boat_name(e['boat'])
+    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+    if "message" in e:
+        e["message"] = proper_case_event_message(e["message"])
+
         else:
             print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
 

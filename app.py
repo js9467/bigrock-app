@@ -495,7 +495,7 @@ def filter_demo_events(events):
     current_time = datetime.now().time()
     filtered = []
     unparsable_events = []
-    
+
     for event in events:
         if not isinstance(event, dict) or 'time' not in event or 'action' not in event:
             print(f"⚠️ Invalid event structure: {event}")
@@ -504,24 +504,28 @@ def filter_demo_events(events):
             event_time_str = event['time'].replace("@", " ")
             event_dt = parser.parse(event_time_str)
             event_time = event_dt.time()
-            if event_time <= current_time:
+
+            # ✅ Allow future events if they're resolving a hookup
+            if event_time <= current_time or (
+                event.get("hookup_id") and event.get("action", "").lower() in [
+                    "boated", "released", "pulled hook", "wrong species"
+                ]
+            ):
                 filtered.append(event)
         except Exception as e:
             print(f"⚠️ Failed to parse time '{event.get('time', '')}' in event {event}: {e}")
             unparsable_events.append(event)
-    
-    # Include unparsable events to avoid data loss, but sort only parsable ones
+
+    # Sort the parsable ones by time
     try:
         filtered.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")), reverse=True)
     except Exception as e:
         print(f"⚠️ Failed to sort events: {e}")
-        # Fallback to unsorted filtered events to avoid crashing
-        pass
-    
-    # Add unparsable events at the end (newest first assumption)
+
+    # Add unparsable events to the end
     filtered.extend(unparsable_events)
-    print(f"✅ Filtered {len(filtered)} demos, including {len(unparsable_events)} unparsable events")
     return filtered
+
 
 def load_demo_data(tournament):
     if os.path.exists(DEMO_DATA_FILE):

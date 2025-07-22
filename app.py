@@ -322,7 +322,12 @@ def inject_hooked_up_events(events, tournament_uid):
             continue
 
         try:
-            event_dt = datetime.strptime(event['time'], "Jun %d @%I:%M %p")
+            from dateutil import parser
+
+try:
+    event_dt = parser.parse(event['time'].replace("@", ""))
+except Exception:
+    event_dt = datetime.now()
         except Exception:
             event_dt = datetime.now()
 

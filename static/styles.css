@@ -497,3 +497,13 @@ header h1 {
 .theme-kids header {
     background: #fbc02d;
 }
+..demo-banner {
+  background-color: red;
+  color: white;
+  text-align: center;
+  font-weight: bold;
+  padding: 6px;
+  font-size: 1.2em;
+  z-index: 1000;
+}
+

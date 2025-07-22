@@ -753,6 +753,7 @@ def leaderboard():
 from dateutil import parser
 
 from datetime import datetime
+
 @app.route('/hooked')
 def hooked():
     events = get_events_for_mode()
@@ -766,23 +767,41 @@ def hooked():
         except:
             return None
 
-    # Match any resolution keyword inside the action string
     resolution_keywords = ['released', 'boated', 'pulled hook', 'wrong species']
-    resolved_ids = {
-        e['hookup_id'] for e in events
-        if e.get('hookup_id')
-        and any(keyword in e.get('action', '').lower() for keyword in resolution_keywords)
-        and (et := parse_event_time(e)) is not None and et <= now
-    }
 
-    hooked = [
-        e for e in events
-        if e.get('action', '').lower() == 'hooked up'
-        and (et := parse_event_time(e)) is not None and et <= now
-        and e.get('hookup_id') not in resolved_ids
-    ]
+    resolved_ids = set()
+    for e in events:
+        if not e.get("hookup_id"):
+            continue
 
+        action = e.get("action", "").lower()
+        if not any(keyword in action for keyword in resolution_keywords):
+            continue
+
+        event_time = parse_event_time(e)
+        if not event_time:
+            print(f"⚠️ Unparsable time: {e['time']}")
+            continue
+
+        if event_time <= now:
+            resolved_ids.add(e['hookup_id'])
+            print(f"✅ Resolved: {e['hookup_id']} via {e['action']}")
+
+    # Show remaining hooked events
+    hooked = []
+    for e in events:
+        if e.get('action', '').lower() != 'hooked up':
+            continue
+        if e.get('hookup_id') in resolved_ids:
+            print(f"❌ Removing resolved hookup: {e['hookup_id']}")
+            continue
+        event_time = parse_event_time(e)
+        if event_time and event_time <= now:
+            hooked.append(e)
+
+    print(f"🎣 Hooked boats count: {len(hooked)}")
     return jsonify(hooked)
+
 
 
 

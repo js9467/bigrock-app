@@ -64,7 +64,6 @@ def cache_boat_image(name, image_url):
     filename = f"{safe_name}{ext}"
     local_path = os.path.join("static", "images", "boats", filename)
     relative_path = f"/static/images/boats/{filename}"
-   
 
     if not os.path.exists(local_path):
         try:
@@ -80,6 +79,7 @@ def cache_boat_image(name, image_url):
             return "/static/images/placeholder.png"
 
     return relative_path
+    
 
 REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
 REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
@@ -237,6 +237,39 @@ def get_events_for_mode():
     else:  # 'current' or default
         return scrape_events(tournament)
 
+def add_hooked_up_events(events):
+    new_events = []
+    for event in events:
+        action_lower = event['action'].lower()
+        if 'released' in action_lower or 'boated' in action_lower:
+            try:
+                time_str = event['time'].replace("@", " ")
+                event_dt = parser.parse(time_str)
+                hooked_dt = event_dt - timedelta(minutes=30)
+                hooked_time = hooked_dt.strftime("%I:%M %p")
+                hooked_event = {
+                    "boat": event["boat"],
+                    "message": f"{event['boat']} is Hooked Up!",
+                    "time": hooked_time,
+                    "action": "hooked up",
+                    "image": event["image"]
+                }
+                new_events.append(hooked_event)
+            except Exception as e:
+                print(f"Error adding hooked up for {event}: {e}")
+
+    all_events = events + new_events
+
+    def get_dt(e):
+        try:
+            return parser.parse(e['time'].replace("@", " "))
+        except:
+            return datetime.min
+
+    all_events.sort(key=get_dt, reverse=True)
+
+    return all_events
+
 def save_settings(settings):
     old_settings = load_settings()
     try:
@@ -256,7 +289,7 @@ def save_settings(settings):
             except Exception as e:
                 print(f"Error loading demo data: {e}")
         demo_data[tournament] = {
-            'events': scrape_events(tournament),
+            'events': add_hooked_up_events(scrape_events(tournament)),
             'leaderboard': scrape_leaderboard(tournament)
         }
         try:
@@ -443,7 +476,6 @@ def scrape_participants(tournament):
 
 from dateutil import parser
 
-from dateutil import parser
 from datetime import datetime
 
 def filter_demo_events(events):
@@ -529,6 +561,7 @@ def scrape_leaderboard(tournament):
     except Exception as e:
         print(f"Scraping error (leaderboard, {tournament}): {e}")
         return load_cache(tournament)['leaderboard']
+
 # scrape gallery 
 
 def scrape_gallery():
@@ -560,6 +593,7 @@ def scrape_gallery():
         print(f"Scraping error (gallery): {e}")
         settings = load_settings()
         return load_cache(settings['tournament'])['gallery']
+
 
 
 # routes
@@ -609,7 +643,7 @@ def get_participants():
 
     prefix = tournament.lower().replace(" ", "_")
 
-    # 🟢 Load from master file
+    # Load from master file
     all_participants = []
     if os.path.exists(PARTICIPANTS_MASTER_FILE):
         try:
@@ -620,7 +654,7 @@ def get_participants():
 
     filtered = [p for p in all_participants if p['uid'].startswith(prefix)]
 
-    # 🟡 If nothing cached, scrape and retry
+    # If nothing cached, scrape and retry
     if not filtered:
         print(f"⚠️ No participants found for '{prefix}', scraping...")
         scrape_participants(tournament)
@@ -710,9 +744,9 @@ def hooked():
     events = get_events_for_mode()
 
     # Build a set of resolved hookup_ids
-    resolved_ids = {
+    resolved = {
         e['hookup_id'] for e in events
-        if e.get('hookup_id') and e.get('action', '').lower() in [
+        if e.get('hookup_id') and e.get('action').lower() in [
             'released', 'boated', 'pulled hook', 'wrong species'
         ]
     }
@@ -720,8 +754,8 @@ def hooked():
     # Return only unresolved 'hooked up' events
     hooked = [
         e for e in events
-        if e.get('action', '').lower() == 'hooked up'
-        and e.get('hookup_id') not in resolved_ids
+        if e.get('action').lower() == 'hooked up'
+        and e.get('hookup_id') not in resolved
     ]
 
     return jsonify(hooked)
@@ -736,7 +770,7 @@ def scales():
         events = get_events_for_mode()
         scales_events = [
             event for event in events
-            if isinstance(event, dict) and event.get('action', '').lower() == 'headed to scales'
+            if isinstance(event, dict) and event.get('action').lower() == 'headed to scales'
         ]
         print(f"✅ Returning {len(scales_events)} scales events for {get_current_tournament()}")
         return jsonify(scales_events)
@@ -830,7 +864,7 @@ def bluetooth():
         mac = request.args.get('mac')
         try:
             # Run the pairing and trust commands
-            commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
+            commands = f"agent on\n default-agent\n pair {mac}\n trust {mac}\n connect {mac}\n"
             subprocess.check_output(['bluetoothctl'], input=commands.encode(), stderr=subprocess.STDOUT)
 
             # Set the Bluetooth speaker as default in PipeWire
@@ -851,7 +885,7 @@ def bluetooth():
     elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jupytext({'status': 'success'})
+            return jsonify({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
@@ -882,5 +916,3 @@ def refresh_data_loop(interval=600):  # 10 minutes
 # Example run
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
-
-

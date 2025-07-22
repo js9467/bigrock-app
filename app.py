@@ -246,7 +246,7 @@ def save_settings(settings):
         print(f"Error saving settings: {e}")
     
     # Check if switching to demo mode or changing tournament in demo mode
-        if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
+    if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
     tournament = settings.get('tournament', 'Big Rock')
     tournament_uid = tournament.lower().replace(" ", "_")
 

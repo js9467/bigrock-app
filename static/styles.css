@@ -67,6 +67,10 @@ header h1 {
     flex-direction: column;
     gap: 10px;
 }
+.widget-content.scrollable {
+  max-height: 300px; /* Adjust height as needed */
+  overflow-y: auto;
+}
 .hooked-up, .headed-to-scales {
     background: #FFFFFF;
     border-radius: 8px;

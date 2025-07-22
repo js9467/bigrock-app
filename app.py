@@ -244,19 +244,10 @@ def save_settings(settings):
             json.dump(settings, f, indent=4)
     except Exception as e:
         print(f"Error saving settings: {e}")
-        return  # ⬅ optionally early return on error
-
-    # ✅ Now aligned correctly
-    if settings.get('data_source') == 'demo' and (
-        old_settings.get('data_source') != 'demo' or
-        old_settings.get('tournament') != settings.get('tournament')
-    ):
+    
+    # Check if switching to demo mode or changing tournament in demo mode
+    if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
         tournament = settings.get('tournament', 'Big Rock')
-        tournament_uid = tournament.lower().replace(" ", "_")
-
-        scraped = scrape_events(tournament)
-        injected = inject_hooked_up_events(scraped, tournament_uid)
-
         demo_data = {}
         if os.path.exists(DEMO_DATA_FILE):
             try:
@@ -264,32 +255,16 @@ def save_settings(settings):
                     demo_data = json.load(f)
             except Exception as e:
                 print(f"Error loading demo data: {e}")
-
         demo_data[tournament] = {
-            'events': injected,
-            'leaderboard': scrape_leaderboard(tournament)
+           'events': inject_hooked_up_events(scrape_events(tournament)),
+    'leaderboard': scrape_leaderboard(tournament)
         }
-
         try:
             with open(DEMO_DATA_FILE, 'w') as f:
                 json.dump(demo_data, f, indent=4)
             print(f"✅ Cached demo data for {tournament}")
         except Exception as e:
             print(f"Error saving demo data: {e}")
-
-
-    demo_data[tournament] = {
-        'events': injected,
-        'leaderboard': scrape_leaderboard(tournament)
-    }
-
-    try:
-        with open(DEMO_DATA_FILE, 'w') as f:
-            json.dump(demo_data, f, indent=4)
-        print(f"✅ Cached demo data for {tournament}")
-    except Exception as e:
-        print(f"Error saving demo data: {e}")
-
 
 from copy import deepcopy
 
@@ -298,17 +273,24 @@ import random
 from datetime import datetime, timedelta
 from copy import deepcopy
 
-
-
 def inject_hooked_up_events(events, tournament_uid):
+    # Load participants master data
     with open('participants_master.json') as f:
         participants = json.load(f)
 
-    # Map boat names to image paths
-    boat_image_map = {
-        p['boat'].strip().upper(): p['image']
-        for p in participants if 'image' in p
-    }
+    # Map for quick lookup
+    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
+
+    injected = []
+    valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
+
+def inject_hooked_up_events(events, tournament_uid):
+    # Load participants master data
+    with open('participants_master.json') as f:
+        participants = json.load(f)
+
+    # Map for quick lookup
+    boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
 
     injected = []
     valid_actions = ['weighed', 'released', 'boated', 'missed', 'pulled hook', 'wrong species']
@@ -317,22 +299,24 @@ def inject_hooked_up_events(events, tournament_uid):
         boat = event.get('boat', '').strip()
         action = event.get('action', '').strip().lower()
 
+        # ✅ Skip events that don't contain a valid action (no resolution context)
         if not boat or not action or not any(keyword in action for keyword in valid_actions):
-            print(f"⛔️ Skipping event: '{action}' from {boat}")
             continue
 
+        # Create hookup_id
         try:
-            event_dt = parser.parse(event['time'].replace("@", ""))
-        except Exception as e:
-            print(f"⚠️ Failed to parse event time '{event.get('time')}' for boat {boat}: {e}")
+            event_dt = datetime.strptime(event['time'], "Jun %d @%I:%M %p")  # Adjust format if needed
+        except:
             event_dt = datetime.now()
 
         delta = timedelta(minutes=random.randint(10, 30))
         hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
         hookup_id = f"{boat.lower().replace(' ', '_')}_{int((event_dt - delta).timestamp())}"
 
+        # Lookup image from participants_master
         image = boat_image_map.get(boat.upper(), "/static/images/placeholder.png")
 
+        # Create hooked-up event
         hooked_event = {
             "boat": boat,
             "message": f"{boat} is Hooked Up!",
@@ -342,6 +326,7 @@ def inject_hooked_up_events(events, tournament_uid):
             "image": image
         }
 
+        # Also assign hookup_id to actual event
         real_event = deepcopy(event)
         real_event['hookup_id'] = hookup_id
 
@@ -349,7 +334,6 @@ def inject_hooked_up_events(events, tournament_uid):
         injected.append(real_event)
 
     return injected
-
 
 
 
@@ -774,12 +758,6 @@ def events():
             print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
 
         print(f"✅ Returning {len(events)} enriched events for {tournament}")
-        for e in events:
-            boat = e.get('boat', 'Unknown')
-            time_str = e.get('time', 'No time')
-            action = e.get('action', 'No action')
-            print(f"🕒 Event: {boat} @ {time_str} ({action})")
-
         return jsonify(events)
 
     except Exception as e:

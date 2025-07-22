@@ -15,11 +15,11 @@ jobs:
           fetch-depth: 0
           fetch-tags: true  # Ensures we get all tags
 
-      - name: Get version from latest tag
-        run: |
-          git fetch --tags
-          VERSION=$(git describe --tags --abbrev=0)
-          echo "$VERSION" > version.txt
+      - name: Generate dynamic version based on commit count
+  run: |
+    VERSION="2.$(git rev-list --count HEAD)"
+    echo "$VERSION" > version.txt
+
 
       - name: Get list of changed files
         id: changed

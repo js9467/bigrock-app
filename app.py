@@ -645,28 +645,34 @@ def wifi():
 
 @app.route('/events')
 def events():
-    events = get_events_for_mode()
-    settings = load_settings()
-    tournament = settings.get("tournament", "Big Rock")
     try:
+        events = get_events_for_mode()
+        settings = load_settings()
+        tournament = settings.get("tournament", "Big Rock")
+        prefix = tournament.lower().replace(" ", "_")
+
         if os.path.exists(PARTICIPANTS_MASTER_FILE):
             with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
                 participants = json.load(f)
-                name_to_image = {
-                    normalize_boat_name(p['boat']): p['image']
-                    for p in participants
-                    if p['uid'].startswith(tournament.lower().replace(" ", "_"))
-                }
 
-                for e in events:
-                    norm_name = normalize_boat_name(e['boat'])
-                    e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+            name_to_image = {
+                normalize_boat_name(p['boat']): p['image']
+                for p in participants
+                if p['uid'].startswith(prefix)
+            }
+
+            for e in events:
+                norm_name = normalize_boat_name(e['boat'])
+                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+        else:
+            print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
+
+        print(f"✅ Returning {len(events)} enriched events for {tournament}")
+        return jsonify(events)
+
     except Exception as e:
-        print(f"⚠️ Failed to enrich events with images: {e}")
-
-    return jsonify(events)
-
-
+        print(f"❌ Error in /events route: {e}")
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @app.route('/leaderboard')
 def leaderboard():

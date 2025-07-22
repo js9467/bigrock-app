@@ -16,8 +16,11 @@ jobs:
 
       - name: Generate version from Git commit count
         run: |
-          VERSION="1.$(git rev-list --count HEAD)"
-          echo "$VERSION" > version.txt
+          - name: Get version from latest tag
+  run: |
+    VERSION=$(git describe --tags --abbrev=0)
+    echo "$VERSION" > version.txt
+
 
       - name: Get list of changed files
         id: changed

@@ -38,7 +38,7 @@ new Vue({
         isScalesMinimized: false,
         wifiConnected: true,
         isLoading: true,
-        appMounted: false
+        appMounted: false,
         window.app = this,
     },
 computed: {

@@ -1,7 +1,7 @@
 new Vue({
     el: '#app',
     data: {
-        allTournaments: {}
+        allTournaments: {},
         events: [],
         displayedEvents: [],
         participants: [],

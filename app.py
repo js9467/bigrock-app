@@ -284,7 +284,8 @@ def inject_hooked_up_events(events):
 
         # Injected hooked up event (10–30 min before)
         delta = timedelta(minutes=random.randint(10, 30))
-        hooked_time = (event_dt - delta).strftime('%I:%M %p')
+      hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
+
         hooked_event = {
             "boat": event['boat'],
             "message": f"{event['boat']} is Hooked Up!",

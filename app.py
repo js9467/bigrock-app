@@ -853,9 +853,42 @@ def settings():
         settings_data = request.get_json()
         if not settings_data:
             return jsonify({'status': 'error', 'message': 'Invalid JSON'}), 400
+
+        old_settings = load_settings()
         save_settings(settings_data)
+
+        # ✅ Trigger demo data generation on first entry or tournament change
+        if settings_data.get('data_source') == 'demo' and (
+            old_settings.get('data_source') != 'demo' or
+            old_settings.get('tournament') != settings_data.get('tournament')
+        ):
+            tournament = settings_data.get('tournament', 'Big Rock')
+            demo_data = {}
+
+            # Load existing demo data if it exists
+            if os.path.exists(DEMO_DATA_FILE):
+                try:
+                    with open(DEMO_DATA_FILE, 'r') as f:
+                        demo_data = json.load(f)
+                except Exception as e:
+                    print(f"Error loading demo data: {e}")
+
+            # ✅ Generate new events and leaderboard for demo
+            demo_data[tournament] = {
+                'events': inject_hooked_up_events(scrape_events(tournament)),
+                'leaderboard': scrape_leaderboard(tournament)
+            }
+
+            try:
+                with open(DEMO_DATA_FILE, 'w') as f:
+                    json.dump(demo_data, f, indent=4)
+                print(f"✅ Cached demo data for {tournament}")
+            except Exception as e:
+                print(f"Error saving demo data: {e}")
+
         return jsonify({'status': 'success'})
     
+    # GET: return current settings
     current_settings = load_settings()
     return jsonify(current_settings)
 

@@ -90,7 +90,10 @@ computed: {
     return results;
   }
 },
-
+activeScalesBoats() {
+    return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
+  }
+},
   
 
     methods: {

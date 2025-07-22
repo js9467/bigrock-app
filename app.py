@@ -32,6 +32,7 @@ app = Flask(__name__)
 SETTINGS_FILE = 'settings.json'
 MOCK_DATA_FILE = 'mock_data.json'
 HISTORICAL_DATA_FILE = 'historical_data.json'
+DEMO_DATA_FILE = 'demo_data.json'
 CACHE_FILE = 'cache.json'
 PARTICIPANTS_CACHE_FILE = 'participants.json'
 import subprocess
@@ -222,11 +223,33 @@ def load_settings():
     }
 
 def save_settings(settings):
+    old_settings = load_settings()
     try:
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings, f, indent=4)
     except Exception as e:
         print(f"Error saving settings: {e}")
+    
+    # Check if switching to demo mode or changing tournament in demo mode
+    if settings.get('data_source') == 'demo' and (old_settings.get('data_source') != 'demo' or old_settings.get('tournament') != settings.get('tournament')):
+        tournament = settings.get('tournament', 'Big Rock')
+        demo_data = {}
+        if os.path.exists(DEMO_DATA_FILE):
+            try:
+                with open(DEMO_DATA_FILE, 'r') as f:
+                    demo_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading demo data: {e}")
+        demo_data[tournament] = {
+            'events': scrape_events(tournament),
+            'leaderboard': scrape_leaderboard(tournament)
+        }
+        try:
+            with open(DEMO_DATA_FILE, 'w') as f:
+                json.dump(demo_data, f, indent=4)
+            print(f"✅ Cached demo data for {tournament}")
+        except Exception as e:
+            print(f"Error saving demo data: {e}")
 
 def load_cache(tournament):
     if os.path.exists(CACHE_FILE):
@@ -267,6 +290,16 @@ def load_historical_data(tournament):
             print(f"Error loading historical data: {e}")
     return {'events': [], 'participants': [], 'leaderboard': [], 'gallery': []}
 
+def load_demo_data(tournament):
+    if os.path.exists(DEMO_DATA_FILE):
+        try:
+            with open(DEMO_DATA_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get(tournament, {'events': [], 'leaderboard': []})
+        except Exception as e:
+            print(f"Error loading demo data: {e}")
+    return {'events': [], 'leaderboard': []}
+
 def check_internet():
     try:
         subprocess.check_call(['ping', '-c', '1', '8.8.8.8'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -278,12 +311,7 @@ def check_internet():
 def check_video_trigger():
     settings = load_settings()
     tournament = settings.get('tournament', 'Kids')
-    if settings['data_source'] == 'historical':
-        events = load_historical_data(tournament).get('events', [])
-    elif settings['data_source'] == 'demo':
-        events = generate_demo_events(tournament)
-    else:
-        events = scrape_events(tournament)
+    events = get_events_for_mode()
     now = datetime.now()
     for event in events:
         if event['action'].lower() == 'boated' and event.get('eta'):
@@ -347,8 +375,8 @@ def scrape_participants(tournament):
                     const boats = [];
                     const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
                     participantContainers.forEach(container => {{
-                        const nameTag = container.querySelector('{name_selector}');
-                        const imgTag = container.querySelector('{image_selector}');
+                        const nameTag = container.query_selector('{name_selector}');
+                        const imgTag = container.query_selector('{image_selector}');
                         const name = nameTag?.textContent?.trim();
                         let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
                         if (image && !image.startsWith('http')) {{
@@ -398,106 +426,37 @@ def scrape_participants(tournament):
     return boats
 
 
-# demo events 
-def generate_demo_events(tournament):
-    import random
-    from datetime import datetime, timedelta
+from dateutil import parser
 
-    tournament_key = tournament.lower().replace(" ", "_")
-    events = []
+def filter_demo_events(events):
+    current_time = datetime.now().time()
+    filtered = []
+    for event in events:
+        try:
+            event_dt = parser.parse(event['time'])
+            event_time = event_dt.time()
+            if event_time <= current_time:
+                filtered.append(event)
+        except Exception as e:
+            print(f"⚠️ Failed to parse time '{event.get('time', '')}': {e}")
+            # Include if parse fails
+            filtered.append(event)
+    # Sort by full parsed datetime descending (preserves original chronological order, newest first)
+    filtered.sort(key=lambda e: parser.parse(e['time']), reverse=True)
+    return filtered
 
-    # Load real participants for this tournament
-    participants = []
-    if os.path.exists(PARTICIPANTS_MASTER_FILE):
-        with open(PARTICIPANTS_MASTER_FILE, "r") as f:
-            all_participants = json.load(f)
-            participants = [
-                p for p in all_participants if p["uid"].startswith(tournament_key)
-            ]
-
-    if not participants:
-        print("⚠️ No participants found for demo mode.")
-        return []
-
-    now = datetime.now()
-    timeline = []
-
-    random.shuffle(participants)
-    sample_boats = participants[:6]  # limit to 6 for less crowding
-
-    for p in sample_boats:
-        angler = p.get("angler", p.get("boat", "Unknown Angler"))
-        boat = p.get("boat", "Unknown Boat")
-        uid = p.get("uid")
-        image = p.get("image", "/static/images/placeholder.png")
-
-        # Random delay before this boat hooks up (30s–3min)
-        hookup_delay_sec = random.randint(30, 180)
-        now += timedelta(seconds=hookup_delay_sec)
-
-        # Step 1: Hooked Up
-        hookup_event = {
-            "boat": boat,
-            "angler": angler,
-            "uid": uid,
-            "image": image,
-            "action": "hooked up.",
-            "message": f"{angler} hooked up.",
-            "time": now.strftime("Jul %d @ %I:%M %p"),
-            "hookup_id": f"{uid}_{now.strftime('%H%M%S')}"
-        }
-        timeline.append(hookup_event)
-
-        # Random delay before outcome (2–10 minutes)
-        resolution_delay = random.randint(2, 10)
-        now += timedelta(minutes=resolution_delay)
-
-        # Step 2: Follow-up result (weighted)
-        result_action, result_type = random.choices(
-            population=[
-                ("pulled hook.", "pulled"),
-                ("wrong species.", "wrong"),
-                ("released a blue marlin.", "released"),
-                ("released a white marlin.", "released"),
-                ("boated a blue marlin.", "boated"),
-                ("boated a white marlin.", "boated"),
-            ],
-            weights=[3, 2, 4, 4, 1, 2],
-            k=1
-        )[0]
-
-        resolution_event = {
-            "boat": boat,
-            "angler": angler,
-            "uid": uid,
-            "image": image,
-            "action": result_action,
-            "message": f"{angler} {result_action}",
-            "time": now.strftime("Jul %d @ %I:%M %p"),
-            "hookup_id": hookup_event["hookup_id"]
-        }
-        timeline.append(resolution_event)
-
-        # Step 3: Headed to Scales — only for boated blue marlin
-        if result_action == "boated a blue marlin.":
-            now += timedelta(minutes=random.randint(1, 3))
-            scales_event = {
-                "boat": boat,
-                "angler": angler,
-                "uid": uid,
-                "image": image,
-                "action": "headed to scales.",
-                "message": f"{angler} is headed to scales with a blue marlin.",
-                "time": now.strftime("Jul %d @ %I:%M %p"),
-                "hookup_id": hookup_event["hookup_id"],
-                "eta": (datetime.now() + timedelta(minutes=random.randint(5, 15))).strftime("%I:%M %p")
-            }
-            timeline.append(scales_event)
-
-    # Return in reverse chronological order (newest first)
-    return sorted(timeline, key=lambda x: datetime.strptime(x["time"], "Jul %d @ %I:%M %p"), reverse=True)
-
-
+def get_events_for_mode():
+    settings = load_settings()
+    data_source = settings.get('data_source', 'current')
+    tournament = settings.get('tournament', 'Big Rock')
+    if data_source == 'historical':
+        return load_historical_data(tournament).get('events', [])
+    elif data_source == 'demo':
+        demo_data = load_demo_data(tournament)
+        all_events = demo_data.get('events', [])
+        return filter_demo_events(all_events)
+    else:
+        return scrape_events(tournament)
 
 
 # scrape leaderboard 
@@ -667,15 +626,9 @@ def wifi():
 
 @app.route('/events')
 def events():
+    events = get_events_for_mode()
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
-
-    try:
-        events = scrape_events(tournament)
-    except Exception as e:
-        print(f"Scraping error (events, {tournament}): {e}")
-        events = []
-
     try:
         if os.path.exists(PARTICIPANTS_MASTER_FILE):
             with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
@@ -700,9 +653,13 @@ def events():
 def leaderboard():
     settings = load_settings()
     tournament = settings.get('tournament', 'Kids')
-    if settings['data_source'] in ['historical', 'demo']:
+    data_source = settings.get('data_source', 'current')
+    if data_source == 'historical':
         return jsonify(load_historical_data(tournament).get('leaderboard', []))
-    return jsonify(scrape_leaderboard(tournament))
+    elif data_source == 'demo':
+        return jsonify(load_demo_data(tournament).get('leaderboard', []))
+    else:
+        return jsonify(scrape_leaderboard(tournament))
 
 from dateutil import parser
 
@@ -710,16 +667,7 @@ from datetime import datetime
 
 @app.route('/hooked')
 def hooked():
-    settings = load_settings()
-    tournament = settings.get('tournament', 'Kids')
-
-    # Load events
-    if settings['data_source'] == 'historical':
-        events = load_historical_data(tournament).get('events', [])
-    elif settings['data_source'] == 'demo':
-        events = generate_demo_events(tournament)
-    else:
-        events = scrape_events(tournament)
+    events = get_events_for_mode()
 
     # Build a set of resolved hookup_ids
     resolved_ids = {
@@ -744,15 +692,7 @@ def hooked():
 
 @app.route('/scales')
 def scales():
-    settings = load_settings()
-    tournament = settings.get('tournament', 'Kids')
-
-    if settings['data_source'] == 'historical':
-        events = load_historical_data(tournament).get('events', [])
-    elif settings['data_source'] == 'demo':
-        events = generate_demo_events(tournament)
-    else:
-        events = scrape_events(tournament)
+    events = get_events_for_mode()
 
     return jsonify([
         event for event in events
@@ -762,9 +702,7 @@ def scales():
 
 @app.route('/api/events')
 def get_events():
-    tournament = get_current_tournament()
-    print(f"🎯 Loading events for: {tournament}")
-    return jsonify(scrape_events(tournament))
+    return jsonify(get_events_for_mode())
 
 @app.route('/gallery')
 def gallery():
@@ -868,7 +806,7 @@ def bluetooth():
     elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jsonify({'status': 'success'})
+            return jupytext({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
@@ -899,3 +837,5 @@ def refresh_data_loop(interval=600):  # 10 minutes
 # Example run
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
+
+

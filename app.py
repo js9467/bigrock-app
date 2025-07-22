@@ -62,9 +62,8 @@ def cache_boat_image(name, image_url):
     safe_name = "".join(c for c in safe_name if c.isalnum() or c in ('_', '-'))  # strip quotes etc.
     ext = ".jpg" if ".jpg" in image_url.lower() else ".png"
     filename = f"{safe_name}{ext}"
-    local_path = os.path.join('static', 'boats', filename)}"
+    local_path = os.path.join("static", "images", "boats", filename)
     relative_path = f"/static/images/boats/{filename}"
-   
 
     if not os.path.exists(local_path):
         try:
@@ -74,15 +73,13 @@ def cache_boat_image(name, image_url):
                     f.write(response.content)
                 print(f"📥 Cached image for {name}")
             else:
-                print(f"⚠️ Failed to download image for {name}: HTTP {response.status_code}}")
+                print(f"⚠️ Failed to download image for {name}: HTTP {response.status_code}")
         except Exception as e:
             print(f"⚠️ Error downloading image for {name}: {e}")
             return "/static/images/placeholder.png"
 
     return relative_path
-
-REMOTE_SETTINGS_URL = "https://js9467.github.io/Brtourney/settings.json"
-REMOTE_SETTINGS_CACHE = {"last_fetch": 0, "data": {}}
+    
 
 def load_remote_settings(force=False):
     now = time.time()

@@ -759,32 +759,25 @@ def hooked():
     events = get_events_for_mode()
     now = datetime.now()
 
-    # Track which hookups have already resolved
-    resolved_ids = set()
-    for e in events:
+    # Build lookup of resolved hookup_ids whose time has passed
+    resolved_ids = {
+        e['hookup_id'] for e in events
         if e.get('hookup_id') and e.get('action', '').lower() in [
             'released', 'boated', 'pulled hook', 'wrong species'
-        ]:
-            try:
-                event_time = parser.parse(e['time'].replace("@", " "))
-                if event_time <= now:
-                    resolved_ids.add(e['hookup_id'])
-            except:
-                continue
+        ]
+        and parser.parse(e['time'].replace("@", " ")) <= now
+    }
 
-    # Show only "hooked up" events that have occurred AND not yet resolved
-    hooked = []
-    for e in events:
-        if e.get('action', '').lower() != 'hooked up':
-            continue
-        try:
-            event_time = parser.parse(e['time'].replace("@", " "))
-            if event_time <= now and e.get('hookup_id') not in resolved_ids:
-                hooked.append(e)
-        except:
-            continue
+    # Only show 'hooked up' events that have occurred and are not resolved
+    hooked = [
+        e for e in events
+        if e.get('action', '').lower() == 'hooked up'
+        and parser.parse(e['time'].replace("@", " ")) <= now
+        and e.get('hookup_id') not in resolved_ids
+    ]
 
     return jsonify(hooked)
+
 
 
 

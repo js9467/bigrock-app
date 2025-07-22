@@ -86,7 +86,7 @@ computed: {
   }
 
   return results;
-}
+},
 activeHookedBoats() {
         const active = new Set();
         const results = [];

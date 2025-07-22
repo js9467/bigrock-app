@@ -257,8 +257,7 @@ def save_settings(settings):
         with open(DEMO_DATA_FILE, 'w') as f:
             json.dump(demo_data, f, indent=4)
 
-        except Exception as e:
-            print(f"Error loading demo data: {e}")
+    
 
         demo_data[tournament] = {
             'events': inject_hooked_up_events(scrape_events(tournament), tournament),

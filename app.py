@@ -246,18 +246,18 @@ def save_settings(settings):
         print(f"Error saving settings: {e}")
     
     # Check if switching to demo mode or changing tournament in demo mode
-if settings.get('data_source') == 'demo' and (
+if settings_data.get('data_source') == 'demo' and (
     old_settings.get('data_source') != 'demo' or
-    old_settings.get('tournament') != settings.get('tournament')
+    old_settings.get('tournament') != settings_data.get('tournament')
 ):
-    tournament = settings.get('tournament')
-    print(f"🎯 Generating demo data for {tournament}")
+    tournament = settings_data.get('tournament')
+    demo_data = {}
+
     try:
         with open(DEMO_DATA_FILE, 'r') as f:
             demo_data = json.load(f)
     except Exception as e:
-        print(f"⚠️ No existing demo data found. Creating new file. ({e})")
-        demo_data = {}
+        print(f"Error loading demo data: {e}")
 
     demo_data[tournament] = {
         'events': inject_hooked_up_events(scrape_events(tournament), tournament),
@@ -269,7 +269,8 @@ if settings.get('data_source') == 'demo' and (
             json.dump(demo_data, f, indent=4)
         print(f"✅ Cached demo data for {tournament}")
     except Exception as e:
-        print(f"❌ Failed to write demo data: {e}")
+        print(f"Error writing demo data file: {e}")
+
 
 
 from copy import deepcopy

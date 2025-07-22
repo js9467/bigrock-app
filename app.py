@@ -256,8 +256,8 @@ def save_settings(settings):
             except Exception as e:
                 print(f"Error loading demo data: {e}")
         demo_data[tournament] = {
-            'events': scrape_events(tournament),
-            'leaderboard': scrape_leaderboard(tournament)
+           'events': inject_hooked_up_events(scrape_events(tournament)),
+    'leaderboard': scrape_leaderboard(tournament)
         }
         try:
             with open(DEMO_DATA_FILE, 'w') as f:
@@ -265,6 +265,49 @@ def save_settings(settings):
             print(f"✅ Cached demo data for {tournament}")
         except Exception as e:
             print(f"Error saving demo data: {e}")
+
+from copy import deepcopy
+
+def inject_hooked_up_events(events):
+    injected = []
+    for event in events:
+        if 'boat' not in event or 'time' not in event:
+            continue
+
+        try:
+            event_dt = parser.parse(event['time'].replace("@", " "))
+        except:
+            continue
+
+        # Create a unique ID to link the "hooked up" and final event
+        hookup_id = f"{normalize_boat_name(event['boat'])}_{event_dt.timestamp()}"
+
+        # Injected hooked up event (10–30 min before)
+        delta = timedelta(minutes=random.randint(10, 30))
+        hooked_time = (event_dt - delta).strftime('%I:%M %p')
+        hooked_event = {
+            "boat": event['boat'],
+            "message": f"{event['boat']} is Hooked Up!",
+            "time": hooked_time,
+            "action": "hooked up",
+            "hookup_id": hookup_id,
+            "image": "/static/images/placeholder.png"
+        }
+
+        # Assign hookup_id to the real event too
+        event_copy = deepcopy(event)
+        event_copy['hookup_id'] = hookup_id
+
+        injected.append(hooked_event)
+        injected.append(event_copy)
+
+    # Sort by timestamp ascending
+    try:
+        injected.sort(key=lambda e: parser.parse(e['time'].replace("@", " ")))
+    except:
+        pass
+
+    return injected
 
 def load_cache(tournament):
     if os.path.exists(CACHE_FILE):

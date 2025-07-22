@@ -352,10 +352,22 @@ def load_cache(tournament):
 
 def save_cache(tournament, data):
     try:
+        # Load existing cache if it exists
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'r') as f:
+                cache = json.load(f)
+        else:
+            cache = {}
+
+        # Merge new data with existing data for the tournament
+        cache[tournament] = {**cache.get(tournament, {}), **data}
+
+        # Write full updated cache
         with open(CACHE_FILE, 'w') as f:
-            json.dump({tournament: data}, f, indent=4)
+            json.dump(cache, f, indent=4)
     except Exception as e:
         print(f"Error saving cache: {e}")
+
 
 def load_mock_data(tournament):
     if os.path.exists(MOCK_DATA_FILE):

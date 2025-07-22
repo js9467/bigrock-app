@@ -1,3 +1,4 @@
+
 from flask import Flask, jsonify, request, render_template
 import json
 import os
@@ -236,9 +237,6 @@ def get_events_for_mode():
 
     else:  # 'current' or default
         return scrape_events(tournament)
-
-def is_demo_mode():
-    return settings.get("mode") == "demo"
 
 def save_settings(settings):
     old_settings = load_settings()
@@ -648,12 +646,9 @@ def index():
 
 
 
-@app.route("/settings")
+@app.route('/settings-page')
 def settings_page():
-    settings = load_settings()
-    settings["demo_mode"] = is_demo_mode()  
-    return jsonify(settings)
-
+    return app.send_static_file('settings.html')
 
 @app.route("/participants")
 def participants_page():

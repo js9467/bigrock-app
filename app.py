@@ -774,7 +774,7 @@ def events():
             print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
 
         print(f"✅ Returning {len(events)} enriched events for {tournament}")
-        for e in events:
+    for e in events:
     boat = e.get('boat', 'Unknown')
     time_str = e.get('time', 'No time')
     action = e.get('action', 'No action')

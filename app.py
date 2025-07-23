@@ -876,21 +876,6 @@ def events():
         print(f"❌ Error in /events route: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@app.route('/leaderboard')
-def leaderboard():
-    settings = load_settings()
-    tournament = settings.get('tournament', 'Big Rock')
-    data_source = settings.get('data_source', 'current')
-    if data_source == 'historical':
-        return jsonify(load_historical_data(tournament).get('leaderboard', []))
-    elif data_source == 'demo':
-        return jsonify(load_demo_data(tournament).get('leaderboard', []))
-    else:
-        return jsonify(scrape_leaderboard(tournament))
-
-from dateutil import parser
-
-from datetime import datetime
 
 @app.route('/hooked')
 def hooked():
@@ -1839,10 +1824,26 @@ def index():
 
 
     
+from dateutil import parser
+from datetime import datetime
+
+@app.route('/leaderboard')
+def leaderboard():
+    settings = load_settings()
+    tournament = settings.get('tournament', 'Big Rock')
+    data_source = settings.get('data_source', 'current')
+    if data_source == 'historical':
+        return jsonify(load_historical_data(tournament).get('leaderboard', []))
+    elif data_source == 'demo':
+        return jsonify(load_demo_data(tournament).get('leaderboard', []))
+    else:
+        return jsonify(scrape_leaderboard(tournament))
+
 
 @app.route('/leaderboard-page')
 def leaderboard_page():
     return app.send_static_file('leaderboard.html')
+
 
 
 @app.route('/settings-page')
@@ -2029,21 +2030,7 @@ def wifi_disconnect():
     except subprocess.CalledProcessError as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/leaderboard')
-def leaderboard():
-    settings = load_settings()
-    tournament = settings.get('tournament', 'Big Rock')
-    data_source = settings.get('data_source', 'current')
-    if data_source == 'historical':
-        return jsonify(load_historical_data(tournament).get('leaderboard', []))
-    elif data_source == 'demo':
-        return jsonify(load_demo_data(tournament).get('leaderboard', []))
-    else:
-        return jsonify(scrape_leaderboard(tournament))
 
-from dateutil import parser
-
-from datetime import datetime
 
 @app.route('/hooked')
 def hooked():

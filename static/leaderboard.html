@@ -19,11 +19,9 @@
     </header>
 
     <div v-if="error" class="error">{{ error }}</div>
-
     <div v-if="isLoading" class="leaderboard">
       <div class="no-leaderboard">Loading leaderboard...</div>
     </div>
-
     <div v-else class="leaderboard">
       <div v-if="leaderboard.length > 0">
         <div v-for="entry in leaderboard" :key="entry.boat" class="leaderboard-item">
@@ -43,93 +41,16 @@
     </div>
   </div>
 
+  <div v-if="!appMounted" class="error">
+    Failed to load leaderboard. Please check your connection, ensure the server is serving /leaderboard, or return to the <a href="/">homepage</a>.
+  </div>
+
   <script>
-    new Vue({
-      el: '#app',
-      data: {
-        settings: {},
-        allTournaments: {},
-        leaderboard: [],
-        participants: [],
-        boatImages: {},
-        error: null,
-        isLoading: true
-      },
-      computed: {
-        logoSrc() {
-          const t = this.settings?.tournament;
-          const logo = this.allTournaments?.[t]?.logo;
-          return logo || '/static/images/WHITELOGOBR.png';
-        }
-      },
-      methods: {
-        async loadSettings() {
-          const res = await fetch('/settings');
-          if (res.ok) this.settings = await res.json();
-        },
-        async loadTournamentSettings() {
-          const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
-          if (res.ok) this.allTournaments = await res.json();
-        },
-        async loadParticipants() {
-          try {
-            const res = await fetch('/api/participants');
-            if (!res.ok) throw new Error('Participants load failed');
-            this.participants = await res.json();
-            this.boatImages = this.participants.reduce((map, p) => {
-              const key = p.boat?.trim().toLowerCase();
-              if (key && p.image) map[key] = p.image;
-              return map;
-            }, {});
-            console.log("✅ Loaded participants image map:", this.boatImages);
-          } catch (e) {
-            console.error('❌ Failed to load participants:', e);
-            this.boatImages = {};
-          }
-        },
-        async loadLeaderboard() {
-          try {
-            const res = await fetch('/leaderboard');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const raw = await res.json();
-            this.leaderboard = raw.map(entry => ({
-              ...entry,
-              boat: entry.boat?.split('\n')[0]?.trim() || entry.boat
-            }));
-            console.log("✅ Cleaned leaderboard data:", this.leaderboard);
-          } catch (e) {
-            console.error("❌ Failed to load leaderboard:", e);
-            this.error = 'Failed to load leaderboard: ' + e.message;
-            this.leaderboard = [];
-          }
-        },
-        getBoatImage(name) {
-          const key = name?.trim().toLowerCase();
-          const image = this.boatImages[key];
-          if (!image) console.warn(`❌ No image found for boat "${key}"`);
-          return image || null;
-        },
-        handleImageError(event) {
-          event.target.style.display = 'none';
-        },
-        goBack() {
-          window.location.href = '/';
-        }
-      },
-      async mounted() {
-        try {
-          await this.loadTournamentSettings();
-          await this.loadSettings();
-          await this.loadParticipants();
-          await this.loadLeaderboard();
-        } catch (e) {
-          console.error('🚨 Initialization error:', e);
-          this.error = 'Initialization failed: ' + e.message;
-        } finally {
-          this.isLoading = false;
-        }
-      }
-    });
+    var appMounted = false;
+  </script>
+  <script src="/static/main.js"></script>
+  <script>
+    appMounted = true;
   </script>
 </body>
 </html>

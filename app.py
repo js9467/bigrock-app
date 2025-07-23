@@ -1840,9 +1840,9 @@ def index():
 
     
 
-
-
-
+@app.route('/leaderboard-page')
+def leaderboard_page():
+    return app.send_static_file('leaderboard.html')
 
 
 @app.route('/settings-page')

@@ -1094,92 +1094,132 @@ def bluetooth_status():
 
 @app.route('/bluetooth')
 def bluetooth():
+    """Handle Bluetooth operations: scan, pair, power on/off."""
     action = request.args.get('action')
+
     if action == 'scan':
         try:
-            scan_proc = subprocess.Popen(['bluetoothctl'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # Start bluetoothctl process
+            scan_proc = subprocess.Popen(
+                ['bluetoothctl'],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
 
-            scan_proc.stdin.write('power on\n')
-            scan_proc.stdin.write('agent on\n')
-            scan_proc.stdin.write('default-agent\n')
-            scan_proc.stdin.write('scan on\n')
-            scan_proc.stdin.flush()
-            time.sleep(5)
+            # Send commands to enable power, agent, and scan
+            commands = ['power on', 'agent on', 'default-agent', 'scan on']
+            for cmd in commands:
+                scan_proc.stdin.write(f"{cmd}\n")
+                scan_proc.stdin.flush()
+            time.sleep(5)  # Wait for devices to be discovered
 
+            # Request devices list
             scan_proc.stdin.write('devices\n')
             scan_proc.stdin.flush()
             time.sleep(1)
 
+            # Exit bluetoothctl
             scan_proc.stdin.write('exit\n')
             scan_proc.stdin.flush()
 
-            stdout, _ = scan_proc.communicate(timeout=10)
+            stdout, stderr = scan_proc.communicate(timeout=10)
 
+            # Parse devices from output
             devices = []
             for line in stdout.split('\n'):
                 if line.strip().startswith('Device'):
-                    parts = line.split(' ')
+                    parts = line.split(' ', 2)  # Split into 3 parts max (Device, MAC, Name)
                     if len(parts) >= 3:
-                        mac = parts[1]
-                        name = ' '.join(parts[2:])
-                        devices.append({'mac': mac, 'name': name})
+                        devices.append({'mac': parts[1], 'name': parts[2]})
             return jsonify(devices)
+
+        except subprocess.TimeoutExpired:
+            print("Bluetooth scan timed out")
+            scan_proc.kill()  # Ensure process is terminated
+            return jsonify({'status': 'error', 'message': 'Scan timed out'})
         except Exception as e:
             print(f"Bluetooth scan error: {e}")
-            return jsonify([])
+            return jsonify({'status': 'error', 'message': str(e)})
+
     elif action == 'pair':
         mac = request.args.get('mac')
-    try:
-        # Run the pairing and trust commands
-        commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
-        subprocess.check_output(['bluetoothctl'], input=commands.encode(), stderr=subprocess.STDOUT)
+        if not mac or not validate_mac(mac):  # Add MAC validation
+            return jsonify({'status': 'error', 'message': 'Invalid or missing MAC address'})
 
-        # Wait for connection to establish
-        time.sleep(2)
-
-        # Get PipeWire sink name dynamically
-        mac_underscore = mac.upper().replace(':', '_')
-        sinks_output = subprocess.check_output(['wpctl', 'list-sinks']).decode()
-        sink_name = None
-        for line in sinks_output.split('\n'):
-            if 'bluez' in line and mac_underscore in line:
-                # Extract the sink name (assuming format like bluez_output.MAC.1 or similar)
-                parts = line.split()
-                for part in parts:
-                    if mac_underscore in part:
-                        sink_name = part
-                        break
-                if sink_name:
-                    break
-
-        if sink_name:
-            # Set the Bluetooth speaker as default in PipeWire
-            subprocess.run(['wpctl', 'set-default', sink_name], check=True)
-            subprocess.run(['wpctl', 'set-mute', sink_name, '0'], check=True)
-            subprocess.run(['wpctl', 'set-volume', sink_name, '1.0'], check=True)
-            return jsonify({'status': 'success', 'output': f'Paired and audio output set to {sink_name}'})
-        else:
-            return jsonify({'status': 'error', 'message': 'Bluetooth sink not found in PipeWire'})
-
-    except subprocess.CalledProcessError as e:
-        return jsonify({'status': 'error', 'message': e.output.decode()})
-elif action == 'on':
         try:
-            subprocess.run(['bluetoothctl', 'power', 'on'], check=True)
+            # Run pairing and connection commands
+            commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
+            subprocess.check_output(
+                ['bluetoothctl'],
+                input=commands.encode(),
+                stderr=subprocess.STDOUT,
+                timeout=15  # Increased timeout for pairing
+            )
+
+            # Wait for connection
+            time.sleep(2)
+
+            # Get PipeWire sink name
+            mac_underscore = mac.upper().replace(':', '_')
+            sinks_output = subprocess.check_output(['wpctl', 'list-sinks'], timeout=5).decode()
+            sink_name = None
+            for line in sinks_output.split('\n'):
+                if 'bluez' in line and mac_underscore in line:
+                    parts = line.split()
+                    for part in parts:
+                        if mac_underscore in part:
+                            sink_name = part
+                            break
+                    if sink_name:
+                        break
+
+            if sink_name:
+                # Set Bluetooth speaker as default in PipeWire
+                subprocess.run(['wpctl', 'set-default', sink_name], check=True, timeout=5)
+                subprocess.run(['wpctl', 'set-mute', sink_name, '0'], check=True, timeout=5)
+                subprocess.run(['wpctl', 'set-volume', sink_name, '1.0'], check=True, timeout=5)
+                return jsonify({'status': 'success', 'output': f'Paired and audio output set to {sink_name}'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Bluetooth sink not found in PipeWire'})
+
+        except subprocess.CalledProcessError as e:
+            return jsonify({'status': 'error', 'message': e.output.decode()})
+        except subprocess.TimeoutExpired:
+            return jsonify({'status': 'error', 'message': 'Pairing operation timed out'})
+        except Exception as e:
+            print(f"Bluetooth pair error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)})
+
+    elif action == 'on':
+        try:
+            subprocess.run(['bluetoothctl', 'power', 'on'], check=True, timeout=5)
             return jsonify({'status': 'success'})
+        except subprocess.TimeoutExpired:
+            return jsonify({'status': 'error', 'message': 'Power on timed out'})
         except Exception as e:
             print(f"Bluetooth power on error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
-elif action == 'off':
+
+    elif action == 'off':
         try:
-            subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
-            return jupytext({'status': 'success'})
+            subprocess.run(['bluetoothctl', 'power', 'off'], check=True, timeout=5)
+            return jsonify({'status': 'success'})
+        except subprocess.TimeoutExpired:
+            return jsonify({'status': 'error', 'message': 'Power off timed out'})
         except Exception as e:
             print(f"Bluetooth power off error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
-    return jsonify([])
 
-import threading
+    return jsonify({'status': 'error', 'message': 'Invalid action'})
+
+def validate_mac(mac):
+    """Validate Bluetooth MAC address format (e.g., XX:XX:XX:XX:XX:XX)."""
+    import re
+    pattern = r'^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$'
+    return bool(re.match(pattern, mac))
+
 
 def refresh_data_loop(interval=600):  # 10 minutes
     def refresh():

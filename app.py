@@ -624,23 +624,53 @@ def load_demo_data(tournament):
 
 # scrape leaderboard 
 def scrape_leaderboard(tournament):
-    print(f"🧲 scraping leaderboard for: {tournament}")
+    if not check_internet():
+        return load_cache(tournament)['leaderboard']
 
     remote = load_remote_settings()
-
-    # Normalize lookup key using exact match logic
-    if tournament not in remote:
-        print(f"❌ '{tournament}' not found in remote keys. Available: {list(remote.keys())}")
-        return []
-
-    url = remote[tournament].get("leaderboard")
+    url = remote.get(tournament, {}).get("leaderboard")
     if not url:
-        print(f"❌ No leaderboard URL for tournament: {tournament}")
-        return []
+        print(f"No leaderboard URL for {tournament}")
+        return load_cache(tournament)['leaderboard']
 
-    print(f"🔗 Scraping leaderboard from: {url}")
-    ...
+    try:
+        response = requests.get(url, timeout=5, verify=False)
+        response.raise_for_status()
+        print(f"Leaderboard response status ({tournament}): {response.status_code}")
+        soup = BeautifulSoup(response.text, 'html.parser')
 
+        leaderboard = []
+        rows = soup.select('table.table-striped tr')  # specifically targets the correct leaderboard table rows
+
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) >= 3:
+                place = cols[0].get_text(strip=True)
+                boat_name = cols[1].find('h4')
+                boat = boat_name.get_text(strip=True) if boat_name else cols[1].get_text(strip=True)
+                points_span = cols[2].select_one('span.label')
+                points = points_span.get_text(strip=True) if points_span else cols[2].get_text(strip=True)
+
+                leaderboard.append({
+                    'place': place,
+                    'boat': boat,
+                    'points': points
+                })
+
+        if not leaderboard:
+            print(f"No leaderboard found for {tournament}, using cache")
+            return load_cache(tournament)['leaderboard']
+
+        # Cache the latest data
+        cache = load_cache(tournament)
+        cache['leaderboard'] = leaderboard
+        save_cache(tournament, cache)
+
+        return leaderboard
+
+    except Exception as e:
+        print(f"Scraping error (leaderboard, {tournament}): {e}")
+        return load_cache(tournament)['leaderboard']
 
 
 # scrape gallery 
@@ -1810,57 +1840,18 @@ def index():
 from dateutil import parser
 from datetime import datetime
 
-@app.route('/settings', methods=['POST'])
-def update_settings():
-    settings_data = request.json
-    selected_name = settings_data.get("tournament")
-
-    # Load remote config to get UID
-    remote = load_remote_settings()
-    tournament_uid = None
-    for name, config in remote.items():
-        if name == selected_name and config:
-            tournament_uid = config.get("uid")
-            break
-
-    if not tournament_uid:
-        print(f"❌ Could not resolve UID for '{selected_name}'")
-        return jsonify({"error": "Invalid tournament"}), 400
-
-    # Store UID in settings
-    settings_to_save = {
-        "tournament": tournament_uid,
-        "data_source": settings_data.get("data_source", "current")
-    }
-
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings_to_save, f, indent=2)
-
-    print(f"✅ Saved settings: {settings_to_save}")
-    return jsonify({"status": "ok"})
 @app.route('/leaderboard')
 def leaderboard():
     settings = load_settings()
-    tournament_name = settings.get('tournament', 'Big Rock')
+    tournament = settings.get('tournament', 'Big Rock')
     data_source = settings.get('data_source', 'current')
-
-    print("📊 /leaderboard hit")
-    print("📌 Tournament (from settings):", tournament_name)
-    print("📌 Data source:", data_source)
-
-    remote = load_remote_settings(force=True)
-    config = remote.get(tournament_name)
-
-    if not config:
-        print(f"❌ No config for tournament: {tournament_name}")
-        return jsonify([])
-
     if data_source == 'historical':
-        return jsonify(load_historical_data(tournament_name).get('leaderboard', []))
+        return jsonify(load_historical_data(tournament).get('leaderboard', []))
     elif data_source == 'demo':
-        return jsonify(load_demo_data(tournament_name).get('leaderboard', []))
+        return jsonify(load_demo_data(tournament).get('leaderboard', []))
     else:
-        return jsonify(scrape_leaderboard(tournament_name))
+        return jsonify(scrape_leaderboard(tournament))
+
 
 @app.route('/leaderboard-page')
 def leaderboard_page():

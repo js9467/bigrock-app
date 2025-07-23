@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Settings</title>
-  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
 </head>
 <body>
@@ -19,40 +19,19 @@
     </header>
 
     <div class="settings">
-      <div class="settings-label">
-        Hooked Up Sound:
-        <input type="checkbox" v-model="settings.sounds.hooked">
-      </div>
-      <div class="settings-label">
-        Released Sound:
-        <input type="checkbox" v-model="settings.sounds.released">
-      </div>
-      <div class="settings-label">
-        Boated Sound:
-        <input type="checkbox" v-model="settings.sounds.boated">
-      </div>
-      <div class="settings-label">
-        Disable Sleep Mode:
-        <input type="checkbox" v-model="settings.disable_sleep_mode">
-      </div>
-      <div class="settings-label">
-        Effects Volume: {{ settings.effects_volume }}
-        <input type="range" v-model="settings.effects_volume" min="0" max="1" step="0.1">
-      </div>
-      <div class="settings-label">
-        Radio Volume: {{ settings.radio_volume }}
-        <input type="range" v-model="settings.radio_volume" min="0" max="1" step="0.1">
-      </div>
+      <!-- General Settings -->
+      <div class="settings-label">Hooked Up Sound: <input type="checkbox" v-model="settings.sounds.hooked"></div>
+      <div class="settings-label">Released Sound: <input type="checkbox" v-model="settings.sounds.released"></div>
+      <div class="settings-label">Boated Sound: <input type="checkbox" v-model="settings.sounds.boated"></div>
+      <div class="settings-label">Disable Sleep Mode: <input type="checkbox" v-model="settings.disable_sleep_mode"></div>
+      <div class="settings-label">Effects Volume: {{ settings.effects_volume }} <input type="range" v-model="settings.effects_volume" min="0" max="1" step="0.1"></div>
+      <div class="settings-label">Radio Volume: {{ settings.radio_volume }} <input type="range" v-model="settings.radio_volume" min="0" max="1" step="0.1"></div>
 
+      <!-- Tournament Selection -->
       <div class="settings-label">
         Tournament:
         <select v-model="settings.tournament">
-          <option 
-            v-for="(value, name) in availableTournaments" 
-            :key="name" 
-            :value="name">
-            {{ name }}
-          </option>
+          <option v-for="(value, name) in availableTournaments" :key="name" :value="name">{{ name }}</option>
         </select>
       </div>
 
@@ -64,36 +43,47 @@
           <option value="demo">Demo</option>
         </select>
       </div>
-<div class="wifi-settings">
-  <h3>📶 Wi-Fi Configuration</h3>
 
-  <button @click="scanWifi" :disabled="connecting">🔍 Scan Networks</button>
-  <p v-if="connectionStatus">{{ connectionStatus }}</p>
+      <!-- Wi-Fi Settings -->
+      <div class="wifi-settings">
+        <h3>📶 Wi-Fi Configuration</h3>
+        <div v-if="currentNetwork">
+          <p><strong>Connected to:</strong> {{ currentNetwork }} <span v-html="signalBars(currentSignal)"></span></p>
+          <button @click="disconnectWifi">Disconnect</button>
+        </div>
+        <p v-else>Not connected to Wi-Fi.</p>
+        <button @click="scanWifi" :disabled="connecting">🔍 Scan Networks</button>
+        <p v-if="connectionStatus">{{ connectionStatus }}</p>
+      </div>
 
-  <ul v-if="wifiNetworks.length > 0">
-    <li v-for="net in wifiNetworks" :key="net.ssid" style="margin-bottom: 10px;">
-      <strong>{{ net.ssid }}</strong> - {{ net.signal }}% 
-      <input
-  type="password"
-  v-model="net.password"
-  :placeholder="`Password for ${net.ssid}`"
-  v-if="net.security !== '--'"
-  style="margin-left: 10px;"
-/>
-<button @click="connectToWifi(net.ssid, net.password)" :disabled="connecting">Connect</button>
+      <!-- Wi-Fi Scan Modal -->
+      <div v-if="showWifiModal" class="modal-overlay">
+        <div class="modal">
+          <h3>Select Wi-Fi Network</h3>
+          <div v-for="net in sortedNetworks" :key="net.ssid" class="wifi-network">
+            <span><strong>{{ net.ssid }}</strong> <span v-html="signalBars(net.signal)"></span></span>
+            <button @click="selectNetwork(net)">Select</button>
+          </div>
+          <button class="close-btn" @click="showWifiModal = false">Close</button>
+        </div>
+      </div>
 
-    </li>
-  </ul>
+      <!-- Password Prompt Modal -->
+      <div v-if="selectedNetwork" class="modal-overlay">
+        <div class="modal">
+          <h3>Enter Password for {{ selectedNetwork.ssid }}</h3>
+          <input type="password" v-model="selectedNetwork.password" placeholder="Password">
+          <button @click="connectToWifi(selectedNetwork)">Connect</button>
+          <button @click="selectedNetwork = null">Cancel</button>
+        </div>
+      </div>
 
-  <p v-if="!wifiNetworks.length">No networks scanned yet. Click scan to begin.</p>
-</div>
-
+      <!-- Bluetooth Settings -->
       <div class="bluetooth-section">
         <div>Bluetooth Speaker</div>
         <div>Status: {{ bluetoothStatus }}</div>
         <div class="settings-label">
-          Bluetooth On:
-          <input type="checkbox" v-model="bluetoothOn">
+          Bluetooth On: <input type="checkbox" v-model="bluetoothOn">
         </div>
         <button @click="discoverDevices">Discover Devices</button>
 
@@ -117,28 +107,29 @@
     new Vue({
       el: '#app',
       data: {
-  settings: {
-    sounds: { hooked: true, released: true, boated: true },
-    followed_boats: [],
-    effects_volume: 0.5,
-    radio_volume: 0.5,
-    tournament: 'Big Rock',
-    data_source: 'demo',
-    disable_sleep_mode: true
-  },
-  allTournaments: {},
-  bluetoothOn: false,
-  bluetoothStatus: 'Unknown',
-  devices: [],
-  showModal: false,
-
-  // ✅ Add these Wi-Fi-specific properties:
-  wifiNetworks: [],
-  lastConnectedSsid: localStorage.getItem('lastConnectedSsid') || ''
-,
-  connecting: false,
-  connectionStatus: '',
-},
+        settings: {
+          sounds: { hooked: true, released: true, boated: true },
+          followed_boats: [],
+          effects_volume: 0.5,
+          radio_volume: 0.5,
+          tournament: 'Big Rock',
+          data_source: 'demo',
+          disable_sleep_mode: true
+        },
+        allTournaments: {},
+        bluetoothOn: false,
+        bluetoothStatus: 'Unknown',
+        devices: [],
+        showModal: false,
+        // Wi-Fi
+        wifiNetworks: [],
+        currentNetwork: '',
+        currentSignal: 0,
+        showWifiModal: false,
+        selectedNetwork: null,
+        connecting: false,
+        connectionStatus: ''
+      },
       computed: {
         logoSrc() {
           const t = this.settings?.tournament;
@@ -151,63 +142,78 @@
             if (value) filtered[name] = value;
           }
           return filtered;
+        },
+        sortedNetworks() {
+          const seen = new Set();
+          return this.wifiNetworks
+            .filter(n => {
+              if (seen.has(n.ssid)) return false;
+              seen.add(n.ssid);
+              return true;
+            })
+            .sort((a, b) => b.signal - a.signal);
         }
       },
       methods: {
-        scanWifi() {
-  this.connecting = true;
-  fetch('/wifi/scan')
-    .then(res => res.json())
-    .then(data => {
-      if (data.networks) {
-        this.wifiNetworks = data.networks;
-        this.connectionStatus = `📡 Found ${data.networks.length} networks.`;
-      } else {
-        this.connectionStatus = '⚠️ No networks found.';
-      }
-    })
-    .catch(() => {
-      this.connectionStatus = '❌ Failed to scan networks.';
-    })
-    .finally(() => {
-      this.connecting = false;
-    });
-},
-
-connectToWifi(ssid) {
-  if (!ssid) {
-    this.connectionStatus = '⚠️ SSID is required.';
-    return;
-  }
-
-  this.connecting = true;
-  this.connectionStatus = `🔌 Connecting to ${ssid}...`;
-
-  fetch('/wifi/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ssid: ssid,
-      password: this.wifiPassword
-    })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        this.connectionStatus = `✅ Connected to ${ssid}`;
-      } else {
-        this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
-      }
-    })
-    .catch(() => {
-      this.connectionStatus = `❌ Error connecting to ${ssid}`;
-    })
-    .finally(() => {
-      this.connecting = false;
-    });
-},
-goBack() {
+        goBack() {
           window.location.href = '/';
+        },
+        signalBars(strength) {
+          const level = Math.min(Math.floor(strength / 25), 4);
+          return '📶'.repeat(level) + '⚪'.repeat(4 - level);
+        },
+        scanWifi() {
+          this.connectionStatus = 'Scanning...';
+          fetch('/wifi/scan')
+            .then(res => res.json())
+            .then(data => {
+              this.wifiNetworks = data.networks || [];
+              this.currentNetwork = data.current || '';
+              const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
+              this.currentSignal = current ? current.signal : 0;
+              this.showWifiModal = true;
+            })
+            .catch(() => this.connectionStatus = '❌ Scan failed.');
+        },
+        selectNetwork(net) {
+          this.selectedNetwork = { ...net, password: '' };
+          this.showWifiModal = false;
+        },
+        connectToWifi(net) {
+          this.connecting = true;
+          this.connectionStatus = `Connecting to ${net.ssid}...`;
+
+          fetch('/wifi/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid: net.ssid, password: net.password || '' })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                this.connectionStatus = `✅ Connected to ${net.ssid}`;
+                this.currentNetwork = net.ssid;
+              } else {
+                this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
+              }
+            })
+            .catch(() => this.connectionStatus = `❌ Error connecting to ${net.ssid}`)
+            .finally(() => {
+              this.connecting = false;
+              this.selectedNetwork = null;
+            });
+        },
+        disconnectWifi() {
+          fetch('/wifi/disconnect', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                this.connectionStatus = 'Disconnected.';
+                this.currentNetwork = '';
+              } else {
+                this.connectionStatus = '❌ Disconnect failed.';
+              }
+            });
         },
         async loadSettings() {
           try {

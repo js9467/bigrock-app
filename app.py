@@ -784,13 +784,24 @@ def wifi():
 import subprocess
 from flask import jsonify
 
+import time
+import subprocess
+from flask import jsonify
+
 @app.route('/wifi/scan')
 def scan_wifi():
     try:
-        # 🔁 Force rescan to get fresh list
-        subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
+        # 🛑 Stop services in case AP mode was ever triggered
+        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=False)
+        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=False)
 
-        # ✅ Now fetch the updated list
+        # 💤 Small delay to ensure wlan0 becomes available
+        time.sleep(2)
+
+        # 🔄 Force a rescan before listing
+        subprocess.run(['sudo', 'nmcli', 'device', 'wifi', 'rescan'], check=True)
+
+        # 🧾 Grab visible networks
         output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi', 'list'],
             universal_newlines=True
@@ -808,7 +819,7 @@ def scan_wifi():
                         'security': security
                     })
 
-        # 🟩 Get the currently connected SSID
+        # 🎯 Get the currently connected SSID
         current_output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
             universal_newlines=True
@@ -821,7 +832,9 @@ def scan_wifi():
         })
 
     except Exception as e:
+        print(f"Scan error: {e}")
         return jsonify({'error': str(e)})
+
 
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():

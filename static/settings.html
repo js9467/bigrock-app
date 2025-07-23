@@ -356,8 +356,8 @@
             const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=pair&mac=${mac}`);
             const data = await response.json();
             console.log('Bluetooth pair response:', data);
-          } Albach, Alexander catch (e) {
-            console.error('Bluetooth pair error:', e);
+          } catch (e) {
+            console.error('Bluetooth pair error:', e); // Corrected single catch block
           }
         },
         async updateBluetoothStatus() {

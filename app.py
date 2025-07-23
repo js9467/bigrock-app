@@ -216,11 +216,11 @@ def load_settings():
         'followed_boats': [],
         'effects_volume': 0.5,
         'radio_volume': 0.5,
-        'tournament': 'Kids',
+        'tournament': 'Big Rock',
         'wifi_ssid': None,
         'wifi_password': None,
-        'data_source': 'current',
-        'disable_sleep_mode': False
+        'data_source': 'demo',
+        'disable_sleep_mode': True
     }
 
 def get_events_for_mode():
@@ -431,7 +431,7 @@ def check_internet():
 
 def check_video_trigger():
     settings = load_settings()
-    tournament = settings.get('tournament', 'Kids')
+    tournament = settings.get('tournament', 'Big Rock')
     events = get_events_for_mode()
     now = datetime.now()
     for event in events:
@@ -802,7 +802,7 @@ def events():
 @app.route('/leaderboard')
 def leaderboard():
     settings = load_settings()
-    tournament = settings.get('tournament', 'Kids')
+    tournament = settings.get('tournament', 'Big Rock')
     data_source = settings.get('data_source', 'current')
     if data_source == 'historical':
         return jsonify(load_historical_data(tournament).get('leaderboard', []))

@@ -529,7 +529,7 @@ header h1 {
 /* Fix for dropdown overflow issue */
 .settings-label select {
   max-width: 50%;
-  width: 50%;
+  width: 20%;
   padding: 1px;
   font-size: .5em;
   border-radius: 2px;

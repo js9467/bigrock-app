@@ -781,6 +781,41 @@ def wifi():
             return jsonify({'status': 'error', 'message': str(e)})
     return render_template('wifi.html')
 
+@app.route('/wifi/scan', methods=['GET'])
+def scan_wifi():
+    try:
+        result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'dev', 'wifi'])
+        networks = []
+        for line in result.decode().splitlines():
+            parts = line.split(':')
+            if len(parts) >= 3:
+                ssid, signal, security = parts
+                if ssid:
+                    networks.append({'ssid': ssid, 'signal': signal, 'security': security})
+        return jsonify({'networks': networks})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/wifi/connect', methods=['POST'])
+def connect_wifi_vue():
+    data = request.get_json()
+    ssid = data.get('ssid')
+    password = data.get('password', '')
+    if not ssid:
+        return jsonify({'error': 'SSID is required'}), 400
+
+    try:
+        # Reuse the same connection name to avoid clutter
+        subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] + 
+                       (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []),
+                       check=True)
+        subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
+        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+        return jsonify({'success': True})
+    except subprocess.CalledProcessError as e:
+        return jsonify(
 @app.route('/events')
 def events():
     try:

@@ -19,7 +19,8 @@
     </header>
 
     <div class="settings">
-      <!-- General Settings -->
+      <!-- SECTION: General Settings -->
+      <h3>General Settings</h3>
       <div class="settings-label">Hooked Up Sound: <input type="checkbox" v-model="settings.sounds.hooked"></div>
       <div class="settings-label">Released Sound: <input type="checkbox" v-model="settings.sounds.released"></div>
       <div class="settings-label">Boated Sound: <input type="checkbox" v-model="settings.sounds.boated"></div>
@@ -27,14 +28,14 @@
       <div class="settings-label">Effects Volume: {{ settings.effects_volume }} <input type="range" v-model="settings.effects_volume" min="0" max="1" step="0.1"></div>
       <div class="settings-label">Radio Volume: {{ settings.radio_volume }} <input type="range" v-model="settings.radio_volume" min="0" max="1" step="0.1"></div>
 
-      <!-- Tournament Selection -->
+      <!-- SECTION: Tournament Settings -->
+      <h3>Tournament Configuration</h3>
       <div class="settings-label">
         Tournament:
         <select v-model="settings.tournament">
           <option v-for="(value, name) in availableTournaments" :key="name" :value="name">{{ name }}</option>
         </select>
       </div>
-
       <div class="settings-label">
         Data Source:
         <select v-model="settings.data_source">
@@ -44,9 +45,9 @@
         </select>
       </div>
 
-      <!-- Wi-Fi Settings -->
+      <!-- SECTION: Wi-Fi Configuration -->
+      <h3>📶 Wi-Fi Configuration</h3>
       <div class="wifi-settings">
-        <h3>📶 Wi-Fi Configuration</h3>
         <div v-if="currentNetwork">
           <p><strong>Connected to:</strong> {{ currentNetwork }} <span v-html="signalBars(currentSignal)"></span></p>
           <button @click="disconnectWifi">Disconnect</button>
@@ -56,7 +57,7 @@
         <p v-if="connectionStatus">{{ connectionStatus }}</p>
       </div>
 
-      <!-- Wi-Fi Scan Modal -->
+      <!-- MODAL: Wi-Fi Scan -->
       <div v-if="showWifiModal" class="modal-overlay">
         <div class="modal">
           <h3>Select Wi-Fi Network</h3>
@@ -68,7 +69,7 @@
         </div>
       </div>
 
-      <!-- Password Prompt Modal -->
+      <!-- MODAL: Wi-Fi Password -->
       <div v-if="selectedNetwork" class="modal-overlay">
         <div class="modal">
           <h3>Enter Password for {{ selectedNetwork.ssid }}</h3>
@@ -78,15 +79,16 @@
         </div>
       </div>
 
-      <!-- Bluetooth Settings -->
+      <!-- SECTION: Bluetooth -->
+      <h3>🔊 Bluetooth Speaker</h3>
       <div class="bluetooth-section">
-        <div>Bluetooth Speaker</div>
         <div>Status: {{ bluetoothStatus }}</div>
         <div class="settings-label">
           Bluetooth On: <input type="checkbox" v-model="bluetoothOn">
         </div>
         <button @click="discoverDevices">Discover Devices</button>
 
+        <!-- MODAL: Bluetooth Devices -->
         <div v-if="showModal" class="modal-overlay">
           <div class="modal">
             <h3>Bluetooth Devices</h3>
@@ -103,6 +105,7 @@
     </div>
   </div>
 
+  <!-- Vue Logic -->
   <script>
     new Vue({
       el: '#app',
@@ -121,7 +124,6 @@
         bluetoothStatus: 'Unknown',
         devices: [],
         showModal: false,
-        // Wi-Fi
         wifiNetworks: [],
         currentNetwork: '',
         currentSignal: 0,
@@ -182,7 +184,6 @@
         connectToWifi(net) {
           this.connecting = true;
           this.connectionStatus = `Connecting to ${net.ssid}...`;
-
           fetch('/wifi/connect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

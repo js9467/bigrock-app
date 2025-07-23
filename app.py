@@ -818,7 +818,8 @@ from flask_cors import CORS
 import subprocess
 
 app = Flask(__name__)
-CORS(app, resources={r"/wifi/*": {"origins": "*"}})  # Allow all origins for testing
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for all routes
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/wifi/scan')
 def scan_wifi():
@@ -843,10 +844,15 @@ def scan_wifi():
             universal_newlines=True
         )
         current_ssid = next((line.split(':')[1] for line in current_output.strip().split('\n') if line.startswith("yes:")), None)
-        return jsonify({'networks': networks, 'current': current_ssid})
+        print(f"Wi-Fi scan response: {networks}, current: {current_ssid}")
+        response = jsonify({'networks': networks, 'current': current_ssid})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
     except Exception as e:
         print(f"Wi-Fi scan error: {e}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():
@@ -854,7 +860,9 @@ def connect_wifi_vue():
     ssid = data.get('ssid')
     password = data.get('password', '')
     if not ssid:
-        return jsonify({'error': 'SSID is required'}), 400
+        response = jsonify({'error': 'SSID is required'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 400
     try:
         subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] +
                        (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []),
@@ -862,10 +870,15 @@ def connect_wifi_vue():
         subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-        return jsonify({'success': True})
+        print(f"Wi-Fi connect success: {ssid}")
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
     except subprocess.CalledProcessError as e:
         print(f"Wi-Fi connect error: {e}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
 
 @app.route('/events')

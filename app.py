@@ -46,6 +46,19 @@ def get_version():
         return "dev"
 
 known_boat_images = {}
+# Force default settings on startup
+if not os.path.exists(SETTINGS_FILE):
+    save_settings({
+        'tournament': 'Big Rock',
+        'data_source': 'demo',
+        'sounds': {'hooked': True, 'released': True, 'boated': True},
+        'followed_boats': [],
+        'effects_volume': 0.5,
+        'radio_volume': 0.5,
+        'wifi_ssid': None,
+        'wifi_password': None,
+        'disable_sleep_mode': False
+    })
 
 def normalize_boat_name(name):
     return name.strip().lower()\

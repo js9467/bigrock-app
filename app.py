@@ -788,27 +788,33 @@ from flask import jsonify
 def scan_wifi():
     try:
         output = subprocess.check_output(
-            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi', 'list'],
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi'],
             universal_newlines=True
         )
         networks = []
+        seen = set()
+
         for line in output.strip().split('\n'):
             parts = line.strip().split(':')
             if len(parts) >= 3:
                 ssid, signal, security = parts[:3]
-                if ssid:  # avoid blank lines
+                if ssid and ssid not in seen:
+                    seen.add(ssid)
                     networks.append({
                         'ssid': ssid,
                         'signal': int(signal),
                         'security': security
                     })
 
-        # Get current connection
+        # Get currently connected SSID
         current_output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
             universal_newlines=True
         )
-        current_ssid = next((line.split(':')[1] for line in current_output.strip().split('\n') if line.startswith("yes:")), None)
+        current_ssid = next(
+            (line.split(':')[1] for line in current_output.strip().split('\n') if line.startswith("yes:")),
+            None
+        )
 
         return jsonify({
             'networks': networks,
@@ -816,7 +822,8 @@ def scan_wifi():
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}), 500
+
 
 
 

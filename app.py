@@ -787,23 +787,28 @@ from flask import jsonify
 @app.route('/wifi/scan')
 def scan_wifi():
     try:
+        # 🔁 Force rescan to get fresh list
+        subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
+
+        # ✅ Now fetch the updated list
         output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi', 'list'],
             universal_newlines=True
         )
+
         networks = []
         for line in output.strip().split('\n'):
             parts = line.strip().split(':')
             if len(parts) >= 3:
                 ssid, signal, security = parts[:3]
-                if ssid:  # avoid blank lines
+                if ssid:
                     networks.append({
                         'ssid': ssid,
                         'signal': int(signal),
                         'security': security
                     })
 
-        # Get current connection
+        # 🟩 Get the currently connected SSID
         current_output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
             universal_newlines=True
@@ -817,8 +822,6 @@ def scan_wifi():
 
     except Exception as e:
         return jsonify({'error': str(e)})
-
-
 
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():

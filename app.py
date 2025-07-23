@@ -624,40 +624,55 @@ def load_demo_data(tournament):
 
 # scrape leaderboard 
 def scrape_leaderboard(tournament):
-    if not check_internet():
-        return load_cache(tournament)['leaderboard']
+    settings = load_remote_settings()
+    url = settings.get(tournament, {}).get('leaderboard')
 
-    remote = load_remote_settings()
-    url = remote.get(tournament, {}).get("leaderboard")
     if not url:
-        print(f"No leaderboard URL for {tournament}")
-        return load_cache(tournament)['leaderboard']
+        print(f"❌ No leaderboard URL found for tournament: {tournament}")
+        return []
+
+    print(f"🌐 Scraping leaderboard from: {url}")
+
+    from playwright.sync_api import sync_playwright
 
     try:
-        response = requests.get(url, timeout=5, verify=False)
-        response.raise_for_status()
-        print(f"Leaderboard response status ({tournament}): {response.status_code}")
-        soup = BeautifulSoup(response.text, 'html.parser')
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, timeout=15000)
+            page.wait_for_timeout(5000)  # wait for content to load
+            content = page.content()
+            browser.close()
+
+        soup = BeautifulSoup(content, 'html.parser')
+
+        if soup is None:
+            print("❌ BeautifulSoup returned None.")
+            return []
+
         leaderboard = []
-        for item in soup.select('.leaderboard-item, .entry-content p, .leaderboard-table tr'):
-            text = item.get_text(strip=True)
-            if 'Place' in text or 'Winner' in text or text.startswith(('1.', '2.', '3.')):
-                parts = text.split(',')
-                if len(parts) >= 2:
-                    boat = parts[0].replace('1.', '').replace('2.', '').replace('3.', '').strip()
-                    points = parts[-1].strip() if 'Points' in parts[-1] or 'lb' in parts[-1] else text.split(' ')[-1].strip()
-                    leaderboard.append({'boat': boat, 'points': points})
-        if not leaderboard:
-            print(f"No leaderboard found for {tournament}, using cache")
-            leaderboard = load_cache(tournament)['leaderboard']
-        else:
-            cache = load_cache(tournament)
-            cache['leaderboard'] = leaderboard
-            save_cache(tournament, cache)
-        return leaderboard[:3]
+        rows = soup.select('.leaderboard-item, .entry-content p, .leaderboard-table tr')
+
+        if not rows:
+            print("⚠️ No leaderboard rows found.")
+            return []
+
+        for row in rows:
+            text = row.get_text(separator=" ", strip=True)
+            if text:
+                leaderboard.append({
+                    "boat": text,
+                    "place": "",     # You may want to extract actual values
+                    "points": "0"
+                })
+
+        print(f"✅ Scraped {len(leaderboard)} entries.")
+        return leaderboard
+
     except Exception as e:
-        print(f"Scraping error (leaderboard, {tournament}): {e}")
-        return load_cache(tournament)['leaderboard']
+        print(f"🔥 Error scraping leaderboard: {e}")
+        return []
+
 # scrape gallery 
 
 def scrape_gallery():

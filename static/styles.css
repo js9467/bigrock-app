@@ -505,6 +505,11 @@ header h1 {
   text-align: center;
   border-bottom: 2px solid #000;
 }
+.settings {
+  max-height: calc(100vh - 120px); /* Adjust based on your header height */
+  overflow-y: auto;
+  padding: 1rem;
+}
 .wifi-settings {
   background: #f9f9f9;
   padding: 15px;

@@ -77,7 +77,10 @@
             if (!res.ok) throw new Error('Participants load failed');
             this.participants = await res.json();
             this.boatImages = this.participants.reduce((map, p) => {
-              if (p.boat && p.image) map[p.boat.trim().toLowerCase()] = p.image;
+              if (p.boat && p.image) {
+                const key = p.boat.trim().toLowerCase();
+                map[key] = p.image;
+              }
               return map;
             }, {});
             console.log("✅ Loaded participants:", this.boatImages);
@@ -91,8 +94,14 @@
             const res = await fetch('/leaderboard');
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            console.log("✅ Loaded leaderboard:", data);
-            this.leaderboard = data;
+
+            // Normalize boat names by stripping size text and extra whitespace
+            this.leaderboard = data.map(entry => {
+              const cleanName = entry.boat.split('\n')[0].trim();
+              return { ...entry, boat: cleanName };
+            });
+
+            console.log("✅ Cleaned leaderboard entries:", this.leaderboard);
           } catch (e) {
             console.error("❌ Failed to load leaderboard:", e);
             this.error = 'Failed to load leaderboard: ' + e.message;
@@ -102,7 +111,9 @@
         getBoatImage(name) {
           if (!name) return '/static/images/placeholder.png';
           const key = name.trim().toLowerCase();
-          return this.boatImages[key] || '/static/images/placeholder.png';
+          const found = this.boatImages[key];
+          if (!found) console.warn(`❗ No image found for boat: "${name}"`);
+          return found || '/static/images/placeholder.png';
         },
         handleImageError(e) {
           e.target.src = '/static/images/placeholder.png';

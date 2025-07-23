@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Settings</title>
-  <link rel="icon" href="/static/favicon.ico">
+  <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A">
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Lobster&display=swap" rel="stylesheet"/>
@@ -25,21 +25,17 @@
     .theme-kwla .header { background: #880e4f; }
     .theme-edisto-invitational-billfish .v-application { background: #e6f2ef; color: #004d40; }
     .theme-edisto-invitational-billfish .header { background: #004d40; }
-    .v-application, .v-main, .v-expansion-panels, .v-dialog {
-      display: block !important;
-      visibility: visible !important;
-      min-height: 100vh !important;
-      opacity: 1 !important;
+    .v-text-field input {
+      touch-action: manipulation; /* Enable touch for virtual keyboard */
     }
+    /* Prevent conflicts with old CSS */
     .modal, .settings, .modal-overlay { display: none; }
   </style>
 </head>
 <body>
   <div id="app">
-    <div v-if="!appMounted" style="color: red;">Loading Vue...</div>
     <v-app>
       <v-main>
-        <div v-if="appMounted" style="color: green;">Vue Mounted, Rendering...</div>
         <div class="settings-container">
           <div class="header">
             <img :src="logoSrc" alt="Tournament Logo" class="logo">
@@ -117,7 +113,7 @@
               </v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
-                <v-btn color="secondary" @click="showWifiModal = false">Close</v-btn>
+                <v-btn color="secondary" @click="closeWifiModal">Close</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -130,12 +126,13 @@
                   label="Password"
                   type="password"
                   outlined
+                  autofocus
                 ></v-text-field>
               </v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn color="primary" @click="connectToWifi(selectedNetwork)" :loading="connecting">Connect</v-btn>
-                <v-btn color="secondary" @click="selectedNetwork = null; showSelectedNetwork = false">Cancel</v-btn>
+                <v-btn color="secondary" @click="closePasswordModal">Cancel</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -156,7 +153,7 @@
               </v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
-                <v-btn color="secondary" @click="showModal = false">Close</v-btn>
+                <v-btn color="secondary" @click="closeBluetoothModal">Close</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -164,13 +161,12 @@
       </v-main>
     </v-app>
   </div>
-  <script src="/static/vue.min.js"></script>
-  <script src="/static/vuetify.min.js"></script>
-  <script src="/static/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.js"></script>
   <script>
     new Vue({
       el: '#app',
-      vuetify: new Vuetify({ theme: { disable: true } }),
+      vuetify: new Vuetify(),
       data: {
         settings: {
           sounds: { hooked: true, released: true, boated: true },
@@ -182,7 +178,7 @@
           disable_sleep_mode: true
         },
         allTournaments: {
-          'Big Rock': { logo: '/static/images/WHITELOGOBR.png' },
+          'Big Rock': { logo: 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490' },
           'Kids': { logo: '/static/images/kids.png' },
           'KWLA': { logo: '/static/images/kwla.png' },
           'Edisto Invitational Billfish': { logo: '/static/images/edisto.png' }
@@ -199,13 +195,12 @@
         showSelectedNetwork: false,
         connecting: false,
         connectionStatus: '',
-        panel: [0],
-        appMounted: false
+        panel: [0, 1, 2, 3]
       },
       computed: {
         logoSrc() {
           console.log('Computing logoSrc, tournament:', this.settings.tournament);
-          return this.allTournaments[this.settings.tournament]?.logo || '/static/images/WHITELOGOBR.png';
+          return this.allTournaments[this.settings.tournament]?.logo || 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490';
         },
         availableTournaments() {
           const filtered = {};
@@ -239,23 +234,19 @@
         async scanWifi() {
           this.connectionStatus = 'Scanning...';
           try {
-            const response = await fetch('/wifi/scan', {
-              method: 'GET',
-              headers: { 'Accept': 'application/json' }
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const response = await fetch('http://192.168.7.111:5000/wifi/scan');
             const data = await response.json();
-            console.log('Wi-Fi scan response:', data);
-            if (data.error) throw new Error(data.error);
+            console.log('Wi-Fi scan response (full):', data); // Log full response
             this.wifiNetworks = data.networks || [];
-            this.currentNetwork = data.current || '';
+            this.currentNetwork = data.current || ''; // Check if data.current exists
+            console.log('Current network set to:', this.currentNetwork);
             const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
             this.currentSignal = current ? current.signal : 0;
             this.showWifiModal = true;
             this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;
           } catch (e) {
-            console.error('Wi-Fi scan error:', e.name, e.message, e.stack);
-            this.connectionStatus = '❌ Scan failed: ' + e.message;
+            console.error('Wi-Fi scan error:', e);
+            this.connectionStatus = '❌ Scan failed.';
           }
         },
         selectNetwork(net) {
@@ -267,7 +258,7 @@
           this.connecting = true;
           this.connectionStatus = `🔌 Connecting to ${net.ssid}...`;
           try {
-            const response = await fetch('/wifi/connect', {
+            const response = await fetch('http://192.168.7.111:5000/wifi/connect', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ssid: net.ssid, password: net.password || '' })
@@ -281,8 +272,8 @@
               this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
             }
           } catch (e) {
-            console.error('Wi-Fi connect error:', e.name, e.message, e.stack);
-            this.connectionStatus = `❌ Error connecting to ${net.ssid}: ${e.message}`;
+            console.error('Wi-Fi connect error:', e);
+            this.connectionStatus = `❌ Error connecting to ${net.ssid}`;
           } finally {
             this.connecting = false;
             this.selectedNetwork = null;
@@ -291,7 +282,7 @@
         },
         async disconnectWifi() {
           try {
-            const response = await fetch('/wifi/disconnect', { method: 'POST' });
+            const response = await fetch('http://192.168.7.111:5000/wifi/disconnect', { method: 'POST' });
             const data = await response.json();
             console.log('Wi-Fi disconnect response:', data);
             if (data.success) {
@@ -301,13 +292,26 @@
               this.connectionStatus = '❌ Disconnect failed.';
             }
           } catch (e) {
-            console.error('Wi-Fi disconnect error:', e.name, e.message, e.stack);
-            this.connectionStatus = '❌ Disconnect failed: ' + e.message;
+            console.error('Wi-Fi disconnect error:', e);
+            this.connectionStatus = '❌ Disconnect failed.';
           }
+        },
+        closeWifiModal() {
+          this.showWifiModal = false;
+          console.log('Wi-Fi modal closed');
+        },
+        closePasswordModal() {
+          this.selectedNetwork = null;
+          this.showSelectedNetwork = false;
+          console.log('Password modal closed');
+        },
+        closeBluetoothModal() {
+          this.showModal = false;
+          console.log('Bluetooth modal closed');
         },
         async loadSettings() {
           try {
-            const response = await fetch('/settings');
+            const response = await fetch('http://192.168.7.111:5000/settings');
             const data = await response.json();
             console.log('Settings response:', data);
             this.settings = {
@@ -317,58 +321,63 @@
               radio_volume: parseFloat(data.radio_volume) || 0.5
             };
           } catch (e) {
-            console.error('Error loading settings:', e.name, e.message, e.stack);
+            console.error('Error loading settings:', e);
           }
         },
         async saveSettings() {
           try {
-            await fetch('/settings', {
+            const response = await fetch('http://192.168.7.111:5000/settings', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(this.settings)
             });
-            console.log('Settings saved');
+            const data = await response.json(); // Add response parsing
+            console.log('Settings save response:', data);
+            if (!response.ok) {
+              throw new Error(data.error || 'Server error');
+            }
           } catch (e) {
-            console.error('Error saving settings:', e.name, e.message, e.stack);
+            console.error('Error saving settings:', e);
+            console.warn('Settings save failed, server returned 500. Check server logs.');
           }
         },
         async toggleBluetooth() {
           try {
-            const response = await fetch(`/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
+            const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
             const data = await response.json();
             console.log('Bluetooth toggle response:', data);
           } catch (e) {
-            console.error('Bluetooth toggle error:', e.name, e.message, e.stack);
+            console.error('Bluetooth toggle error:', e);
           }
         },
         async discoverDevices() {
           try {
-            const response = await fetch('/bluetooth?action=scan');
+            const response = await fetch('http://192.168.7.111:5000/bluetooth?action=scan');
             const data = await response.json();
             console.log('Bluetooth scan response:', data);
             this.devices = data;
             this.showModal = true;
           } catch (e) {
-            console.error('Bluetooth scan error:', e.name, e.message, e.stack);
+            console.error('Bluetooth scan error:', e);
           }
         },
         async pairDevice(mac) {
           try {
-            const response = await fetch(`/bluetooth?action=pair&mac=${mac}`);
+            const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=pair&mac=${mac}`);
             const data = await response.json();
             console.log('Bluetooth pair response:', data);
           } catch (e) {
-            console.error('Bluetooth pair error:', e.name, e.message, e.stack);
+            console.error('Bluetooth pair error:', e);
           }
         },
         async updateBluetoothStatus() {
           try {
-            const response = await fetch('/bluetooth-status');
+            const response = await fetch('http://192.168.7.111:5000/bluetooth-status');
             const data = await response.json();
             console.log('Bluetooth status:', data);
             this.bluetoothStatus = data.status;
           } catch (e) {
-            console.error('Bluetooth status error:', e.name, e.message, e.stack);
+            console.error('Bluetooth status error:', e);
           }
         },
         applyTheme() {
@@ -383,7 +392,7 @@
             console.log('Tournaments response:', remote);
             this.allTournaments = remote;
           } catch (e) {
-            console.error('Failed to fetch tournament list:', e.name, e.message, e.stack);
+            console.error('Failed to fetch tournament list:', e);
           }
         }
       },
@@ -401,18 +410,11 @@
       },
       mounted() {
         console.log('Vue instance mounted');
-        this.appMounted = true;
         this.applyTheme();
         this.loadSettings();
         this.updateBluetoothStatus();
         setInterval(this.updateBluetoothStatus, 5000);
         this.loadRemoteTournaments();
-        // WebSocket for refresh
-        const socket = io();
-        socket.on('refresh', () => {
-          console.log('Received refresh signal');
-          window.location.reload();
-        });
       }
     });
   </script>

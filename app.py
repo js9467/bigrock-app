@@ -782,6 +782,10 @@ def get_participants():
     return jsonify(filtered)
 
 
+from flask import Flask, jsonify, request, send_file
+from flask_cors import CORS
+from flask_socketio import SocketIO
+import subprocess
 
 @app.route('/wifi', methods=['GET', 'POST'])
 def wifi():
@@ -2430,4 +2434,4 @@ def refresh_data_loop(interval=600):  # 10 minutes
 
 # Example run
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

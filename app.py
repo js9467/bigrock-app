@@ -1838,6 +1838,29 @@ def update_settings():
 
     print(f"✅ Saved settings: {settings_to_save}")
     return jsonify({"status": "ok"})
+@app.route('/leaderboard')
+def leaderboard():
+    settings = load_settings()
+    tournament_name = settings.get('tournament', 'Big Rock')
+    data_source = settings.get('data_source', 'current')
+
+    print("📊 /leaderboard hit")
+    print("📌 Tournament (from settings):", tournament_name)
+    print("📌 Data source:", data_source)
+
+    remote = load_remote_settings(force=True)
+    config = remote.get(tournament_name)
+
+    if not config:
+        print(f"❌ No config for tournament: {tournament_name}")
+        return jsonify([])
+
+    if data_source == 'historical':
+        return jsonify(load_historical_data(tournament_name).get('leaderboard', []))
+    elif data_source == 'demo':
+        return jsonify(load_demo_data(tournament_name).get('leaderboard', []))
+    else:
+        return jsonify(scrape_leaderboard(tournament_name))
 
 @app.route('/leaderboard-page')
 def leaderboard_page():

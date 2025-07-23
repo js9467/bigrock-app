@@ -64,29 +64,30 @@
           <option value="demo">Demo</option>
         </select>
       </div>
-<div class="wifi-settings">
-  <h3>📶 Wi-Fi Configuration</h3>
 
-  <button @click="scanWifi" :disabled="connecting">🔍 Scan Networks</button>
-  <p v-if="connectionStatus">{{ connectionStatus }}</p>
+      <div class="settings-label">
+        <button @click="scanWifi">📶 Scan Wi-Fi Networks</button>
+      </div>
 
-  <ul v-if="wifiNetworks.length > 0">
-    <li v-for="net in wifiNetworks" :key="net.ssid" style="margin-bottom: 10px;">
-      <strong>{{ net.ssid }}</strong> - {{ net.signal }}% 
-      <input
-  type="password"
-  v-model="net.password"
-  :placeholder="`Password for ${net.ssid}`"
-  v-if="net.security !== '--'"
-  style="margin-left: 10px;"
-/>
-<button @click="connectToWifi(net.ssid, net.password)" :disabled="connecting">Connect</button>
-
-    </li>
-  </ul>
-
-  <p v-if="!wifiNetworks.length">No networks scanned yet. Click scan to begin.</p>
-</div>
+      <!-- Wi-Fi Modal -->
+      <div v-if="showWifiModal" class="modal-overlay">
+        <div class="modal">
+          <h3>Available Wi-Fi Networks</h3>
+          <ul v-if="wifiNetworks.length">
+            <li v-for="net in wifiNetworks" :key="net.ssid" style="margin-bottom: 10px;">
+              <strong>{{ net.ssid }}</strong> - {{ net.signal }}%
+              <span v-if="net.ssid === lastConnectedSsid">✅ Connected
+                <button @click="disconnectWifi">Disconnect</button>
+              </span>
+              <span v-else>
+                <button @click="handleConnect(net)">Connect</button>
+              </span>
+            </li>
+          </ul>
+          <p v-else>No networks found.</p>
+          <button class="close-btn" @click="showWifiModal = false">Close</button>
+        </div>
+      </div>
 
       <div class="bluetooth-section">
         <div>Bluetooth Speaker</div>
@@ -117,28 +118,25 @@
     new Vue({
       el: '#app',
       data: {
-  settings: {
-    sounds: { hooked: true, released: true, boated: true },
-    followed_boats: [],
-    effects_volume: 0.5,
-    radio_volume: 0.5,
-    tournament: 'Big Rock',
-    data_source: 'demo',
-    disable_sleep_mode: true
-  },
-  allTournaments: {},
-  bluetoothOn: false,
-  bluetoothStatus: 'Unknown',
-  devices: [],
-  showModal: false,
-
-  // ✅ Add these Wi-Fi-specific properties:
-  wifiNetworks: [],
-  lastConnectedSsid: localStorage.getItem('lastConnectedSsid') || ''
-,
-  connecting: false,
-  connectionStatus: '',
-},
+        settings: {
+          sounds: { hooked: true, released: true, boated: true },
+          followed_boats: [],
+          effects_volume: 0.5,
+          radio_volume: 0.5,
+          tournament: 'Big Rock',
+          data_source: 'demo',
+          disable_sleep_mode: true
+        },
+        allTournaments: {},
+        bluetoothOn: false,
+        bluetoothStatus: 'Unknown',
+        devices: [],
+        showModal: false,
+        showWifiModal: false,
+        wifiNetworks: [],
+        lastConnectedSsid: localStorage.getItem('lastConnectedSsid') || '',
+        connecting: false
+      },
       computed: {
         logoSrc() {
           const t = this.settings?.tournament;
@@ -154,59 +152,7 @@
         }
       },
       methods: {
-        scanWifi() {
-  this.connecting = true;
-  fetch('/wifi/scan')
-    .then(res => res.json())
-    .then(data => {
-      if (data.networks) {
-        this.wifiNetworks = data.networks;
-        this.connectionStatus = `📡 Found ${data.networks.length} networks.`;
-      } else {
-        this.connectionStatus = '⚠️ No networks found.';
-      }
-    })
-    .catch(() => {
-      this.connectionStatus = '❌ Failed to scan networks.';
-    })
-    .finally(() => {
-      this.connecting = false;
-    });
-},
-
-connectToWifi(ssid) {
-  if (!ssid) {
-    this.connectionStatus = '⚠️ SSID is required.';
-    return;
-  }
-
-  this.connecting = true;
-  this.connectionStatus = `🔌 Connecting to ${ssid}...`;
-
-  fetch('/wifi/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ssid: ssid,
-      password: this.wifiPassword
-    })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        this.connectionStatus = `✅ Connected to ${ssid}`;
-      } else {
-        this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
-      }
-    })
-    .catch(() => {
-      this.connectionStatus = `❌ Error connecting to ${ssid}`;
-    })
-    .finally(() => {
-      this.connecting = false;
-    });
-},
-goBack() {
+        goBack() {
           window.location.href = '/';
         },
         async loadSettings() {
@@ -230,6 +176,52 @@ goBack() {
           } catch (e) {
             console.error('Error saving settings:', e);
           }
+        },
+        scanWifi() {
+          fetch('/wifi/scan')
+            .then(res => res.json())
+            .then(data => {
+              this.wifiNetworks = data.networks || [];
+              this.showWifiModal = true;
+            })
+            .catch(() => alert('❌ Failed to scan networks'));
+        },
+        handleConnect(net) {
+          const ssid = net.ssid;
+          let password = '';
+
+          if (net.security !== '--') {
+            password = prompt(`Enter password for ${ssid}:`);
+            if (password === null) return; // cancel
+          }
+
+          fetch('/wifi/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid, password })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                alert(`✅ Connected to ${ssid}`);
+                this.lastConnectedSsid = ssid;
+                localStorage.setItem('lastConnectedSsid', ssid);
+                this.showWifiModal = false;
+              } else {
+                alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+              }
+            })
+            .catch(() => alert(`❌ Error connecting to ${ssid}`));
+        },
+        disconnectWifi() {
+          fetch('/wifi/disconnect', { method: 'POST' })
+            .then(res => res.json())
+            .then(() => {
+              alert('📴 Disconnected from Wi-Fi');
+              this.lastConnectedSsid = '';
+              localStorage.removeItem('lastConnectedSsid');
+            })
+            .catch(() => alert('❌ Failed to disconnect'));
         },
         toggleBluetooth() {
           fetch(`/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`)

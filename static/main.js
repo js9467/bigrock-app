@@ -619,7 +619,7 @@ mounted: async function () {
 }
 
 
-        })
+        });
         .catch(err => {
             this.error = 'Failed to fetch tournament settings: ' + err.message;
             console.error('Settings fetch error:', err);

@@ -74,13 +74,14 @@
     <li v-for="net in wifiNetworks" :key="net.ssid" style="margin-bottom: 10px;">
       <strong>{{ net.ssid }}</strong> - {{ net.signal }}% 
       <input
-        v-model="wifiPassword"
-        type="password"
-        placeholder="Password"
-        v-if="net.security !== '--'"
-        style="margin-left: 10px;"
-      />
-      <button @click="connectToWifi(net.ssid)" :disabled="connecting">Connect</button>
+  type="password"
+  v-model="net.password"
+  :placeholder="`Password for ${net.ssid}`"
+  v-if="net.security !== '--'"
+  style="margin-left: 10px;"
+/>
+<button @click="connectToWifi(net.ssid, net.password)" :disabled="connecting">Connect</button>
+
     </li>
   </ul>
 
@@ -133,7 +134,8 @@
 
   // ✅ Add these Wi-Fi-specific properties:
   wifiNetworks: [],
-  wifiPasswords: '',
+  lastConnectedSsid: localStorage.getItem('lastConnectedSsid') || ''
+,
   connecting: false,
   connectionStatus: '',
 },

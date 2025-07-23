@@ -181,4 +181,14 @@ header h1 {
     width: 100%;
     max-width: 100%;
   }
+}.error, .wifi-error {
+  max-width: 1200px;
+  margin: 10px auto;
+  padding: 8px;
+  background: #FFCCCC;
+  color: #333333;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1.2em;
 }
+

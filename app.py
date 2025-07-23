@@ -1038,32 +1038,38 @@ bluetooth_status_cache = {'timestamp': 0, 'status': 'Not Connected'}
 @app.route('/bluetooth-status')
 def bluetooth_status():
     now = time.time()
-    if now - bluetooth_status_cache['timestamp'] < 15:
+    if now - bluetooth_status_cache['timestamp'] < 10:
         return jsonify({'status': bluetooth_status_cache['status']})
 
     try:
-        # Only continue if at least one paired device exists
-        paired = subprocess.check_output(['bluetoothctl', 'paired-devices'], stderr=subprocess.DEVNULL).decode()
-        if not paired.strip():
-            bluetooth_status_cache['status'] = 'Not Connected'
+        # Get list of paired devices
+        paired_output = subprocess.check_output(['bluetoothctl', 'paired-devices'], stderr=subprocess.DEVNULL).decode()
+        paired_lines = paired_output.strip().split('\n')
+        if not paired_lines or paired_lines == ['']:
+            status = 'Not Connected'
         else:
-            # Use first paired MAC (optional: parse MAC directly if needed)
-            output = subprocess.check_output(['bluetoothctl', 'info'], stderr=subprocess.DEVNULL).decode()
-            connected = 'Connected: yes' in output
-            device_name = 'Unknown'
-            if connected:
-                for line in output.split('\n'):
-                    if line.strip().startswith('Name:'):
-                        device_name = line.split(':', 1)[1].strip()
-                        break
-                bluetooth_status_cache['status'] = f"Connected to {device_name}"
-            else:
-                bluetooth_status_cache['status'] = 'Not Connected'
-    except Exception:
-        bluetooth_status_cache['status'] = 'Not Connected'
+            # Extract first paired MAC address
+            first_device = paired_lines[0].split(' ')[1]
+            try:
+                info_output = subprocess.check_output(['bluetoothctl', 'info', first_device], stderr=subprocess.DEVNULL).decode()
+                connected = 'Connected: yes' in info_output
+                if connected:
+                    name = 'Bluetooth Device'
+                    for line in info_output.split('\n'):
+                        if line.strip().startswith('Name:'):
+                            name = line.split(':', 1)[1].strip()
+                            break
+                    status = f"Connected to {name}"
+                else:
+                    status = 'Not Connected'
+            except subprocess.CalledProcessError:
+                status = 'Not Connected'
+    except Exception as e:
+        status = 'Not Connected'
 
+    bluetooth_status_cache['status'] = status
     bluetooth_status_cache['timestamp'] = now
-    return jsonify({'status': bluetooth_status_cache['status']})
+    return jsonify({'status': status})
 
 
 @app.route('/bluetooth')

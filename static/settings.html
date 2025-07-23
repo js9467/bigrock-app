@@ -234,7 +234,7 @@
         async scanWifi() {
   this.connectionStatus = 'Scanning...';
   try {
-    const response = await fetch('http://192.168.7.111:5000/wifi/scan');
+    const response = await fetch('/wifi/scan');
     const data = await response.json();
     console.log('📡 Wi-Fi scan response (full):', data); // Add emoji to find it easier
 
@@ -268,7 +268,7 @@
           this.connecting = true;
           this.connectionStatus = `🔌 Connecting to ${net.ssid}...`;
           try {
-            const response = await fetch('http://192.168.7.111:5000/wifi/connect', {
+            const response = await fetch('/wifi/connect', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ssid: net.ssid, password: net.password || '' })
@@ -292,7 +292,7 @@
         },
         async disconnectWifi() {
           try {
-            const response = await fetch('http://192.168.7.111:5000/wifi/disconnect', { method: 'POST' });
+            const response = await fetch('/wifi/disconnect', { method: 'POST' });
             const data = await response.json();
             console.log('Wi-Fi disconnect response:', data);
             if (data.success) {
@@ -321,7 +321,7 @@
         },
         async loadSettings() {
           try {
-            const response = await fetch('http://192.168.7.111:5000/settings');
+            const response = await fetch('/settings');
             const data = await response.json();
             console.log('Settings response:', data);
             this.settings = {
@@ -336,7 +336,7 @@
         },
         async saveSettings() {
           try {
-            const response = await fetch('http://192.168.7.111:5000/settings', {
+            const response = await fetch('/settings', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(this.settings)
@@ -353,7 +353,7 @@
         },
         async toggleBluetooth() {
           try {
-            const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
+            const response = await fetch(`/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
             const data = await response.json();
             console.log('Bluetooth toggle response:', data);
           } catch (e) {
@@ -362,7 +362,7 @@
         },
         async discoverDevices() {
           try {
-            const response = await fetch('http://192.168.7.111:5000/bluetooth?action=scan');
+            const response = await fetch('/bluetooth?action=scan');
             const data = await response.json();
             console.log('Bluetooth scan response:', data);
             this.devices = data;
@@ -373,7 +373,7 @@
         },
         async pairDevice(mac) {
           try {
-            const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=pair&mac=${mac}`);
+            const response = await fetch(`/bluetooth?action=pair&mac=${mac}`);
             const data = await response.json();
             console.log('Bluetooth pair response:', data);
           } catch (e) {
@@ -382,7 +382,7 @@
         },
         async updateBluetoothStatus() {
           try {
-            const response = await fetch('http://192.168.7.111:5000/bluetooth-status');
+            const response = await fetch('/bluetooth-status');
             const data = await response.json();
             console.log('Bluetooth status:', data);
             this.bluetoothStatus = data.status;

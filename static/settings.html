@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Settings</title>
-  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
 </head>
 <body>
@@ -176,7 +176,7 @@
         },
         scanWifi() {
           this.connecting = true;
-          fetch('/wifi/scan')
+          return fetch('/wifi/scan')
             .then(res => res.json())
             .then(data => {
               this.wifiNetworks = data.networks || [];
@@ -189,40 +189,38 @@
             });
         },
         handleConnect(net) {
-  const ssid = net.ssid;
+          const ssid = net.ssid;
 
-  // Avoid reconnecting to already connected network
-  if (ssid === this.currentSsid) {
-    alert(`✅ Already connected to ${ssid}`);
-    return;
-  }
+          if (ssid === this.currentSsid) {
+            alert(`✅ Already connected to ${ssid}`);
+            return;
+          }
 
-  let password = '';
-  if (net.security && net.security !== '--') {
-    password = prompt(`Enter password for ${ssid}:`);
-    if (password === null) return; // user cancelled
-  }
+          let password = '';
+          if (net.security && net.security !== '--') {
+            password = prompt(`Enter password for ${ssid}:`);
+            if (password === null) return;
+          }
 
-  fetch('/wifi/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ssid, password })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        alert(`✅ Connected to ${ssid}`);
-        this.lastConnectedSsid = ssid;
-        this.currentSsid = ssid;
-        localStorage.setItem('lastConnectedSsid', ssid);
-        this.showWifiModal = false;
-      } else {
-        alert(`❌ Failed: ${data.error || 'Unknown error'}`);
-      }
-    })
-    .catch(() => alert(`❌ Error connecting to ${ssid}`));
-}
-
+          fetch('/wifi/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid, password })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                alert(`✅ Connected to ${ssid}`);
+                this.lastConnectedSsid = ssid;
+                this.currentSsid = ssid;
+                localStorage.setItem('lastConnectedSsid', ssid);
+                this.showWifiModal = false;
+              } else {
+                alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+              }
+            })
+            .catch(() => alert(`❌ Error connecting to ${ssid}`));
+        },
         disconnectWifi() {
           fetch('/wifi/disconnect', { method: 'POST' })
             .then(res => res.json())
@@ -290,10 +288,11 @@
         this.updateBluetoothStatus();
         this.loadRemoteTournaments();
 
-        // Auto-connect to last SSID on boot
-        if (this.lastConnectedSsid) {
-          this.handleConnect({ ssid: this.lastConnectedSsid, security: 'psk' });
-        }
+        this.scanWifi().then(() => {
+          if (this.lastConnectedSsid && !this.currentSsid) {
+            this.handleConnect({ ssid: this.lastConnectedSsid, security: 'psk' });
+          }
+        });
       }
     });
   </script>

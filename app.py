@@ -1,4 +1,5 @@
 
+
 from flask import Flask, jsonify, request, render_template
 import json
 import os
@@ -269,19 +270,10 @@ def save_settings(settings):
         except:
             demo_data = {}
 
-        scraped_events = inject_hooked_up_events(scrape_events(tournament), tournament)
-
-# Preserve manually added events
-existing_events = demo_data.get(tournament, {}).get("events", [])
-manual_events = [e for e in existing_events if e.get("manual")]
-
-combined_events = scraped_events + manual_events
-
-demo_data[tournament] = {
-    'events': combined_events,
-    'leaderboard': scrape_leaderboard(tournament)
-}
-
+        demo_data[tournament] = {
+            'events': inject_hooked_up_events(scrape_events(tournament), tournament),
+            'leaderboard': scrape_leaderboard(tournament)
+        }
 
         with open(DEMO_DATA_FILE, 'w') as f:
             json.dump(demo_data, f, indent=4)

@@ -827,6 +827,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/wifi/scan')
 def scan_wifi():
+    print("Received Wi-Fi scan request from:", request.remote_addr)
     try:
         output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi', 'list'],

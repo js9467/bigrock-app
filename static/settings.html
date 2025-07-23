@@ -65,29 +65,7 @@
         </select>
       </div>
 
-      <div class="wifi-settings">
-  <h3>📶 Wi-Fi Configuration</h3>
-
-  <button @click="scanWifi" :disabled="connecting">🔍 Scan Networks</button>
-  <p v-if="connectionStatus">{{ connectionStatus }}</p>
-
-  <ul v-if="wifiNetworks.length > 0">
-    <li v-for="net in wifiNetworks" :key="net.ssid" style="margin-bottom: 10px;">
-      <strong>{{ net.ssid }}</strong> - {{ net.signal }}% 
-      <input
-        v-model="wifiPassword"
-        type="password"
-        placeholder="Password"
-        v-if="net.security !== '--'"
-        style="margin-left: 10px;"
-      />
-      <button @click="connectToWifi(net.ssid)" :disabled="connecting">Connect</button>
-    </li>
-  </ul>
-
-  <p v-if="!wifiNetworks.length">No networks scanned yet. Click scan to begin.</p>
-</div>
-<div class="bluetooth-section">
+      <div class="bluetooth-section">
         <div>Bluetooth Speaker</div>
         <div>Status: {{ bluetoothStatus }}</div>
         <div class="settings-label">

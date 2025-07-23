@@ -815,7 +815,7 @@ def connect_wifi_vue():
         subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
         return jsonify({'success': True})
     except subprocess.CalledProcessError as e:
-        return jsonify(
+        return jsonify
 @app.route('/events')
 def events():
     try:

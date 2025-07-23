@@ -623,9 +623,20 @@ header h1 {
 .settings-option input[type="checkbox"],
 .settings-option input[type="range"],
 .settings-option select {
-  flex: 1;
-  min-width: 160px;
-  max-width: 300px;
+  flex: 1 1 300px;
+  min-width: 200px;
+  max-width: 100%;
+  padding: 6px;
+  font-size: 1em;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
 }
+.settings {
+  max-height: calc(100vh - 120px); /* Adjust based on your header height */
+  overflow-y: auto;
+  padding: 1rem;
+}
+
 
 

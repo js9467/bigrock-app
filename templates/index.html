@@ -114,17 +114,26 @@
       },
       methods: {
         async loadSettings() {
-          try {
-            const res = await fetch('/settings');
-            if (res.ok) {
-              const data = await res.json();
-              this.settings = { ...this.settings, ...data };
-              this.followedBoats = data.followed_boats || [];
-            }
-          } catch (e) {
-            console.error('Failed to load settings:', e);
-          }
-        },
+  try {
+    const res = await fetch('/settings');
+    if (res.ok) {
+      const data = await res.json();
+      this.settings = { ...this.settings, ...data };
+
+      // Safely handle undefined isSleepMode in settings
+      if (typeof data.isSleepMode === 'undefined') {
+        this.isSleepMode = false;
+      } else {
+        this.isSleepMode = data.isSleepMode;
+      }
+
+      this.followedBoats = data.followed_boats || [];
+    }
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+}
+,
         async loadRemoteTournaments() {
           try {
             const res = await fetch('https://js9467.github.io/Brtourney/settings.json');

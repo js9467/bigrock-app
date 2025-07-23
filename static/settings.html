@@ -25,6 +25,9 @@
     .theme-kwla .header { background: #880e4f; }
     .theme-edisto-invitational-billfish .v-application { background: #e6f2ef; color: #004d40; }
     .theme-edisto-invitational-billfish .header { background: #004d40; }
+    .v-text-field input {
+      touch-action: manipulation; /* Enable touch for virtual keyboard */
+    }
     /* Prevent conflicts with old CSS */
     .modal, .settings, .modal-overlay { display: none; }
   </style>
@@ -123,6 +126,7 @@
                   label="Password"
                   type="password"
                   outlined
+                  autofocus
                 ></v-text-field>
               </v-card-text>
               <v-card-actions>
@@ -232,9 +236,10 @@
           try {
             const response = await fetch('http://192.168.7.111:5000/wifi/scan');
             const data = await response.json();
-            console.log('Wi-Fi scan response:', data);
+            console.log('Wi-Fi scan response (full):', data); // Log full response
             this.wifiNetworks = data.networks || [];
-            this.currentNetwork = data.current || '';
+            this.currentNetwork = data.current || ''; // Check if data.current exists
+            console.log('Current network set to:', this.currentNetwork);
             const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
             this.currentSignal = current ? current.signal : 0;
             this.showWifiModal = true;

@@ -42,33 +42,35 @@
     <button @click="toggleHookedUpMinimized">{{ isHookedUpMinimized ? '+' : '-' }}</button>
   </div>
   <div class="widget-content scrollable" :class="{ minimized: isHookedUpMinimized }">
-    <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
+    <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="hooked-boat event-item">
       <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
-      <span>{{ hook.boat }}</span>
-      <span>{{ formatTime(hook.time) }}</span>
+      <div class="text-content">
+        <span class="event-boat">{{ hook.boat }}</span>
+        <span class="event-time">{{ formatTime(hook.time) }}</span>
+      </div>
     </div>
     <div v-if="hookedBoats.length === 0" class="no-hookups">No boats hooked up</div>
   </div>
+</div>
 
+<div class="event-feed" ref="eventFeed">
+  <div
+    v-for="event in [...displayedEvents].reverse()"
+    :key="event.time + event.boat"
+    class="event event-item"
+    :class="{ followed: followedBoats.includes(event.boat) }"
+  >
+    <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+    <div class="text-content">
+      <span class="event-time">{{ formatTime(event.time) }}</span>
+      <span class="event-boat">{{ event.boat }}</span>
+      <span class="event-action">{{ event.action }}</span>
+      <span class="event-species">{{ event.species }}</span>
+    </div>
+  </div>
+  <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
+</div>
 
-
-       
-
-      <div class="event-feed" ref="eventFeed">
-        <div
-          v-for="event in [...displayedEvents].reverse()"
-          :key="event.time + event.boat"
-          class="event"
-          :class="{ followed: followedBoats.includes(event.boat) }"
-        >
-          <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
-          <span class="event-time">{{ formatTime(event.time) }}</span>
-          <span class="event-boat">{{ event.boat }}</span>
-          <span class="event-action">{{ event.action }}</span>
-          <span class="event-species">{{ event.species }}</span>
-        </div>
-        <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
-      </div>
 
       <audio id="radio-player" loop></audio>
 

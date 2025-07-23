@@ -813,6 +813,13 @@ import subprocess
 app = Flask(__name__)
 CORS(app, resources={r"/wifi/*": {"origins": "*"}})  # Allow all origins for testing
 
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import subprocess
+
+app = Flask(__name__)
+CORS(app, resources={r"/wifi/*": {"origins": "*"}})  # Allow all origins for testing
+
 @app.route('/wifi/scan')
 def scan_wifi():
     try:
@@ -841,9 +848,6 @@ def scan_wifi():
         print(f"Wi-Fi scan error: {e}")
         return jsonify({'error': str(e)}), 500
 
-
-
-
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():
     data = request.get_json()
@@ -851,10 +855,8 @@ def connect_wifi_vue():
     password = data.get('password', '')
     if not ssid:
         return jsonify({'error': 'SSID is required'}), 400
-
     try:
-        # Reuse the same connection name to avoid clutter
-        subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] + 
+        subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] +
                        (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []),
                        check=True)
         subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
@@ -862,7 +864,10 @@ def connect_wifi_vue():
         subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
         return jsonify({'success': True})
     except subprocess.CalledProcessError as e:
-        return jsonify
+        print(f"Wi-Fi connect error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/events')
 def events():
     try:

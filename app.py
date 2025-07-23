@@ -781,20 +781,43 @@ def wifi():
             return jsonify({'status': 'error', 'message': str(e)})
     return render_template('wifi.html')
 
-@app.route('/wifi/scan', methods=['GET'])
+import subprocess
+from flask import jsonify
+
+@app.route('/wifi/scan')
 def scan_wifi():
     try:
-        result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'dev', 'wifi'])
+        output = subprocess.check_output(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi', 'list'],
+            universal_newlines=True
+        )
         networks = []
-        for line in result.decode().splitlines():
-            parts = line.split(':')
+        for line in output.strip().split('\n'):
+            parts = line.strip().split(':')
             if len(parts) >= 3:
-                ssid, signal, security = parts
-                if ssid:
-                    networks.append({'ssid': ssid, 'signal': signal, 'security': security})
-        return jsonify({'networks': networks})
+                ssid, signal, security = parts[:3]
+                if ssid:  # avoid blank lines
+                    networks.append({
+                        'ssid': ssid,
+                        'signal': int(signal),
+                        'security': security
+                    })
+
+        # Get current connection
+        current_output = subprocess.check_output(
+            ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
+            universal_newlines=True
+        )
+        current_ssid = next((line.split(':')[1] for line in current_output.strip().split('\n') if line.startswith("yes:")), None)
+
+        return jsonify({
+            'networks': networks,
+            'current': current_ssid
+        })
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)})
+
 
 
 @app.route('/wifi/connect', methods=['POST'])

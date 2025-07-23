@@ -232,23 +232,33 @@
           return '📶'.repeat(level) + '⚪'.repeat(4 - level);
         },
         async scanWifi() {
-          this.connectionStatus = 'Scanning...';
-          try {
-            const response = await fetch('http://192.168.7.111:5000/wifi/scan');
-            const data = await response.json();
-            console.log('Wi-Fi scan response (full):', data); // Log full response
-            this.wifiNetworks = data.networks || [];
-            this.currentNetwork = data.current || ''; // Check if data.current exists
-            console.log('Current network set to:', this.currentNetwork);
-            const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
-            this.currentSignal = current ? current.signal : 0;
-            this.showWifiModal = true;
-            this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;
-          } catch (e) {
-            console.error('Wi-Fi scan error:', e);
-            this.connectionStatus = '❌ Scan failed.';
-          }
-        },
+  this.connectionStatus = 'Scanning...';
+  try {
+    const response = await fetch('http://192.168.7.111:5000/wifi/scan');
+    const data = await response.json();
+    console.log('📡 Wi-Fi scan response (full):', data); // Add emoji to find it easier
+
+    if (!data.networks) {
+      console.error('⚠️ "networks" field missing in scan response!', data);
+      this.connectionStatus = '❌ No networks found.';
+      return;
+    }
+
+    this.wifiNetworks = data.networks;
+    this.currentNetwork = data.current || '';
+    console.log('📶 Current network set to:', this.currentNetwork);
+
+    const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
+    this.currentSignal = current ? current.signal : 0;
+
+    this.showWifiModal = true;
+    this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;
+  } catch (e) {
+    console.error('❌ Wi-Fi scan error:', e);
+    this.connectionStatus = '❌ Scan failed.';
+  }
+}
+,
         selectNetwork(net) {
           this.selectedNetwork = { ...net, password: '' };
           this.showWifiModal = false;

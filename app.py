@@ -885,6 +885,14 @@ def events():
     except Exception as e:
         print(f"❌ Error in /events route: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+@app.route('/wifi/disconnect', methods=['POST'])
+def wifi_disconnect():
+    try:
+        subprocess.run(['sudo', 'nmcli', 'con', 'down', 'bigrock-wifi'], check=True)
+        subprocess.run(['sudo', 'nmcli', 'con', 'delete', 'bigrock-wifi'], check=False)
+        return jsonify({'success': True})
+    except subprocess.CalledProcessError as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/leaderboard')
 def leaderboard():

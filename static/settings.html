@@ -321,14 +321,19 @@
         },
         async saveSettings() {
           try {
-            await fetch('http://192.168.7.111:5000/settings', {
+            const response = await fetch('http://192.168.7.111:5000/settings', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(this.settings)
             });
-            console.log('Settings saved');
+            const data = await response.json(); // Add response parsing
+            console.log('Settings save response:', data);
+            if (!response.ok) {
+              throw new Error(data.error || 'Server error');
+            }
           } catch (e) {
             console.error('Error saving settings:', e);
+            console.warn('Settings save failed, server returned 500. Check server logs.');
           }
         },
         async toggleBluetooth() {
@@ -357,7 +362,7 @@
             const data = await response.json();
             console.log('Bluetooth pair response:', data);
           } catch (e) {
-            console.error('Bluetooth pair error:', e); // Corrected single catch block
+            console.error('Bluetooth pair error:', e);
           }
         },
         async updateBluetoothStatus() {

@@ -624,53 +624,23 @@ def load_demo_data(tournament):
 
 # scrape leaderboard 
 def scrape_leaderboard(tournament):
-    if not check_internet():
-        return load_cache(tournament)['leaderboard']
+    print(f"🧲 scraping leaderboard for: {tournament}")
 
     remote = load_remote_settings()
-    url = remote.get(tournament, {}).get("leaderboard")
+
+    # Normalize lookup key using exact match logic
+    if tournament not in remote:
+        print(f"❌ '{tournament}' not found in remote keys. Available: {list(remote.keys())}")
+        return []
+
+    url = remote[tournament].get("leaderboard")
     if not url:
-        print(f"No leaderboard URL for {tournament}")
-        return load_cache(tournament)['leaderboard']
+        print(f"❌ No leaderboard URL for tournament: {tournament}")
+        return []
 
-    try:
-        response = requests.get(url, timeout=5, verify=False)
-        response.raise_for_status()
-        print(f"Leaderboard response status ({tournament}): {response.status_code}")
-        soup = BeautifulSoup(response.text, 'html.parser')
+    print(f"🔗 Scraping leaderboard from: {url}")
+    ...
 
-        leaderboard = []
-        rows = soup.select('table.table-striped tr')  # specifically targets the correct leaderboard table rows
-
-        for row in rows:
-            cols = row.find_all('td')
-            if len(cols) >= 3:
-                place = cols[0].get_text(strip=True)
-                boat_name = cols[1].find('h4')
-                boat = boat_name.get_text(strip=True) if boat_name else cols[1].get_text(strip=True)
-                points_span = cols[2].select_one('span.label')
-                points = points_span.get_text(strip=True) if points_span else cols[2].get_text(strip=True)
-
-                leaderboard.append({
-                    'place': place,
-                    'boat': boat,
-                    'points': points
-                })
-
-        if not leaderboard:
-            print(f"No leaderboard found for {tournament}, using cache")
-            return load_cache(tournament)['leaderboard']
-
-        # Cache the latest data
-        cache = load_cache(tournament)
-        cache['leaderboard'] = leaderboard
-        save_cache(tournament, cache)
-
-        return leaderboard
-
-    except Exception as e:
-        print(f"Scraping error (leaderboard, {tournament}): {e}")
-        return load_cache(tournament)['leaderboard']
 
 
 # scrape gallery 

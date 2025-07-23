@@ -1,157 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Settings</title>
-
-  <!-- Fonts and Vuetify -->
-  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.css" rel="stylesheet">
-
-  <!-- Vue & Vuetify -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.js"></script>
-
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Lobster&display=swap" rel="stylesheet"/>
   <style>
-    body {
-      font-family: 'Roboto', sans-serif;
-    }
-    .settings-page {
-      max-width: 900px;
-      margin: auto;
-      padding: 2rem;
-    }
+    .v-application { font-family: 'Roboto', sans-serif; }
+    .settings-container { padding: 16px; max-width: 800px; margin: 0 auto; }
+    .header { background: #003366; color: #FFFFFF; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-family: 'Lobster', cursive; font-size: 1.4em; margin: 0; }
+    .logo { max-width: 150px; margin-bottom: 16px; }
+    .theme-big-rock .v-application { background: #F0F8FF; color: #333333; }
+    .theme-kids .v-application { background: #fff9c4; color: #212121; }
+    .theme-kwla .v-application { background: #fff0f6; color: #880e4f; }
+    .theme-edisto-invitational-billfish .v-application { background: #e6f2ef; color: #004d40; }
   </style>
 </head>
 <body>
   <div id="app">
     <v-app>
-      <v-container class="settings-page">
-        <v-card>
-          <v-toolbar color="primary" dark flat>
-            <v-toolbar-title>⚙️ Settings</v-toolbar-title>
-            <v-spacer></v-spacer>
-            <v-btn icon @click="goBack">
-              <v-icon>mdi-arrow-left</v-icon>
-            </v-btn>
-          </v-toolbar>
-
-          <v-card-text>
-            <!-- General Settings -->
-            <v-card class="mb-4">
-              <v-card-title>General</v-card-title>
-              <v-card-text>
-                <v-switch label="Hooked Up Sound" v-model="settings.sounds.hooked"/>
-                <v-switch label="Released Sound" v-model="settings.sounds.released"/>
-                <v-switch label="Boated Sound" v-model="settings.sounds.boated"/>
-                <v-switch label="Disable Sleep Mode" v-model="settings.disable_sleep_mode"/>
-                <v-slider label="Effects Volume" v-model="settings.effects_volume" :max="1" :step="0.1" thumb-label/>
-                <v-slider label="Radio Volume" v-model="settings.radio_volume" :max="1" :step="0.1" thumb-label/>
-              </v-card-text>
-            </v-card>
-
-            <!-- Tournament Settings -->
-            <v-card class="mb-4">
-              <v-card-title>Tournament</v-card-title>
-              <v-card-text>
-                <v-select
-                  label="Tournament"
-                  v-model="settings.tournament"
-                  :items="Object.keys(availableTournaments)"
-                ></v-select>
-                <v-select
-                  label="Data Source"
-                  v-model="settings.data_source"
-                  :items="['current', 'historical', 'demo']"
-                ></v-select>
-              </v-card-text>
-            </v-card>
-
-            <!-- Wi-Fi Settings -->
-            <v-card class="mb-4">
-              <v-card-title>📶 Wi-Fi</v-card-title>
-              <v-card-text>
-                <div v-if="currentNetwork">
-                  <p>
-                    <strong>Connected:</strong> {{ currentNetwork }}
-                    <v-icon v-if="currentSignal >= 75">mdi-wifi-strength-4</v-icon>
-                    <v-icon v-else-if="currentSignal >= 50">mdi-wifi-strength-3</v-icon>
-                    <v-icon v-else-if="currentSignal >= 25">mdi-wifi-strength-2</v-icon>
-                    <v-icon v-else>mdi-wifi-strength-1</v-icon>
-                  </p>
-                  <v-btn color="error" @click="disconnectWifi">Disconnect</v-btn>
-                </div>
-                <div v-else>
-                  <p>Not connected to Wi-Fi.</p>
-                </div>
-                <v-btn color="primary" :loading="connecting" @click="scanWifi">
-                  <v-icon left>mdi-wifi</v-icon>Scan Networks
-                </v-btn>
-                <v-alert v-if="connectionStatus" type="info" class="mt-2">{{ connectionStatus }}</v-alert>
-              </v-card-text>
-            </v-card>
-
-            <!-- Bluetooth -->
-            <v-card class="mb-4">
-              <v-card-title>🔊 Bluetooth</v-card-title>
-              <v-card-text>
-                <v-switch label="Bluetooth On" v-model="bluetoothOn"/>
-                <p>Status: {{ bluetoothStatus }}</p>
-                <v-btn color="primary" @click="discoverDevices">
-                  <v-icon left>mdi-bluetooth</v-icon>Discover Devices
-                </v-btn>
-              </v-card-text>
-            </v-card>
-          </v-card-text>
-        </v-card>
-
-        <!-- Dialog: Wi-Fi Networks -->
-        <v-dialog v-model="showWifiModal" max-width="500px">
-          <v-card>
-            <v-card-title>Select Wi-Fi</v-card-title>
-            <v-divider></v-divider>
-            <v-list>
-              <v-list-item v-for="net in sortedNetworks" :key="net.ssid">
-                <v-list-item-content>
-                  <v-list-item-title>{{ net.ssid }}</v-list-item-title>
-                  <v-list-item-subtitle>Signal: {{ net.signal }}</v-list-item-subtitle>
-                </v-list-item-content>
-                <v-list-item-action>
-                  <v-btn @click="selectNetwork(net)">Select</v-btn>
-                </v-list-item-action>
-              </v-list-item>
-            </v-list>
-          </v-card>
-        </v-dialog>
-
-        <!-- Dialog: Password Entry -->
-        <v-dialog v-model="selectedNetwork" max-width="400px">
-          <v-card>
-            <v-card-title>Enter Password</v-card-title>
-            <v-card-text>
-              <v-text-field
-                v-model="selectedNetwork.password"
-                :label="selectedNetwork.ssid"
-                type="password"
-              ></v-text-field>
-            </v-card-text>
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn color="green" @click="connectToWifi(selectedNetwork)">Connect</v-btn>
-              <v-btn text @click="selectedNetwork = null">Cancel</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
-
-      </v-container>
+      <v-main>
+        <div class="settings-container">
+          <div class="header">
+            <img :src="logoSrc" alt="Tournament Logo" class="logo">
+            <h1>Settings</h1>
+            <v-btn color="primary" @click="goBack">← Back</v-btn>
+          </div>
+          <v-expansion-panels>
+            <v-expansion-panel>
+              <v-expansion-panel-header>General Settings</v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <v-switch v-model="settings.sounds.hooked" label="Hooked Up Sound"></v-switch>
+                <v-slider v-model="settings.effects_volume" label="Effects Volume" min="0" max="1" step="0.1" thumb-label></v-slider>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </div>
+      </v-main>
     </v-app>
   </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.js"></script>
   <script>
     new Vue({
       el: '#app',
       vuetify: new Vuetify(),
+      data: {
+        settings: { sounds: { hooked: true }, effects_volume: 0.5, tournament: 'Big Rock' },
+        allTournaments: { 'Big Rock': { logo: '/static/images/WHITELOGOBR.png' } }
+      },
+      computed: {
+        logoSrc() {
+          return this.allTournaments[this.settings.tournament]?.logo || '/static/images/WHITELOGOBR.png';
+        }
+      },
+      methods: {
+        goBack() { window.location.href = '/'; },
+        applyTheme() {
+          const slug = this.settings.tournament.toLowerCase().replace(/\s+/g, '-');
+          document.documentElement.className = `theme-${slug}`;
+        }
+      },
+      mounted() {
+        console.log('Vue instance mounted');
+        this.applyTheme();
+      }
+    });
   </script>
 </body>
 </html>

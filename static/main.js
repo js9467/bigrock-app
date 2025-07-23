@@ -104,7 +104,56 @@ computed: {
 
 
 
-    methods: {
+   methods: {
+  scanWifi() {
+    fetch('/wifi/scan')
+      .then(res => res.json())
+      .then(data => {
+        if (data.networks) {
+          this.wifiNetworks = data.networks;
+          this.connectionStatus = `📡 Found ${data.networks.length} networks.`;
+        } else {
+          this.connectionStatus = '⚠️ No networks found.';
+        }
+      })
+      .catch(() => {
+        this.connectionStatus = '❌ Failed to scan networks.';
+      });
+  },
+
+  connectToWifi(ssid) {
+    if (!ssid) {
+      this.connectionStatus = '⚠️ SSID is required.';
+      return;
+    }
+
+    this.connecting = true;
+    this.connectionStatus = `🔌 Connecting to ${ssid}...`;
+
+    fetch('/wifi/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ssid: ssid,
+        password: this.wifiPassword
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          this.connectionStatus = `✅ Connected to ${ssid}`;
+          this.wifiConnected = true;
+        } else {
+          this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
+        }
+      })
+      .catch(() => {
+        this.connectionStatus = `❌ Error connecting to ${ssid}`;
+      })
+      .finally(() => {
+        this.connecting = false;
+      });
+  },
         formatTime(timeStr) {
             const date = new Date(timeStr);
             return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });

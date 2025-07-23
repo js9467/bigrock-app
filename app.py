@@ -1810,32 +1810,34 @@ def index():
 from dateutil import parser
 from datetime import datetime
 
-@app.route('/leaderboard')
-def leaderboard():
-    settings = load_settings()
-    tournament_uid = settings.get('tournament', 'big_rock_2025')
-    data_source = settings.get('data_source', 'current')
+@app.route('/settings', methods=['POST'])
+def update_settings():
+    settings_data = request.json
+    selected_name = settings_data.get("tournament")
 
-    print("📊 /leaderboard hit")
-    print("📌 Tournament UID (from settings):", tournament_uid)
-    print("📌 Data source:", data_source)
+    # Load remote config to get UID
+    remote = load_remote_settings()
+    tournament_uid = None
+    for name, config in remote.items():
+        if name == selected_name and config:
+            tournament_uid = config.get("uid")
+            break
 
-    remote = load_remote_settings(force=True)
-    uid_map = REMOTE_SETTINGS_CACHE.get("uid_map", {})
+    if not tournament_uid:
+        print(f"❌ Could not resolve UID for '{selected_name}'")
+        return jsonify({"error": "Invalid tournament"}), 400
 
-    if tournament_uid not in uid_map:
-        print(f"❌ UID '{tournament_uid}' not found in remote settings.")
-        return jsonify([])
+    # Store UID in settings
+    settings_to_save = {
+        "tournament": tournament_uid,
+        "data_source": settings_data.get("data_source", "current")
+    }
 
-    if data_source == 'historical':
-        return jsonify(load_historical_data(tournament_uid).get('leaderboard', []))
-    elif data_source == 'demo':
-        return jsonify(load_demo_data(tournament_uid).get('leaderboard', []))
-    else:
-        return jsonify(scrape_leaderboard(tournament_uid))
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings_to_save, f, indent=2)
 
-
-
+    print(f"✅ Saved settings: {settings_to_save}")
+    return jsonify({"status": "ok"})
 
 @app.route('/leaderboard-page')
 def leaderboard_page():

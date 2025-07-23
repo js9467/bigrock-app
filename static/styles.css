@@ -690,5 +690,15 @@ header h1 {
 .event-time, .event-action, .event-species {
   font-size: 0.85em;
   color: #333;
+}@media (orientation: portrait) {
+  .widget-row {
+    flex-direction: column;
+  }
+
+  .hooked-up, .event-feed {
+    max-width: 100%;
+    flex: auto;
+  }
 }
+
 

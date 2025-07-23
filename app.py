@@ -1163,14 +1163,14 @@ def bluetooth():
 
     except subprocess.CalledProcessError as e:
         return jsonify({'status': 'error', 'message': e.output.decode()})
-    elif action == 'on':
+elif action == 'on':
         try:
             subprocess.run(['bluetoothctl', 'power', 'on'], check=True)
             return jsonify({'status': 'success'})
         except Exception as e:
             print(f"Bluetooth power on error: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
-    elif action == 'off':
+elif action == 'off':
         try:
             subprocess.run(['bluetoothctl', 'power', 'off'], check=True)
             return jupytext({'status': 'success'})

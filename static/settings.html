@@ -5,107 +5,133 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings</title>
 
-  <!-- Vuetify CSS -->
+  <!-- Fonts and Vuetify -->
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.css" rel="stylesheet">
-  <!-- Material Design Icons -->
-  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css" rel="stylesheet">
-  <!-- Vue Touch Keyboard CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vue-touch-keyboard@0.1.3/dist/vue-touch-keyboard.min.css">
+
+  <!-- Vue & Vuetify -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.js"></script>
 
   <style>
-    body { font-family: Roboto, sans-serif; }
-    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
-    .section-title { margin-top: 30px; font-weight: bold; font-size: 1.4em; }
+    body {
+      font-family: 'Roboto', sans-serif;
+    }
+    .settings-page {
+      max-width: 900px;
+      margin: auto;
+      padding: 2rem;
+    }
   </style>
 </head>
 <body>
   <div id="app">
     <v-app>
-      <v-container class="container">
-        <v-toolbar flat color="primary" dark>
-          <v-toolbar-title>Settings</v-toolbar-title>
-          <v-spacer></v-spacer>
-          <v-btn @click="goBack" icon><v-icon>mdi-arrow-left</v-icon></v-btn>
-        </v-toolbar>
+      <v-container class="settings-page">
+        <v-card>
+          <v-toolbar color="primary" dark flat>
+            <v-toolbar-title>⚙️ Settings</v-toolbar-title>
+            <v-spacer></v-spacer>
+            <v-btn icon @click="goBack">
+              <v-icon>mdi-arrow-left</v-icon>
+            </v-btn>
+          </v-toolbar>
 
-        <!-- General Settings -->
-        <div class="section-title">General</div>
-        <v-switch v-model="settings.sounds.hooked" label="Hooked Up Sound"></v-switch>
-        <v-switch v-model="settings.sounds.released" label="Released Sound"></v-switch>
-        <v-switch v-model="settings.sounds.boated" label="Boated Sound"></v-switch>
-        <v-switch v-model="settings.disable_sleep_mode" label="Disable Sleep Mode"></v-switch>
-        <v-slider v-model="settings.effects_volume" label="Effects Volume" min="0" max="1" step="0.1"></v-slider>
-        <v-slider v-model="settings.radio_volume" label="Radio Volume" min="0" max="1" step="0.1"></v-slider>
+          <v-card-text>
+            <!-- General Settings -->
+            <v-card class="mb-4">
+              <v-card-title>General</v-card-title>
+              <v-card-text>
+                <v-switch label="Hooked Up Sound" v-model="settings.sounds.hooked"/>
+                <v-switch label="Released Sound" v-model="settings.sounds.released"/>
+                <v-switch label="Boated Sound" v-model="settings.sounds.boated"/>
+                <v-switch label="Disable Sleep Mode" v-model="settings.disable_sleep_mode"/>
+                <v-slider label="Effects Volume" v-model="settings.effects_volume" :max="1" :step="0.1" thumb-label/>
+                <v-slider label="Radio Volume" v-model="settings.radio_volume" :max="1" :step="0.1" thumb-label/>
+              </v-card-text>
+            </v-card>
 
-        <!-- Tournament Settings -->
-        <div class="section-title">Tournament</div>
-        <v-select v-model="settings.tournament" :items="Object.keys(allTournaments)" label="Tournament"></v-select>
-        <v-select v-model="settings.data_source" :items="['current', 'historical', 'demo']" label="Data Source"></v-select>
+            <!-- Tournament Settings -->
+            <v-card class="mb-4">
+              <v-card-title>Tournament</v-card-title>
+              <v-card-text>
+                <v-select
+                  label="Tournament"
+                  v-model="settings.tournament"
+                  :items="Object.keys(availableTournaments)"
+                ></v-select>
+                <v-select
+                  label="Data Source"
+                  v-model="settings.data_source"
+                  :items="['current', 'historical', 'demo']"
+                ></v-select>
+              </v-card-text>
+            </v-card>
 
-        <!-- Wi-Fi -->
-        <div class="section-title">Wi-Fi</div>
-        <div v-if="currentNetwork">
-          <p>Connected to: {{ currentNetwork }}</p>
-          <v-btn color="error" @click="disconnectWifi">Disconnect</v-btn>
-        </div>
-        <div v-else>
-          <p>Not connected</p>
-        </div>
-        <v-btn color="primary" @click="scanWifi" :loading="connecting">Scan</v-btn>
-        <div v-if="connectionStatus">{{ connectionStatus }}</div>
+            <!-- Wi-Fi Settings -->
+            <v-card class="mb-4">
+              <v-card-title>📶 Wi-Fi</v-card-title>
+              <v-card-text>
+                <div v-if="currentNetwork">
+                  <p><strong>Connected:</strong> {{ currentNetwork }}</p>
+                  <v-btn color="error" @click="disconnectWifi">Disconnect</v-btn>
+                </div>
+                <div v-else>
+                  <p>Not connected to Wi-Fi.</p>
+                </div>
+                <v-btn color="primary" :loading="connecting" @click="scanWifi">
+                  <v-icon left>mdi-wifi</v-icon>Scan Networks
+                </v-btn>
+                <v-alert v-if="connectionStatus" type="info" class="mt-2">{{ connectionStatus }}</v-alert>
+              </v-card-text>
+            </v-card>
 
-        <v-dialog v-model="showWifiModal" max-width="500">
+            <!-- Bluetooth -->
+            <v-card class="mb-4">
+              <v-card-title>🔊 Bluetooth</v-card-title>
+              <v-card-text>
+                <v-switch label="Bluetooth On" v-model="bluetoothOn"/>
+                <p>Status: {{ bluetoothStatus }}</p>
+                <v-btn color="primary" @click="discoverDevices">Discover Devices</v-btn>
+              </v-card-text>
+            </v-card>
+          </v-card-text>
+        </v-card>
+
+        <!-- Dialog: Wi-Fi Networks -->
+        <v-dialog v-model="showWifiModal" max-width="500px">
           <v-card>
-            <v-card-title>Select Network</v-card-title>
+            <v-card-title>Select Wi-Fi</v-card-title>
             <v-divider></v-divider>
             <v-list>
               <v-list-item v-for="net in sortedNetworks" :key="net.ssid">
                 <v-list-item-content>
                   <v-list-item-title>{{ net.ssid }}</v-list-item-title>
+                  <v-list-item-subtitle>Signal: {{ net.signal }}</v-list-item-subtitle>
                 </v-list-item-content>
-                <v-btn text small @click="selectNetwork(net)">Connect</v-btn>
+                <v-list-item-action>
+                  <v-btn @click="selectNetwork(net)">Select</v-btn>
+                </v-list-item-action>
               </v-list-item>
             </v-list>
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn text @click="showWifiModal = false">Close</v-btn>
-            </v-card-actions>
           </v-card>
         </v-dialog>
 
-        <v-dialog v-model="selectedNetworkDialog" max-width="400">
+        <!-- Dialog: Password Entry -->
+        <v-dialog v-model="selectedNetwork" max-width="400px">
           <v-card>
-            <v-card-title>Enter Password for {{ selectedNetwork?.ssid }}</v-card-title>
+            <v-card-title>Enter Password</v-card-title>
             <v-card-text>
-              <vue-touch-keyboard v-model="selectedNetwork.password"></vue-touch-keyboard>
+              <v-text-field
+                v-model="selectedNetwork.password"
+                :label="selectedNetwork.ssid"
+                type="password"
+              ></v-text-field>
             </v-card-text>
             <v-card-actions>
-              <v-btn color="primary" @click="connectToWifi(selectedNetwork)">Connect</v-btn>
-              <v-btn text @click="selectedNetwork = null; selectedNetworkDialog = false">Cancel</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
-
-        <!-- Bluetooth -->
-        <div class="section-title">Bluetooth</div>
-        <div>Status: {{ bluetoothStatus }}</div>
-        <v-switch v-model="bluetoothOn" label="Bluetooth On"></v-switch>
-        <v-btn color="primary" @click="discoverDevices">Discover Devices</v-btn>
-
-        <v-dialog v-model="showModal" max-width="500">
-          <v-card>
-            <v-card-title>Bluetooth Devices</v-card-title>
-            <v-list>
-              <v-list-item v-for="device in devices" :key="device.mac">
-                <v-list-item-content>
-                  <v-list-item-title>{{ device.name }} ({{ device.mac }})</v-list-item-title>
-                </v-list-item-content>
-                <v-btn small text @click="pairDevice(device.mac)">Pair</v-btn>
-              </v-list-item>
-            </v-list>
-            <v-card-actions>
               <v-spacer></v-spacer>
-              <v-btn text @click="showModal = false">Close</v-btn>
+              <v-btn color="green" @click="connectToWifi(selectedNetwork)">Connect</v-btn>
+              <v-btn text @click="selectedNetwork = null">Cancel</v-btn>
             </v-card-actions>
           </v-card>
         </v-dialog>
@@ -113,98 +139,5 @@
       </v-container>
     </v-app>
   </div>
-
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vue-touch-keyboard@0.1.3/dist/vue-touch-keyboard.min.js"></script>
-  <script>
-    new Vue({
-      el: '#app',
-      vuetify: new Vuetify(),
-      components: {
-        VueTouchKeyboard
-      },
-      data: () => ({
-        settings: {
-          sounds: { hooked: true, released: true, boated: true },
-          effects_volume: 0.5,
-          radio_volume: 0.5,
-          tournament: '',
-          data_source: 'current',
-          disable_sleep_mode: false
-        },
-        allTournaments: {},
-        currentNetwork: '',
-        connectionStatus: '',
-        wifiNetworks: [],
-        selectedNetwork: null,
-        selectedNetworkDialog: false,
-        showWifiModal: false,
-        connecting: false,
-        bluetoothOn: false,
-        bluetoothStatus: 'Unknown',
-        showModal: false,
-        devices: []
-      }),
-      computed: {
-        sortedNetworks() {
-          return this.wifiNetworks.sort((a, b) => b.signal - a.signal);
-        }
-      },
-      methods: {
-        goBack() { window.location.href = '/'; },
-        scanWifi() {
-          this.connectionStatus = 'Scanning...';
-          fetch('/wifi/scan')
-            .then(res => res.json())
-            .then(data => {
-              this.wifiNetworks = data.networks;
-              this.currentNetwork = data.current;
-              this.showWifiModal = true;
-            });
-        },
-        selectNetwork(net) {
-          this.selectedNetwork = { ...net, password: '' };
-          this.selectedNetworkDialog = true;
-        },
-        connectToWifi(net) {
-          fetch('/wifi/connect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ssid: net.ssid, password: net.password })
-          }).then(() => {
-            this.connectionStatus = `Connected to ${net.ssid}`;
-            this.selectedNetworkDialog = false;
-            this.selectedNetwork = null;
-          });
-        },
-        disconnectWifi() {
-          fetch('/wifi/disconnect', { method: 'POST' })
-            .then(() => { this.currentNetwork = ''; });
-        },
-        discoverDevices() {
-          fetch('/bluetooth?action=scan')
-            .then(res => res.json())
-            .then(data => {
-              this.devices = data;
-              this.showModal = true;
-            });
-        },
-        pairDevice(mac) {
-          fetch(`/bluetooth?action=pair&mac=${mac}`);
-        }
-      },
-      mounted() {
-        fetch('/settings')
-          .then(res => res.json())
-          .then(data => { this.settings = { ...this.settings, ...data }; });
-
-        fetch('https://js9467.github.io/Brtourney/settings.json')
-          .then(res => res.json())
-          .then(data => { this.allTournaments = data; });
-      }
-    });
-  </script>
 </body>
 </html>

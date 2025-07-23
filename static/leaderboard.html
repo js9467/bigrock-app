@@ -28,7 +28,6 @@
       <div v-if="leaderboard.length > 0">
         <div v-for="entry in leaderboard" :key="entry.boat" class="leaderboard-item">
           <img
-            v-if="getBoatImage(entry.boat)"
             :src="getBoatImage(entry.boat)"
             alt="Boat Image"
             class="boat-image"
@@ -43,7 +42,6 @@
     </div>
   </div>
 
-  <script src="/static/main.js"></script>
   <script>
     new Vue({
       el: '#app',
@@ -79,9 +77,10 @@
             if (!res.ok) throw new Error('Participants load failed');
             this.participants = await res.json();
             this.boatImages = this.participants.reduce((map, p) => {
-              if (p.boat && p.image) map[p.boat.toLowerCase()] = p.image;
+              if (p.boat && p.image) map[p.boat.trim().toLowerCase()] = p.image;
               return map;
             }, {});
+            console.log("✅ Loaded participants:", this.boatImages);
           } catch (e) {
             console.error('❌ Failed to load participants:', e);
             this.boatImages = {};
@@ -91,14 +90,19 @@
           try {
             const res = await fetch('/leaderboard');
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            this.leaderboard = await res.json();
+            const data = await res.json();
+            console.log("✅ Loaded leaderboard:", data);
+            this.leaderboard = data;
           } catch (e) {
+            console.error("❌ Failed to load leaderboard:", e);
             this.error = 'Failed to load leaderboard: ' + e.message;
             this.leaderboard = [];
           }
         },
         getBoatImage(name) {
-          return this.boatImages?.[name?.toLowerCase()] || null;
+          if (!name) return '/static/images/placeholder.png';
+          const key = name.trim().toLowerCase();
+          return this.boatImages[key] || '/static/images/placeholder.png';
         },
         handleImageError(e) {
           e.target.src = '/static/images/placeholder.png';
@@ -109,15 +113,18 @@
       },
       async mounted() {
         try {
+          console.log("🔁 Loading leaderboard page...");
           await this.loadTournamentSettings();
           await this.loadSettings();
           await this.loadParticipants();
           await this.loadLeaderboard();
         } catch (e) {
           this.error = 'Initialization failed: ' + e.message;
+          console.error(e);
         } finally {
           this.isLoading = false;
           this.appMounted = true;
+          console.log("✅ Leaderboard page mounted");
         }
       }
     });

@@ -41,16 +41,13 @@
     </div>
   </div>
 
-  <div v-if="!appMounted" class="error">
+  <<div v-if="!appMounted" class="error">
+
     Failed to load leaderboard. Please check your connection, ensure the server is serving /leaderboard, or return to the <a href="/">homepage</a>.
   </div>
 
-  <script>
-    var appMounted = false;
-  </script>
+ 
   <script src="/static/main.js"></script>
-  <script>
-    appMounted = true;
-  </script>
+
 </body>
 </html>

@@ -624,54 +624,54 @@ def load_demo_data(tournament):
 
 # scrape leaderboard 
 def scrape_leaderboard(tournament):
-    settings = load_remote_settings()
-    url = settings.get(tournament, {}).get('leaderboard')
+    if not check_internet():
+        return load_cache(tournament)['leaderboard']
 
+    remote = load_remote_settings()
+    url = remote.get(tournament, {}).get("leaderboard")
     if not url:
-        print(f"❌ No leaderboard URL found for tournament: {tournament}")
-        return []
-
-    print(f"🌐 Scraping leaderboard from: {url}")
-
-    from playwright.sync_api import sync_playwright
+        print(f"No leaderboard URL for {tournament}")
+        return load_cache(tournament)['leaderboard']
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(url, timeout=15000)
-            page.wait_for_timeout(5000)  # wait for content to load
-            content = page.content()
-            browser.close()
-
-        soup = BeautifulSoup(content, 'html.parser')
-
-        if soup is None:
-            print("❌ BeautifulSoup returned None.")
-            return []
+        response = requests.get(url, timeout=5, verify=False)
+        response.raise_for_status()
+        print(f"Leaderboard response status ({tournament}): {response.status_code}")
+        soup = BeautifulSoup(response.text, 'html.parser')
 
         leaderboard = []
-        rows = soup.select('.leaderboard-item, .entry-content p, .leaderboard-table tr')
-
-        if not rows:
-            print("⚠️ No leaderboard rows found.")
-            return []
+        rows = soup.select('table.table-striped tr')  # specifically targets the correct leaderboard table rows
 
         for row in rows:
-            text = row.get_text(separator=" ", strip=True)
-            if text:
+            cols = row.find_all('td')
+            if len(cols) >= 3:
+                place = cols[0].get_text(strip=True)
+                boat_name = cols[1].find('h4')
+                boat = boat_name.get_text(strip=True) if boat_name else cols[1].get_text(strip=True)
+                points_span = cols[2].select_one('span.label')
+                points = points_span.get_text(strip=True) if points_span else cols[2].get_text(strip=True)
+
                 leaderboard.append({
-                    "boat": text,
-                    "place": "",     # You may want to extract actual values
-                    "points": "0"
+                    'place': place,
+                    'boat': boat,
+                    'points': points
                 })
 
-        print(f"✅ Scraped {len(leaderboard)} entries.")
+        if not leaderboard:
+            print(f"No leaderboard found for {tournament}, using cache")
+            return load_cache(tournament)['leaderboard']
+
+        # Cache the latest data
+        cache = load_cache(tournament)
+        cache['leaderboard'] = leaderboard
+        save_cache(tournament, cache)
+
         return leaderboard
 
     except Exception as e:
-        print(f"🔥 Error scraping leaderboard: {e}")
-        return []
+        print(f"Scraping error (leaderboard, {tournament}): {e}")
+        return load_cache(tournament)['leaderboard']
+
 
 # scrape gallery 
 

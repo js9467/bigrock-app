@@ -565,58 +565,59 @@ async loadEvents() {
         }
     },
 mounted: async function () {
-    console.log('Vue instance mounted for:', window.location.pathname);
-    window.app = this;
+  console.log('Vue instance mounted for:', window.location.pathname);
+  window.app = this;
 
-    try {
-        const res = await fetch("https://js9467.github.io/Brtourney/settings.json");
-        const data = await res.json();
-        this.allTournaments = data;
+  try {
+    const res = await fetch("https://js9467.github.io/Brtourney/settings.json");
+    const data = await res.json();
+    this.allTournaments = data;
 
-        this.isLoading = true;
+    this.isLoading = true;
 
-        // ✅ Wait for settings to be loaded before using them
-        await this.loadSettings();
-        this.checkSleepMode();
-        this.checkWifiStatus();
+    // Wait for app settings
+    await this.loadSettings();
+    this.checkSleepMode();
+    this.checkWifiStatus();
 
-        // Resume radio if it was playing
-        if (localStorage.getItem('radioPlaying') === 'true') {
-            this.toggleRadio();
-        }
-
-        // Load participants and leaderboard
-        await this.loadParticipants();
-        console.log('Initial data load complete');
-
-        await this.loadLeaderboard();
-        console.log('Leaderboard page data loaded');
-
-        this.isLoading = false;
-        this.appMounted = true;
-
-        // Load live content if not on the leaderboard page
-        if (window.location.pathname !== '/leaderboard') {
-            await this.loadEvents();
-            await this.loadHookedBoats();
-            await this.loadScalesBoats();
-            await this.checkVideoTrigger();
-
-            // 🔁 Auto-refresh every 30 seconds
-            setInterval(() => {
-                this.loadEvents();
-                this.loadHookedBoats();
-                this.loadScalesBoats();
-            }, 30000);
-        }
-
-    } catch (err) {
-        this.error = 'Error in initial data load: ' + err.message;
-        console.error('❌ Initialization error:', err);
-        this.isLoading = false;
-        this.appMounted = true;
+    // Resume radio if active
+    if (localStorage.getItem('radioPlaying') === 'true') {
+      this.toggleRadio();
     }
+
+    // Load initial data
+    await this.loadParticipants();
+    console.log('✅ Participants loaded');
+
+    await this.loadLeaderboard();
+    console.log('✅ Leaderboard loaded');
+
+    this.isLoading = false;
+    this.appMounted = true;
+
+    // Load dynamic feeds if not on leaderboard page
+    if (window.location.pathname !== '/leaderboard') {
+      await this.loadEvents();
+      await this.loadHookedBoats();
+      await this.loadScalesBoats();
+      await this.checkVideoTrigger();
+
+      // Auto-refresh every 30s
+      setInterval(() => {
+        this.loadEvents();
+        this.loadHookedBoats();
+        this.loadScalesBoats();
+      }, 30000);
+    }
+
+  } catch (err) {
+    this.error = 'Error in initial data load: ' + err.message;
+    console.error('❌ Initialization error:', err);
+    this.isLoading = false;
+    this.appMounted = true;
+  }
 }
+
 
 
         });

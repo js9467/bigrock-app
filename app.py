@@ -909,9 +909,8 @@ def settings():
         old_settings = load_settings()
         save_settings(settings_data)
 
-       # ✅ Always write demo data when tournament changes or on first setup
-            if old_settings.get('tournament') != settings_data.get('tournament') or old_settings.get('data_source') != settings_data.get('data_source'):
-
+               # ✅ Always write demo data when tournament or data source changes
+        if old_settings.get('tournament') != settings_data.get('tournament') or old_settings.get('data_source') != settings_data.get('data_source'):
             tournament = settings_data.get('tournament', 'Big Rock')
             demo_data = {}
 
@@ -922,6 +921,20 @@ def settings():
                         demo_data = json.load(f)
                 except Exception as e:
                     print(f"Error loading demo data: {e}")
+
+            # ✅ Generate new events and leaderboard for demo
+            demo_data[tournament] = {
+                'events': inject_hooked_up_events(scrape_events(tournament), tournament),
+                'leaderboard': scrape_leaderboard(tournament)
+            }
+
+            try:
+                with open(DEMO_DATA_FILE, 'w') as f:
+                    json.dump(demo_data, f, indent=4)
+                print(f"✅ Cached demo data for {tournament}")
+            except Exception as e:
+                print(f"Error saving demo data: {e}")
+
 
             # ✅ Generate new events and leaderboard for demo
             demo_data[tournament] = {

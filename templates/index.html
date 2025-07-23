@@ -54,21 +54,28 @@
 
         
 
-      <div class="event-feed" ref="eventFeed">
-        <div
-          v-for="event in [...displayedEvents].reverse()"
-          :key="event.time + event.boat"
-          class="event"
-          :class="{ followed: followedBoats.includes(event.boat) }"
-        >
-          <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
-          <span class="event-time">{{ formatTime(event.time) }}</span>
-          <span class="event-boat">{{ event.boat }}</span>
-          <span class="event-action">{{ event.action }}</span>
-          <span class="event-species">{{ event.species }}</span>
-        </div>
-        <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
-      </div>
+      <div class="event-feed-container">
+  <div class="widget-header">
+    <h3>Event Feed</h3>
+    <button @click="toggleEventMinimized">{{ isEventMinimized ? '+' : '-' }}</button>
+  </div>
+  <div class="event-feed" ref="eventFeed" :class="{ minimized: isEventMinimized }">
+    <div
+      v-for="event in [...displayedEvents].reverse()"
+      :key="event.time + event.boat"
+      class="event"
+      :class="{ followed: followedBoats.includes(event.boat) }"
+    >
+      <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+      <span class="event-time">{{ formatTime(event.time) }}</span>
+      <span class="event-boat">{{ event.boat }}</span>
+      <span class="event-action">{{ event.action }}</span>
+      <span class="event-species">{{ event.species }}</span>
+    </div>
+    <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
+  </div>
+</div>
+
 
       <audio id="radio-player" loop></audio>
 

@@ -152,7 +152,7 @@ computed: {
         this.connecting = false;
       });
   }
-}
+
         formatTime(timeStr) {
             const date = new Date(timeStr);
             return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });

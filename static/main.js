@@ -104,7 +104,8 @@ computed: {
 
 
 
-    methods: {scanWifi() {
+    methods: {
+  scanWifi() {
     fetch('/wifi/scan')
       .then(res => res.json())
       .then(data => {
@@ -119,6 +120,7 @@ computed: {
         this.connectionStatus = '❌ Failed to scan networks.';
       });
   },
+
   connectToWifi(ssid) {
     if (!ssid) {
       this.connectionStatus = '⚠️ SSID is required.';
@@ -153,21 +155,24 @@ computed: {
       });
   },
 
-        formatTime(timeStr) {
-            const date = new Date(timeStr);
-            return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        },
-        formatETA(etaStr) {
-            try {
-                const [hour, minute] = etaStr.split(':');
-                const date = new Date();
-                date.setHours(parseInt(hour));
-                date.setMinutes(parseInt(minute));
-                return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            } catch (e) {
-                return etaStr || 'Unknown ETA';
-            }
-        },
+  formatTime(timeStr) {
+    const date = new Date(timeStr);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  },
+
+  formatETA(etaStr) {
+    try {
+      const [hour, minute] = etaStr.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hour));
+      date.setMinutes(parseInt(minute));
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    } catch (e) {
+      return etaStr || 'Unknown ETA';
+    }
+  }
+}
+,
 async loadEvents() {
     if (this.isSleepMode) return;
     try {

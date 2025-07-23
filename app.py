@@ -1137,9 +1137,7 @@ def refresh_data_loop(interval=600):  # 10 minutes
 
 
 
-# Example run
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+
 import random
 import subprocess
 import time

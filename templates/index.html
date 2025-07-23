@@ -1,20 +1,21 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ settings.tournament }} Tournament</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet"/>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body :class="themeClass">
+
   <div id="app">
-    <div v-if="isDemoMode" class="demo-banner">
-      ⚠️ You are in demo mode. Historical events from the previous tournament are being emulated.
-    </div>
+   <div v-if="isDemoMode" class="demo-banner">
+  ⚠️ You are in demo mode. Historical events from the previous tournament are being emulated.
+</div>
 
     <header>
       {% raw %}
@@ -34,43 +35,39 @@
 
     <div v-if="!isSleepMode">
       <div class="widgets">
-        <div class="hooked-up">
-          <div class="widget-header">
-            <h3>Hooked Up</h3>
-            <button @click="toggleHookedUpMinimized">{{ isHookedUpMinimized ? '+' : '-' }}</button>
-          </div>
-          <div class="widget-content scrollable" :class="{ minimized: isHookedUpMinimized }">
-            <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
-              <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
-              <span>{{ hook.boat }}</span>
-              <span>{{ formatTime(hook.time) }}</span>
-            </div>
-            <div v-if="hookedBoats.length === 0" class="no-hookups">No boats hooked up</div>
-          </div>
-        </div>
 
-        <div class="event-feed-container">
-          <div class="widget-header">
-  <h3>📣 Event Feed</h3>
-  <button @click="toggleEventMinimized">{{ isEventMinimized ? '+' : '-' }}</button>
-</div>
+ <div class="hooked-up">
+  <div class="widget-header">
+    <h3>Hooked Up</h3>
+    <button @click="toggleHookedUpMinimized">{{ isHookedUpMinimized ? '+' : '-' }}</button>
+  </div>
+  <div class="widget-content scrollable" :class="{ minimized: isHookedUpMinimized }">
+    <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
+      <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+      <span>{{ hook.boat }}</span>
+      <span>{{ formatTime(hook.time) }}</span>
+    </div>
+    <div v-if="hookedBoats.length === 0" class="no-hookups">No boats hooked up</div>
+  </div>
 
-          <div class="event-feed" ref="eventFeed" :class="{ minimized: isEventMinimized }">
-            <div
-              v-for="event in [...displayedEvents].reverse()"
-              :key="event.time + event.boat"
-              class="event"
-              :class="{ followed: followedBoats.includes(event.boat) }"
-            >
-              <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
-              <span class="event-time">{{ formatTime(event.time) }}</span>
-              <span class="event-boat">{{ event.boat }}</span>
-              <span class="event-action">{{ event.action }}</span>
-              <span class="event-species">{{ event.species }}</span>
-            </div>
-            <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
-          </div>
+
+
+       
+
+      <div class="event-feed" ref="eventFeed">
+        <div
+          v-for="event in [...displayedEvents].reverse()"
+          :key="event.time + event.boat"
+          class="event"
+          :class="{ followed: followedBoats.includes(event.boat) }"
+        >
+          <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+          <span class="event-time">{{ formatTime(event.time) }}</span>
+          <span class="event-boat">{{ event.boat }}</span>
+          <span class="event-action">{{ event.action }}</span>
+          <span class="event-species">{{ event.species }}</span>
         </div>
+        <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
       </div>
 
       <audio id="radio-player" loop></audio>
@@ -101,75 +98,44 @@
 
   <script src="/static/main.js"></script>
   <script>
-    new Vue({
-      el: '#app',
-      data: {
-        isSleepMode: false,
-        isHookedUpMinimized: false,
-        isEventMinimized: false,
-        radioPlaying: false,
-        settings: {},
-        followedBoats: [],
-        allTournaments: [],
-      },
-      methods: {
-        async loadSettings() {
-  try {
-    const res = await fetch('/settings');
-    if (res.ok) {
-      const data = await res.json();
-      this.settings = { ...this.settings, ...data };
 
-      // Safely handle undefined isSleepMode in settings
-      if (typeof data.isSleepMode === 'undefined') {
-        this.isSleepMode = false;
-      } else {
-        this.isSleepMode = data.isSleepMode;
-      }
-
-      this.followedBoats = data.followed_boats || [];
-    }
-  } catch (e) {
-    console.error('Failed to load settings:', e);
-  }
-}
-,
-        async loadRemoteTournaments() {
-          try {
-            const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
-            if (res.ok) {
-              this.allTournaments = await res.json();
-            }
-          } catch (e) {
-            console.error('Failed to load remote tournaments:', e);
-          }
-        },
-        goToSettings() {
-          window.location.href = '/settings-page';
-        },
-        toggleRadio() {
-          this.radioPlaying = !this.radioPlaying;
-          const player = document.getElementById('radio-player');
-          if (this.radioPlaying) {
-            player.src = 'https://your-radio-stream-url';
-            player.play();
-          } else {
-            player.pause();
-            player.src = '';
-          }
-        },
-        toggleHookedUpMinimized() {
-          this.isHookedUpMinimized = !this.isHookedUpMinimized;
-        },
-        toggleEventMinimized() {
-          this.isEventMinimized = !this.isEventMinimized;
+  methods: {
+    async loadSettings() {
+      try {
+        const res = await fetch('/settings');
+        if (res.ok) {
+          const data = await res.json();
+          this.settings = { ...this.settings, ...data };
+          this.followedBoats = data.followed_boats || [];
         }
-      },
-      mounted() {
-        this.loadSettings();
-        this.loadRemoteTournaments();
+      } catch (e) {
+        console.error('Failed to load settings:', e);
       }
-    });
-  </script>
+    },
+    async loadRemoteTournaments() {
+      try {
+        const res = await fetch('https://js9467.github.io/Brtourney/settings.json');
+        if (res.ok) {
+          this.allTournaments = await res.json();
+        }
+      } catch (e) {
+        console.error('Failed to load remote tournaments:', e);
+      }
+    },
+    goToSettings() {
+      window.location.href = '/settings-page';
+    },
+    toggleRadio() {
+      this.radioPlaying = !this.radioPlaying;
+      const player = document.getElementById('radio-player');
+      if (this.radioPlaying) {
+        player.src = 'https://your-radio-stream-url'; // Replace with your stream
+        player.play();
+      } else {
+        player.pause();
+        player.src = '';
+      }
+    },
+
 </body>
 </html>

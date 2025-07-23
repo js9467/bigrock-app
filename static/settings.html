@@ -152,7 +152,59 @@
         }
       },
       methods: {
-        goBack() {
+        scanWifi() {
+  this.connecting = true;
+  fetch('/wifi/scan')
+    .then(res => res.json())
+    .then(data => {
+      if (data.networks) {
+        this.wifiNetworks = data.networks;
+        this.connectionStatus = `📡 Found ${data.networks.length} networks.`;
+      } else {
+        this.connectionStatus = '⚠️ No networks found.';
+      }
+    })
+    .catch(() => {
+      this.connectionStatus = '❌ Failed to scan networks.';
+    })
+    .finally(() => {
+      this.connecting = false;
+    });
+},
+
+connectToWifi(ssid) {
+  if (!ssid) {
+    this.connectionStatus = '⚠️ SSID is required.';
+    return;
+  }
+
+  this.connecting = true;
+  this.connectionStatus = `🔌 Connecting to ${ssid}...`;
+
+  fetch('/wifi/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ssid: ssid,
+      password: this.wifiPassword
+    })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        this.connectionStatus = `✅ Connected to ${ssid}`;
+      } else {
+        this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
+      }
+    })
+    .catch(() => {
+      this.connectionStatus = `❌ Error connecting to ${ssid}`;
+    })
+    .finally(() => {
+      this.connecting = false;
+    });
+},
+goBack() {
           window.location.href = '/';
         },
         async loadSettings() {

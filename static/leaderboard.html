@@ -25,7 +25,14 @@
     <div v-else class="leaderboard">
       <div v-if="leaderboard.length > 0">
         <div v-for="entry in leaderboard" :key="entry.boat" class="leaderboard-item">
-          <img v-if="getBoatImage(entry.boat)" :src="getBoatImage(entry.boat)" alt="Boat Image" class="boat-image" @error="handleImageError" />
+          <img
+            v-if="getBoatImage(entry.boat)"
+            :src="getBoatImage(entry.boat)"
+            alt="Boat Image"
+            class="boat-image"
+            @error="handleImageError"
+          />
+          <span class="place">{{ entry.place || '' }}</span>
           <span class="boat-name">{{ entry.boat }}</span>
           <span class="score">{{ entry.points }}</span>
         </div>

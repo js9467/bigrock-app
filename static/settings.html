@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Settings</title>
+  <link rel="icon" href="/static/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Lobster&display=swap" rel="stylesheet"/>
@@ -24,6 +25,12 @@
     .theme-kwla .header { background: #880e4f; }
     .theme-edisto-invitational-billfish .v-application { background: #e6f2ef; color: #004d40; }
     .theme-edisto-invitational-billfish .header { background: #004d40; }
+    /* Debug styles */
+    #app, .v-application, .v-main, .settings-container, .v-expansion-panels, .v-dialog {
+      display: block !important;
+      visibility: visible !important;
+      border: 1px solid red !important;
+    }
     /* Prevent conflicts with old CSS */
     .modal, .settings, .modal-overlay { display: none; }
   </style>
@@ -33,6 +40,7 @@
     <div v-if="!appMounted" style="color: red;">Loading Vue...</div>
     <v-app>
       <v-main>
+        <div v-if="appMounted" style="color: green;">Vue Mounted, Rendering...</div>
         <div class="settings-container">
           <div class="header">
             <img :src="logoSrc" alt="Tournament Logo" class="logo">
@@ -114,7 +122,7 @@
               </v-card-actions>
             </v-card>
           </v-dialog>
-          <v-dialog v-model="!!selectedNetwork" max-width="500">
+          <v-dialog v-model="showSelectedNetwork" max-width="500">
             <v-card v-if="selectedNetwork">
               <v-card-title>Enter Password for {{ selectedNetwork.ssid }}</v-card-title>
               <v-card-text>
@@ -128,7 +136,7 @@
               <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn color="primary" @click="connectToWifi(selectedNetwork)" :loading="connecting">Connect</v-btn>
-                <v-btn color="secondary" @click="selectedNetwork = null">Cancel</v-btn>
+                <v-btn color="secondary" @click="selectedNetwork = null; showSelectedNetwork = false">Cancel</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -188,13 +196,15 @@
         currentSignal: 0,
         showWifiModal: false,
         selectedNetwork: null,
+        showSelectedNetwork: false,
         connecting: false,
         connectionStatus: '',
-        panel: [0, 1, 2, 3], // Open all panels by default
+        panel: [0, 1, 2, 3],
         appMounted: false
       },
       computed: {
         logoSrc() {
+          console.log('Computing logoSrc, tournament:', this.settings.tournament);
           return this.allTournaments[this.settings.tournament]?.logo || '/static/images/WHITELOGOBR.png';
         },
         availableTournaments() {
@@ -202,17 +212,20 @@
           for (const [name, value] of Object.entries(this.allTournaments)) {
             if (value) filtered[name] = value;
           }
+          console.log('Available tournaments:', filtered);
           return filtered;
         },
         sortedNetworks() {
           const seen = new Set();
-          return this.wifiNetworks
+          const networks = this.wifiNetworks
             .filter(n => {
               if (seen.has(n.ssid)) return false;
               seen.add(n.ssid);
               return true;
             })
             .sort((a, b) => b.signal - a.signal);
+          console.log('Sorted networks:', networks);
+          return networks;
         }
       },
       methods: {
@@ -243,6 +256,7 @@
         selectNetwork(net) {
           this.selectedNetwork = { ...net, password: '' };
           this.showWifiModal = false;
+          this.showSelectedNetwork = true;
         },
         async connectToWifi(net) {
           this.connecting = true;
@@ -267,6 +281,7 @@
           } finally {
             this.connecting = false;
             this.selectedNetwork = null;
+            this.showSelectedNetwork = false;
           }
         },
         async disconnectWifi() {
@@ -290,7 +305,12 @@
             const response = await fetch('/settings');
             const data = await response.json();
             console.log('Settings response:', data);
-            this.settings = { ...this.settings, ...data };
+            this.settings = {
+              ...this.settings,
+              ...data,
+              effects_volume: parseFloat(data.effects_volume) || 0.5,
+              radio_volume: parseFloat(data.radio_volume) || 0.5
+            };
           } catch (e) {
             console.error('Error loading settings:', e);
           }
@@ -349,6 +369,7 @@
         applyTheme() {
           const slug = this.settings.tournament.toLowerCase().replace(/\s+/g, '-');
           document.documentElement.className = `theme-${slug}`;
+          console.log('Applied theme:', slug);
         },
         async loadRemoteTournaments() {
           try {

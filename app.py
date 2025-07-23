@@ -786,59 +786,31 @@ from flask import jsonify
 
 import time
 
-@app.route('/wifi/scan')
-def scan_wifi():
+@app.route('/wifi/connect', methods=['POST'])
+def connect_wifi_vue():
+    data = request.get_json()
+    ssid = data.get('ssid')
+    password = data.get('password', '')
+
+    if not ssid:
+        return jsonify({'error': 'SSID is required'}), 400
+
     try:
-        subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
-        time.sleep(1.5)  # <--- small pause to let scan complete
+        # Check if connection already exists
+        existing_connections = subprocess.check_output(['nmcli', '-t', '-f', 'NAME', 'con', 'show'], universal_newlines=True)
+        if ssid not in existing_connections:
+            args = ['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', ssid, 'ssid', ssid]
+            if password:
+                args += ['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password]
+            subprocess.run(args, check=True)
 
-        output = subprocess.check_output(
-            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi'],
-            universal_newlines=True
-        )
-
-        networks = []
-        seen_ssids = set()
-
-        for line in output.strip().split('\n'):
-            parts = line.strip().split(':')
-            if len(parts) < 3:
-                continue
-
-            ssid, signal, security = parts[:3]
-            ssid = ssid.strip()
-            if not ssid or ssid in seen_ssids:
-                continue
-
-            seen_ssids.add(ssid)
-            try:
-                signal = int(signal)
-            except ValueError:
-                signal = 0
-
-            networks.append({
-                'ssid': ssid,
-                'signal': signal,
-                'security': security
-            })
-
-        current_output = subprocess.check_output(
-            ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
-            universal_newlines=True
-        )
-        current_ssid = next(
-            (line.split(':')[1] for line in current_output.strip().split('\n') if line.startswith("yes:")),
-            None
-        )
-
-        return jsonify({
-            'networks': networks,
-            'current': current_ssid
-        })
-
-    except Exception as e:
-        print(f"❌ Wi-Fi scan error: {e}")
+        subprocess.run(['sudo', 'nmcli', 'con', 'up', ssid], check=True)
+        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+        return jsonify({'success': True})
+    except subprocess.CalledProcessError as e:
         return jsonify({'error': str(e)}), 500
+
 
 
 

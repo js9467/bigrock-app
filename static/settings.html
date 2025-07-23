@@ -189,30 +189,40 @@
             });
         },
         handleConnect(net) {
-          const ssid = net.ssid;
-          let password = '';
-          if (net.security !== '--') {
-            password = prompt(`Enter password for ${ssid}:`);
-            if (password === null) return;
-          }
-          fetch('/wifi/connect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ssid, password })
-          })
-            .then(res => res.json())
-            .then(data => {
-              if (data.success) {
-                alert(`✅ Connected to ${ssid}`);
-                this.lastConnectedSsid = ssid;
-                localStorage.setItem('lastConnectedSsid', ssid);
-                this.showWifiModal = false;
-                this.currentSsid = ssid;
-              } else {
-                alert(`❌ Failed: ${data.error || 'Unknown error'}`);
-              }
-            });
-        },
+  const ssid = net.ssid;
+
+  // Avoid reconnecting to already connected network
+  if (ssid === this.currentSsid) {
+    alert(`✅ Already connected to ${ssid}`);
+    return;
+  }
+
+  let password = '';
+  if (net.security && net.security !== '--') {
+    password = prompt(`Enter password for ${ssid}:`);
+    if (password === null) return; // user cancelled
+  }
+
+  fetch('/wifi/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ssid, password })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert(`✅ Connected to ${ssid}`);
+        this.lastConnectedSsid = ssid;
+        this.currentSsid = ssid;
+        localStorage.setItem('lastConnectedSsid', ssid);
+        this.showWifiModal = false;
+      } else {
+        alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+      }
+    })
+    .catch(() => alert(`❌ Error connecting to ${ssid}`));
+}
+
         disconnectWifi() {
           fetch('/wifi/disconnect', { method: 'POST' })
             .then(res => res.json())

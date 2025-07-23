@@ -41,7 +41,7 @@
   <div class="widget hooked-up">
     <div class="widget-header">
       <h3>Hooked Up</h3>
-      <button @click="toggleHookedUpMinimized">{{ isHookedUpMinimized ? '+' : '-' }}</button>
+      
     </div>
     <div class="widget-content scrollable" :class="{ minimized: isHookedUpMinimized }">
       <div v-for="hook in hookedBoats" :key="hook.time + hook.boat" class="event-item">

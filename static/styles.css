@@ -526,5 +526,28 @@ header h1 {
 .wifi-settings button {
   margin-left: 5px;
 }
+/* Fix for dropdown overflow issue */
+.settings-label select {
+  max-width: 100%;
+  width: 100%;
+  padding: 6px;
+  font-size: 1em;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+/* Prevent horizontal scrolling in settings area */
+.settings {
+  overflow-x: hidden;
+}
+
+/* Optional: truncate long options visually */
+.settings-label select option {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 

@@ -19,91 +19,119 @@
     </header>
 
     <div class="settings">
-      <!-- SECTION: General Settings -->
-      <h3>General Settings</h3>
-      <div class="settings-label">Hooked Up Sound: <input type="checkbox" v-model="settings.sounds.hooked"></div>
-      <div class="settings-label">Released Sound: <input type="checkbox" v-model="settings.sounds.released"></div>
-      <div class="settings-label">Boated Sound: <input type="checkbox" v-model="settings.sounds.boated"></div>
-      <div class="settings-label">Disable Sleep Mode: <input type="checkbox" v-model="settings.disable_sleep_mode"></div>
-      <div class="settings-label">Effects Volume: {{ settings.effects_volume }} <input type="range" v-model="settings.effects_volume" min="0" max="1" step="0.1"></div>
-      <div class="settings-label">Radio Volume: {{ settings.radio_volume }} <input type="range" v-model="settings.radio_volume" min="0" max="1" step="0.1"></div>
+  <!-- SECTION: General Settings -->
+  <div class="settings-group">
+    <h3>General Settings</h3>
+    <div class="settings-option">
+      <label>Hooked Up Sound:</label>
+      <input type="checkbox" v-model="settings.sounds.hooked">
+    </div>
+    <div class="settings-option">
+      <label>Released Sound:</label>
+      <input type="checkbox" v-model="settings.sounds.released">
+    </div>
+    <div class="settings-option">
+      <label>Boated Sound:</label>
+      <input type="checkbox" v-model="settings.sounds.boated">
+    </div>
+    <div class="settings-option">
+      <label>Disable Sleep Mode:</label>
+      <input type="checkbox" v-model="settings.disable_sleep_mode">
+    </div>
+    <div class="settings-option">
+      <label>Effects Volume: {{ settings.effects_volume }}</label>
+      <input type="range" v-model="settings.effects_volume" min="0" max="1" step="0.1">
+    </div>
+    <div class="settings-option">
+      <label>Radio Volume: {{ settings.radio_volume }}</label>
+      <input type="range" v-model="settings.radio_volume" min="0" max="1" step="0.1">
+    </div>
+  </div>
 
-      <!-- SECTION: Tournament Settings -->
-      <h3>Tournament Configuration</h3>
-      <div class="settings-label">
-        Tournament:
-        <select v-model="settings.tournament">
-          <option v-for="(value, name) in availableTournaments" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </div>
-      <div class="settings-label">
-        Data Source:
-        <select v-model="settings.data_source">
-          <option value="current">Current</option>
-          <option value="historical">Historical</option>
-          <option value="demo">Demo</option>
-        </select>
-      </div>
+  <!-- SECTION: Tournament Settings -->
+  <div class="settings-group">
+    <h3>Tournament Configuration</h3>
+    <div class="settings-option">
+      <label>Tournament:</label>
+      <select v-model="settings.tournament">
+        <option v-for="(value, name) in availableTournaments" :key="name" :value="name">{{ name }}</option>
+      </select>
+    </div>
+    <div class="settings-option">
+      <label>Data Source:</label>
+      <select v-model="settings.data_source">
+        <option value="current">Current</option>
+        <option value="historical">Historical</option>
+        <option value="demo">Demo</option>
+      </select>
+    </div>
+  </div>
 
-      <!-- SECTION: Wi-Fi Configuration -->
-      <h3>📶 Wi-Fi Configuration</h3>
-      <div class="wifi-settings">
-        <div v-if="currentNetwork">
-          <p><strong>Connected to:</strong> {{ currentNetwork }} <span v-html="signalBars(currentSignal)"></span></p>
-          <button @click="disconnectWifi">Disconnect</button>
-        </div>
-        <p v-else>Not connected to Wi-Fi.</p>
-        <button @click="scanWifi" :disabled="connecting">🔍 Scan Networks</button>
-        <p v-if="connectionStatus">{{ connectionStatus }}</p>
+  <!-- SECTION: Wi-Fi Configuration -->
+  <div class="settings-group">
+    <h3>📶 Wi-Fi Configuration</h3>
+    <div class="wifi-settings">
+      <div v-if="currentNetwork">
+        <p><strong>Connected to:</strong> {{ currentNetwork }} <span v-html="signalBars(currentSignal)"></span></p>
+        <button @click="disconnectWifi">Disconnect</button>
       </div>
+      <p v-else>Not connected to Wi-Fi.</p>
+      <button @click="scanWifi" :disabled="connecting">🔍 Scan Networks</button>
+      <p v-if="connectionStatus">{{ connectionStatus }}</p>
+    </div>
+  </div>
 
-      <!-- MODAL: Wi-Fi Scan -->
-      <div v-if="showWifiModal" class="modal-overlay">
-        <div class="modal">
-          <h3>Select Wi-Fi Network</h3>
-          <div v-for="net in sortedNetworks" :key="net.ssid" class="wifi-network">
-            <span><strong>{{ net.ssid }}</strong> <span v-html="signalBars(net.signal)"></span></span>
-            <button @click="selectNetwork(net)">Select</button>
+  <!-- MODAL: Wi-Fi Scan -->
+  <div v-if="showWifiModal" class="modal-overlay">
+    <div class="modal">
+      <h3>Select Wi-Fi Network</h3>
+      <div v-for="net in sortedNetworks" :key="net.ssid" class="wifi-network">
+        <span><strong>{{ net.ssid }}</strong> <span v-html="signalBars(net.signal)"></span></span>
+        <button @click="selectNetwork(net)">Select</button>
+      </div>
+      <button class="close-btn" @click="showWifiModal = false">Close</button>
+    </div>
+  </div>
+
+  <!-- MODAL: Wi-Fi Password -->
+  <div v-if="selectedNetwork" class="modal-overlay">
+    <div class="modal">
+      <h3>Enter Password for {{ selectedNetwork.ssid }}</h3>
+      <input type="password" v-model="selectedNetwork.password" placeholder="Password">
+      <button @click="connectToWifi(selectedNetwork)">Connect</button>
+      <button @click="selectedNetwork = null">Cancel</button>
+    </div>
+  </div>
+
+  <!-- SECTION: Bluetooth -->
+  <div class="settings-group">
+    <h3>🔊 Bluetooth Speaker</h3>
+    <div class="settings-option">
+      <label>Status:</label>
+      <div>{{ bluetoothStatus }}</div>
+    </div>
+    <div class="settings-option">
+      <label>Bluetooth On:</label>
+      <input type="checkbox" v-model="bluetoothOn">
+    </div>
+    <button @click="discoverDevices">Discover Devices</button>
+
+    <!-- MODAL: Bluetooth Devices -->
+    <div v-if="showModal" class="modal-overlay">
+      <div class="modal">
+        <h3>Bluetooth Devices</h3>
+        <div class="device-list">
+          <div v-for="device in devices" :key="device.mac">
+            {{ device.name }} ({{ device.mac }})
+            <button @click="pairDevice(device.mac)">Pair</button>
           </div>
-          <button class="close-btn" @click="showWifiModal = false">Close</button>
         </div>
-      </div>
-
-      <!-- MODAL: Wi-Fi Password -->
-      <div v-if="selectedNetwork" class="modal-overlay">
-        <div class="modal">
-          <h3>Enter Password for {{ selectedNetwork.ssid }}</h3>
-          <input type="password" v-model="selectedNetwork.password" placeholder="Password">
-          <button @click="connectToWifi(selectedNetwork)">Connect</button>
-          <button @click="selectedNetwork = null">Cancel</button>
-        </div>
-      </div>
-
-      <!-- SECTION: Bluetooth -->
-      <h3>🔊 Bluetooth Speaker</h3>
-      <div class="bluetooth-section">
-        <div>Status: {{ bluetoothStatus }}</div>
-        <div class="settings-label">
-          Bluetooth On: <input type="checkbox" v-model="bluetoothOn">
-        </div>
-        <button @click="discoverDevices">Discover Devices</button>
-
-        <!-- MODAL: Bluetooth Devices -->
-        <div v-if="showModal" class="modal-overlay">
-          <div class="modal">
-            <h3>Bluetooth Devices</h3>
-            <div class="device-list">
-              <div v-for="device in devices" :key="device.mac">
-                {{ device.name }} ({{ device.mac }})
-                <button @click="pairDevice(device.mac)">Pair</button>
-              </div>
-            </div>
-            <button class="close-btn" @click="showModal = false">Close</button>
-          </div>
-        </div>
+        <button class="close-btn" @click="showModal = false">Close</button>
       </div>
     </div>
   </div>
+</div>
+
 
   <!-- Vue Logic -->
   <script>

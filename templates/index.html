@@ -52,7 +52,22 @@
 
 
 
-       
+        <div class="headed-to-scales">
+          <div class="widget-header">
+            <h3>Headed to Scales</h3>
+            <button @click="toggleScalesMinimized">{{ isScalesMinimized ? '+' : '-' }}</button>
+          </div>
+          <div class="widget-content" :class="{ minimized: isScalesMinimized }">
+            <div v-for="scale in activeScalesBoats" :key="scale.time + scale.boat" class="hooked-boat">
+              <img v-if="scale.image" :src="scale.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+              <span>{{ scale.boat }}</span>
+              <span>{{ formatETA(scale.eta) }}</span>
+            </div>
+            <div v-if="activeScalesBoats.length === 0" class="no-scales">No boats headed to scales</div>
+          </div>
+        </div>
+
+      </div>
 
       <div class="event-feed" ref="eventFeed">
         <div

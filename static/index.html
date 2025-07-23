@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Big Rock Tournament</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body :class="themeClass">
+
+  <div id="app">
+    <header>
+      {% raw %}
+      <img v-if="logoSrc" :src="logoSrc" alt="Tournament Logo">
+      <h1>Reel Time Liveboard!</h1>
+      <div class="control-buttons">
+        <a href="/leaderboard" class="button">Leaderboard</a>
+        <a href="/participants" class="button">Participants</a>
+        <button @click="toggleRadio">{{ radioPlaying ? 'VHF Off' : 'VHF On' }}</button>
+        <button class="settings-icon" @click="goToSettings">⚙️</button>
+      </div>
+      {% endraw %}
+    </header>
+
+    {% raw %}
+    <div v-if="error" class="error">{{ error }}</div>
+
+    <div v-if="!isSleepMode">
+      <div class="widgets">
+
+        <div class="hooked-up">
+          <div class="widget-header">
+            <h3>Hooked Up</h3>
+            <button @click="toggleHookedUpMinimized">{{ isHookedUpMinimized ? '+' : '-' }}</button>
+          </div>
+          <div class="widget-content" :class="{ minimized: isHookedUpMinimized }">
+            <div v-for="hook in activeHookedBoats" :key="hook.time + hook.boat" class="hooked-boat">
+              <img v-if="hook.image" :src="hook.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+              <span>{{ hook.boat }}</span>
+              <span>{{ formatTime(hook.time) }}</span>
+            </div>
+            <div v-if="activeHookedBoats.length === 0" class="no-hookups">No boats hooked up</div>
+          </div>
+        </div>
+
+        <div class="headed-to-scales">
+          <div class="widget-header">
+            <h3>Headed to Scales</h3>
+            <button @click="toggleScalesMinimized">{{ isScalesMinimized ? '+' : '-' }}</button>
+          </div>
+          <div class="widget-content" :class="{ minimized: isScalesMinimized }">
+            <div v-for="scale in activeScalesBoats" :key="scale.time + scale.boat" class="hooked-boat">
+              <img v-if="scale.image" :src="scale.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+              <span>{{ scale.boat }}</span>
+              <span>{{ formatETA(scale.eta) }}</span>
+            </div>
+            <div v-if="activeScalesBoats.length === 0" class="no-scales">No boats headed to scales</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="event-feed" ref="eventFeed">
+        <div
+          v-for="event in [...displayedEvents].reverse()"
+          :key="event.time + event.boat"
+          class="event"
+          :class="{ followed: followedBoats.includes(event.boat) }"
+        >
+          <img v-if="event.image" :src="event.image" alt="Boat Image" class="boat-image" @error="handleImageError">
+          <span class="event-time">{{ formatTime(event.time) }}</span>
+          <span class="event-boat">{{ event.boat }}</span>
+          <span class="event-action">{{ event.action }}</span>
+          <span class="event-species">{{ event.species }}</span>
+        </div>
+        <div v-if="displayedEvents.length === 0" class="no-events">No events yet</div>
+      </div>
+
+      <audio id="radio-player" loop></audio>
+
+      <div v-if="showVideoPopup && videoBoat && videoETA" class="video-popup">
+        <div class="popup-content">
+          <h3>{{ videoBoat }} arriving soon! (ETA: {{ videoETA }})</h3>
+          <button @click="watchLive">Watch Live</button>
+          <button @click="dismissVideoPopup">Dismiss</button>
+        </div>
+      </div>
+
+      <div v-if="showVideo" class="video-container">
+        <iframe :src="videoUrl" allowfullscreen></iframe>
+        <button @click="closeVideo">Close Video</button>
+      </div>
+    </div>
+
+    <div v-else class="gallery-slideshow">
+      <img :src="galleryImages[currentImageIndex]" alt="Gallery Image" class="slideshow-image">
+    </div>
+    {% endraw %}
+  </div>
+
+  <footer style="text-align:center; margin-top:1em; color:gray;">
+    Version: {{ version }}
+  </footer>
+
+  <script src="/static/main.js"></script>
+</body>
+</html>

@@ -1840,77 +1840,17 @@ def index():
 from dateutil import parser
 from datetime import datetime
 
-from datetime import datetime
-
-leaderboard_cache = {
-    'timestamp': None,
-    'data': None
-}
-
-# ✅ Patch for leaderboard route with caching
-leaderboard_cache = {
-    'timestamp': None,
-    'data': None
-}
-
 @app.route('/leaderboard')
 def leaderboard():
-    now = datetime.now()
-    if leaderboard_cache['data'] and (now - leaderboard_cache['timestamp']).seconds < 30:
-        return jsonify(leaderboard_cache['data'])
-
-    try:
-        settings = load_settings()
-        tournament = settings.get("tournament", "Big Rock")
-        data = scrape_leaderboard(tournament)
-        leaderboard_cache['data'] = data
-        leaderboard_cache['timestamp'] = now
-        return jsonify(data)
-    except Exception as e:
-        print("⚠️ Failed to scrape leaderboard:", e)
-        return jsonify(leaderboard_cache['data'] or [])
-
-# ✅ Patch for /events route with similar caching
-EVENTS_API_CACHE = {
-    'timestamp': None,
-    'data': None
-}
-
-@app.route('/events')
-def events():
-    try:
-        now = datetime.now()
-        if EVENTS_API_CACHE['data'] and (now - EVENTS_API_CACHE['timestamp']).seconds < 30:
-            return jsonify(EVENTS_API_CACHE['data'])
-
-        events = get_events_for_mode()
-        settings = load_settings()
-        tournament = settings.get("tournament", "Big Rock")
-        prefix = tournament.lower().replace(" ", "_")
-
-        if os.path.exists(PARTICIPANTS_MASTER_FILE):
-            with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
-                participants = json.load(f)
-
-            name_to_image = {
-                normalize_boat_name(p['boat']): p['image']
-                for p in participants
-                if p['uid'].startswith(prefix)
-            }
-
-            for e in events:
-                norm_name = normalize_boat_name(e['boat'])
-                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
-
-        print(f"✅ Returning {len(events)} enriched events for {tournament}")
-        EVENTS_API_CACHE['data'] = events
-        EVENTS_API_CACHE['timestamp'] = now
-        return jsonify(events)
-
-    except Exception as e:
-        print(f"❌ Error in /events route: {e}")
-        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
-
+    settings = load_settings()
+    tournament = settings.get('tournament', 'Big Rock')
+    data_source = settings.get('data_source', 'current')
+    if data_source == 'historical':
+        return jsonify(load_historical_data(tournament).get('leaderboard', []))
+    elif data_source == 'demo':
+        return jsonify(load_demo_data(tournament).get('leaderboard', []))
+    else:
+        return jsonify(scrape_leaderboard(tournament))
 
 
 @app.route('/leaderboard-page')
@@ -2064,8 +2004,36 @@ def connect_wifi_vue():
         return jsonify({'success': True})
     except subprocess.CalledProcessError as e:
         return jsonify
+@app.route('/events')
+def events():
+    try:
+        events = get_events_for_mode()
+        settings = load_settings()
+        tournament = settings.get("tournament", "Big Rock")
+        prefix = tournament.lower().replace(" ", "_")
 
+        if os.path.exists(PARTICIPANTS_MASTER_FILE):
+            with open(PARTICIPANTS_MASTER_FILE, 'r') as f:
+                participants = json.load(f)
 
+            name_to_image = {
+                normalize_boat_name(p['boat']): p['image']
+                for p in participants
+                if p['uid'].startswith(prefix)
+            }
+
+            for e in events:
+                norm_name = normalize_boat_name(e['boat'])
+                e['image'] = name_to_image.get(norm_name, "/static/images/placeholder.png")
+        else:
+            print(f"⚠️ No participant master file found at {PARTICIPANTS_MASTER_FILE}")
+
+        print(f"✅ Returning {len(events)} enriched events for {tournament}")
+        return jsonify(events)
+
+    except Exception as e:
+        print(f"❌ Error in /events route: {e}")
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():
     try:

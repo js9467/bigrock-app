@@ -307,10 +307,18 @@ def inject_hooked_up_events(events, tournament_uid):
     # Map for quick lookup
     boat_image_map = {p['boat'].strip().upper(): p['image'] for p in participants if 'image' in p}
 
+    resolution_keywords = ['released', 'boated', 'pulled hook', 'wrong species']
     injected = []
+
     for event in events:
         boat = event.get('boat', '').strip()
         if not boat:
+            continue
+
+        # ✅ Only inject "hooked up" if this is a known resolution event
+        action = event.get('action', '').lower()
+        if not any(keyword in action for keyword in resolution_keywords):
+            injected.append(event)  # include it, but don't prepend a hookup
             continue
 
         # Parse event time safely
@@ -318,24 +326,18 @@ def inject_hooked_up_events(events, tournament_uid):
             event_dt = datetime.fromisoformat(event['time'])
         except Exception:
             try:
-                # Try flexible parsing if not ISO
                 from dateutil import parser
                 event_dt = parser.parse(event['time'].replace("@", " "))
             except:
                 event_dt = datetime.now()
 
-        # Subtract random time to simulate "hooked up" before event
         delta = timedelta(minutes=random.randint(10, 30))
         hooked_dt = event_dt - delta
         hooked_time = hooked_dt.isoformat()
-
-        # Unique ID based on boat and hooked timestamp
         hookup_id = f"{boat.lower().replace(' ', '_')}_{int(hooked_dt.timestamp())}"
-
-        # Lookup image
         image = boat_image_map.get(boat.upper(), "/static/images/placeholder.png")
 
-        # Create hooked-up event
+        # Inject "hooked up" event
         hooked_event = {
             "boat": boat,
             "message": f"{boat} is Hooked Up!",
@@ -345,18 +347,16 @@ def inject_hooked_up_events(events, tournament_uid):
             "image": image
         }
 
-        # Attach same hookup_id to real event, ensure time is ISO too
+        # Patch original event with hookup_id and ISO time
         real_event = deepcopy(event)
         real_event['hookup_id'] = hookup_id
-        try:
-            real_event['time'] = event_dt.isoformat()
-        except:
-            pass  # leave original if it was already ISO
+        real_event['time'] = event_dt.isoformat()
 
         injected.append(hooked_event)
         injected.append(real_event)
 
     return injected
+
 
 
 

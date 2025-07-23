@@ -1036,7 +1036,13 @@ def settings():
 @app.route('/bluetooth-status')
 def bluetooth_status():
     try:
-        output = subprocess.check_output(['bluetoothctl', 'info']).decode()
+        # Quickly check paired device list first
+        paired = subprocess.check_output(['bluetoothctl', 'paired-devices']).decode()
+        if not paired.strip():
+            return jsonify({'status': 'Not Connected'})
+
+        # Fallback to full info if paired
+        output = subprocess.check_output(['bluetoothctl', 'info'], stderr=subprocess.DEVNULL).decode()
         connected = 'Connected: yes' in output
         device_name = 'Unknown'
         if connected:
@@ -1047,8 +1053,8 @@ def bluetooth_status():
         status = f"Connected to {device_name}" if connected else 'Not Connected'
         return jsonify({'status': status})
     except Exception as e:
-        print(f"Bluetooth status error: {e}")
-        return jsonify({'status': 'Unknown'})
+        return jsonify({'status': 'Not Connected'})
+
 
 @app.route('/bluetooth')
 def bluetooth():

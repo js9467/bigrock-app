@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Settings</title>
-  <link rel="icon" href="/static/favicon.ico">
+  <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A">
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Lobster&display=swap" rel="stylesheet"/>
@@ -25,22 +25,14 @@
     .theme-kwla .header { background: #880e4f; }
     .theme-edisto-invitational-billfish .v-application { background: #e6f2ef; color: #004d40; }
     .theme-edisto-invitational-billfish .header { background: #004d40; }
-    /* Debug styles */
-    #app, .v-application, .v-main, .settings-container, .v-expansion-panels, .v-dialog {
-      display: block !important;
-      visibility: visible !important;
-      border: 1px solid red !important;
-    }
     /* Prevent conflicts with old CSS */
     .modal, .settings, .modal-overlay { display: none; }
   </style>
 </head>
 <body>
   <div id="app">
-    <div v-if="!appMounted" style="color: red;">Loading Vue...</div>
     <v-app>
       <v-main>
-        <div v-if="appMounted" style="color: green;">Vue Mounted, Rendering...</div>
         <div class="settings-container">
           <div class="header">
             <img :src="logoSrc" alt="Tournament Logo" class="logo">
@@ -118,7 +110,7 @@
               </v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
-                <v-btn color="secondary" @click="showWifiModal = false">Close</v-btn>
+                <v-btn color="secondary" @click="closeWifiModal">Close</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -136,7 +128,7 @@
               <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn color="primary" @click="connectToWifi(selectedNetwork)" :loading="connecting">Connect</v-btn>
-                <v-btn color="secondary" @click="selectedNetwork = null; showSelectedNetwork = false">Cancel</v-btn>
+                <v-btn color="secondary" @click="closePasswordModal">Cancel</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -157,7 +149,7 @@
               </v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
-                <v-btn color="secondary" @click="showModal = false">Close</v-btn>
+                <v-btn color="secondary" @click="closeBluetoothModal">Close</v-btn>
               </v-card-actions>
             </v-card>
           </v-dialog>
@@ -182,7 +174,7 @@
           disable_sleep_mode: true
         },
         allTournaments: {
-          'Big Rock': { logo: '/static/images/WHITELOGOBR.png' },
+          'Big Rock': { logo: 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490' },
           'Kids': { logo: '/static/images/kids.png' },
           'KWLA': { logo: '/static/images/kwla.png' },
           'Edisto Invitational Billfish': { logo: '/static/images/edisto.png' }
@@ -199,13 +191,12 @@
         showSelectedNetwork: false,
         connecting: false,
         connectionStatus: '',
-        panel: [0, 1, 2, 3],
-        appMounted: false
+        panel: [0, 1, 2, 3]
       },
       computed: {
         logoSrc() {
           console.log('Computing logoSrc, tournament:', this.settings.tournament);
-          return this.allTournaments[this.settings.tournament]?.logo || '/static/images/WHITELOGOBR.png';
+          return this.allTournaments[this.settings.tournament]?.logo || 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490';
         },
         availableTournaments() {
           const filtered = {};
@@ -239,7 +230,7 @@
         async scanWifi() {
           this.connectionStatus = 'Scanning...';
           try {
-            const response = await fetch('/wifi/scan');
+            const response = await fetch('http://192.168.7.111:5000/wifi/scan');
             const data = await response.json();
             console.log('Wi-Fi scan response:', data);
             this.wifiNetworks = data.networks || [];
@@ -262,7 +253,7 @@
           this.connecting = true;
           this.connectionStatus = `🔌 Connecting to ${net.ssid}...`;
           try {
-            const response = await fetch('/wifi/connect', {
+            const response = await fetch('http://192.168.7.111:5000/wifi/connect', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ssid: net.ssid, password: net.password || '' })
@@ -286,7 +277,7 @@
         },
         async disconnectWifi() {
           try {
-            const response = await fetch('/wifi/disconnect', { method: 'POST' });
+            const response = await fetch('http://192.168.7.111:5000/wifi/disconnect', { method: 'POST' });
             const data = await response.json();
             console.log('Wi-Fi disconnect response:', data);
             if (data.success) {
@@ -300,9 +291,22 @@
             this.connectionStatus = '❌ Disconnect failed.';
           }
         },
+        closeWifiModal() {
+          this.showWifiModal = false;
+          console.log('Wi-Fi modal closed');
+        },
+        closePasswordModal() {
+          this.selectedNetwork = null;
+          this.showSelectedNetwork = false;
+          console.log('Password modal closed');
+        },
+        closeBluetoothModal() {
+          this.showModal = false;
+          console.log('Bluetooth modal closed');
+        },
         async loadSettings() {
           try {
-            const response = await fetch('/settings');
+            const response = await fetch('http://192.168.7.111:5000/settings');
             const data = await response.json();
             console.log('Settings response:', data);
             this.settings = {
@@ -317,7 +321,7 @@
         },
         async saveSettings() {
           try {
-            await fetch('/settings', {
+            await fetch('http://192.168.7.111:5000/settings', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(this.settings)
@@ -329,7 +333,7 @@
         },
         async toggleBluetooth() {
           try {
-            const response = await fetch(`/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
+            const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
             const data = await response.json();
             console.log('Bluetooth toggle response:', data);
           } catch (e) {
@@ -338,7 +342,7 @@
         },
         async discoverDevices() {
           try {
-            const response = await fetch('/bluetooth?action=scan');
+            const response = await fetch('http://192.168.7.111:5000/bluetooth?action=scan');
             const data = await response.json();
             console.log('Bluetooth scan response:', data);
             this.devices = data;
@@ -349,16 +353,16 @@
         },
         async pairDevice(mac) {
           try {
-            const response = await fetch(`/bluetooth?action=pair&mac=${mac}`);
+            const response = await fetch(`http://192.168.7.111:5000/bluetooth?action=pair&mac=${mac}`);
             const data = await response.json();
             console.log('Bluetooth pair response:', data);
-          } catch (e) {
+          } Albach, Alexander catch (e) {
             console.error('Bluetooth pair error:', e);
           }
         },
         async updateBluetoothStatus() {
           try {
-            const response = await fetch('/bluetooth-status');
+            const response = await fetch('http://192.168.7.111:5000/bluetooth-status');
             const data = await response.json();
             console.log('Bluetooth status:', data);
             this.bluetoothStatus = data.status;
@@ -396,7 +400,6 @@
       },
       mounted() {
         console.log('Vue instance mounted');
-        this.appMounted = true;
         this.applyTheme();
         this.loadSettings();
         this.updateBluetoothStatus();

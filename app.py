@@ -1813,37 +1813,27 @@ from datetime import datetime
 @app.route('/leaderboard')
 def leaderboard():
     settings = load_settings()
-    tournament = settings.get('tournament', 'Big Rock')
+    tournament_uid = settings.get('tournament', 'big_rock_2025')
     data_source = settings.get('data_source', 'current')
 
     print("📊 /leaderboard hit")
-    print("📌 Tournament (from settings):", tournament)
+    print("📌 Tournament UID (from settings):", tournament_uid)
     print("📌 Data source:", data_source)
 
     remote = load_remote_settings(force=True)
     uid_map = REMOTE_SETTINGS_CACHE.get("uid_map", {})
 
-    # Attempt to find matching UID for this tournament
-    config = remote.get(tournament, {})
-    tournament_uid = config.get("uid") if config else None
-
-    if not tournament_uid:
-        print(f"❌ Tournament '{tournament}' not found in remote settings.")
+    if tournament_uid not in uid_map:
+        print(f"❌ UID '{tournament_uid}' not found in remote settings.")
         return jsonify([])
 
-    print(f"✅ Resolved UID: {tournament_uid}")
-
     if data_source == 'historical':
-        print("📦 Serving from historical data")
         return jsonify(load_historical_data(tournament_uid).get('leaderboard', []))
-
     elif data_source == 'demo':
-        print("🎮 Serving from demo data")
         return jsonify(load_demo_data(tournament_uid).get('leaderboard', []))
-
     else:
-        print("🌐 Scraping live leaderboard...")
         return jsonify(scrape_leaderboard(tournament_uid))
+
 
 
 

@@ -151,7 +151,7 @@ computed: {
       .finally(() => {
         this.connecting = false;
       });
-  }
+  },
 
         formatTime(timeStr) {
             const date = new Date(timeStr);
@@ -536,7 +536,7 @@ async loadEvents() {
         playStream(primaryStream, false);
     }
 }
-,
+
         goToSettings() {
             window.location.href = '/settings-page';
         },

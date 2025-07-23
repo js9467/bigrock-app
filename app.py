@@ -1127,7 +1127,7 @@ def bluetooth():
         except Exception as e:
             print(f"Bluetooth scan error: {e}")
             return jsonify([])
-   elif action == 'pair':
+    elif action == 'pair':
     mac = request.args.get('mac')
     try:
         # Run the pairing and trust commands

@@ -51,9 +51,10 @@
 
         <div class="event-feed-container">
           <div class="widget-header">
-            <h3>Event Feed</h3>
-            <button @click="toggleEventMinimized">{{ isEventMinimized ? '+' : '-' }}</button>
-          </div>
+  <h3>📣 Event Feed</h3>
+  <button @click="toggleEventMinimized">{{ isEventMinimized ? '+' : '-' }}</button>
+</div>
+
           <div class="event-feed" ref="eventFeed" :class="{ minimized: isEventMinimized }">
             <div
               v-for="event in [...displayedEvents].reverse()"
@@ -103,6 +104,7 @@
     new Vue({
       el: '#app',
       data: {
+        isSleepMode: false,
         isHookedUpMinimized: false,
         isEventMinimized: false,
         radioPlaying: false,

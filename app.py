@@ -415,17 +415,35 @@ def load_demo_data(tournament):
         try:
             with open(DEMO_DATA_FILE, 'r') as f:
                 data = json.load(f)
-                return data.get(tournament, {'events': [], 'leaderboard': []})
         except Exception as e:
-            print(f"Error loading demo data: {e}")
-    return {'events': [], 'leaderboard': []}
+            print(f"❌ Error loading demo data file: {e}")
+            data = {}
+    else:
+        print(f"⚠️ Demo data file {DEMO_DATA_FILE} does not exist, creating...")
+        data = {}
 
-def check_internet():
-    try:
-        subprocess.check_call(['ping', '-c', '1', '8.8.8.8'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except subprocess.CalledProcessError:
-        return False
+    # Auto-inject if tournament not in file
+    if tournament not in data:
+        print(f"⚠️ No demo data found for {tournament}, regenerating...")
+        try:
+            events = scrape_events(tournament)
+            injected = inject_hooked_up_events(events, tournament)
+            leaderboard = scrape_leaderboard(tournament)
+            data[tournament] = {
+                'events': injected,
+                'leaderboard': leaderboard
+            }
+            with open(DEMO_DATA_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"✅ Injected demo data for {tournament}")
+        except Exception as e:
+            print(f"❌ Failed to inject demo data for {tournament}: {e}")
+            data[tournament] = {'events': [], 'leaderboard': []}
+
+    demo_data = data[tournament]
+    print(f"✅ Loaded demo data for {tournament}: {len(demo_data.get('events', []))} events")
+    return demo_data
+
 
 
 def check_video_trigger():

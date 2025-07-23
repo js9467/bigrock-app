@@ -761,6 +761,49 @@ def get_participants():
 
 
 
+@app.route('/wifi/scan')
+def scan_wifi():
+    import time
+    try:
+        # Force rescan and wait briefly for results to populate
+        subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
+        time.sleep(1.5)
+
+        output = subprocess.check_output(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi'],
+            universal_newlines=True
+        )
+
+        seen = set()
+        networks = []
+        for line in output.strip().split('\n'):
+            parts = line.strip().split(':')
+            if len(parts) >= 3:
+                ssid, signal, security = parts[:3]
+                if ssid and ssid not in seen:
+                    seen.add(ssid)
+                    networks.append({
+                        'ssid': ssid,
+                        'signal': int(signal),
+                        'security': security
+                    })
+
+        current_output = subprocess.check_output(
+            ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
+            universal_newlines=True
+        )
+        current_ssid = next(
+            (line.split(':')[1] for line in current_output.strip().split('\n') if line.startswith("yes:")),
+            None
+        )
+
+        return jsonify({
+            'networks': networks,
+            'current': current_ssid
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/wifi', methods=['GET', 'POST'])
 def wifi():
     if request.method == 'POST':
@@ -796,43 +839,35 @@ def connect_wifi_vue():
         return jsonify({'error': 'SSID is required'}), 400
 
     try:
-        # Check if connection already exists
-        existing_connections = subprocess.check_output(['nmcli', '-t', '-f', 'NAME', 'con', 'show'], universal_newlines=True)
+        # Check for existing connection
+        existing = subprocess.check_output(['nmcli', '-t', '-f', 'NAME', 'connection', 'show'], universal_newlines=True)
+        existing_connections = existing.strip().split('\n')
+
         if ssid not in existing_connections:
+            # Add new connection
             args = ['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', ssid, 'ssid', ssid]
             if password:
                 args += ['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password]
             subprocess.run(args, check=True)
 
+        # Bring connection up
         subprocess.run(['sudo', 'nmcli', 'con', 'up', ssid], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+
         return jsonify({'success': True})
     except subprocess.CalledProcessError as e:
         return jsonify({'error': str(e)}), 500
 
-
-
-
-@app.route('/wifi/connect', methods=['POST'])
-def connect_wifi_vue():
-    data = request.get_json()
-    ssid = data.get('ssid')
-    password = data.get('password', '')
-    if not ssid:
-        return jsonify({'error': 'SSID is required'}), 400
-
+@app.route('/wifi/disconnect', methods=['POST'])
+def disconnect_wifi():
     try:
-        # Reuse the same connection name to avoid clutter
-        subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] + 
-                       (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []),
-                       check=True)
-        subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+        subprocess.run(['sudo', 'nmcli', 'con', 'down', 'id', 'bigrock-wifi'], check=True)
+        subprocess.run(['sudo', 'nmcli', 'con', 'delete', 'id', 'bigrock-wifi'], check=True)
         return jsonify({'success': True})
     except subprocess.CalledProcessError as e:
-        return jsonify
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/events')
 def events():
     try:

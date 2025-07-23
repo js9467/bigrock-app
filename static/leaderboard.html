@@ -20,10 +20,7 @@
 
     <div v-if="error" class="error">{{ error }}</div>
 
-    <!-- 👇 This block was moved inside the #app div -->
-    <div v-if="!appMounted" class="error">
-      Failed to load leaderboard. Please check your connection, ensure the server is serving /leaderboard, or return to the <a href="/">homepage</a>.
-    </div>
+    
 
     <div v-if="isLoading" class="leaderboard">
       <div class="no-leaderboard">Loading leaderboard...</div>

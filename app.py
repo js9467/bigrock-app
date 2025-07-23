@@ -909,11 +909,9 @@ def settings():
         old_settings = load_settings()
         save_settings(settings_data)
 
-        # ✅ Trigger demo data generation on first entry or tournament change
-        if settings_data.get('data_source') == 'demo' and (
-            old_settings.get('data_source') != 'demo' or
-            old_settings.get('tournament') != settings_data.get('tournament')
-        ):
+       # ✅ Always write demo data when tournament changes or on first setup
+if old_settings.get('tournament') != settings_data.get('tournament') or old_settings.get('data_source') != settings_data.get('data_source'):
+
             tournament = settings_data.get('tournament', 'Big Rock')
             demo_data = {}
 

@@ -784,11 +784,13 @@ def wifi():
 import subprocess
 from flask import jsonify
 
+import time
+
 @app.route('/wifi/scan')
 def scan_wifi():
     try:
-        # Force a rescan
         subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], check=True)
+        time.sleep(1.5)  # <--- small pause to let scan complete
 
         output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi'],
@@ -800,21 +802,15 @@ def scan_wifi():
 
         for line in output.strip().split('\n'):
             parts = line.strip().split(':')
-            # Ensure we have 3 parts
             if len(parts) < 3:
                 continue
 
-            ssid = parts[0].strip()
-            signal = parts[1].strip()
-            security = parts[2].strip()
-
-            # Skip completely empty SSIDs
+            ssid, signal, security = parts[:3]
+            ssid = ssid.strip()
             if not ssid or ssid in seen_ssids:
                 continue
 
             seen_ssids.add(ssid)
-
-            # Safely cast signal to int if possible
             try:
                 signal = int(signal)
             except ValueError:
@@ -826,7 +822,6 @@ def scan_wifi():
                 'security': security
             })
 
-        # Get currently connected SSID
         current_output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'],
             universal_newlines=True
@@ -842,8 +837,9 @@ def scan_wifi():
         })
 
     except Exception as e:
-        print(f"❌ Scan error: {e}")
+        print(f"❌ Wi-Fi scan error: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/wifi/connect', methods=['POST'])

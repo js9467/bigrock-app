@@ -505,5 +505,21 @@ header h1 {
   text-align: center;
   border-bottom: 2px solid #000;
 }
+.wifi-settings {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}
+.wifi-settings h3 {
+  margin-bottom: 10px;
+}
+.wifi-settings input {
+  padding: 5px;
+}
+.wifi-settings button {
+  margin-left: 5px;
+}
 
 

@@ -1128,7 +1128,7 @@ def bluetooth():
             print(f"Bluetooth scan error: {e}")
             return jsonify([])
     elif action == 'pair':
-    mac = request.args.get('mac')
+        mac = request.args.get('mac')
     try:
         # Run the pairing and trust commands
         commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"

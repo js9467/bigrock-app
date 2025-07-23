@@ -1,3 +1,4 @@
+
 body {
     margin: 0;
     font-family: 'Roboto', sans-serif;
@@ -599,3 +600,33 @@ header h1 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.settings-group {
+  margin-bottom: 2rem;
+}
+
+.settings-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
+.settings-option label {
+  flex: 0 0 180px;
+  font-weight: 500;
+  font-size: 1em;
+  color: #222;
+  white-space: nowrap;
+}
+
+.settings-option input[type="checkbox"],
+.settings-option input[type="range"],
+.settings-option select {
+  flex: 1;
+  min-width: 160px;
+  max-width: 300px;
+}
+
+

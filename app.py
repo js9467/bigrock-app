@@ -1035,42 +1035,62 @@ def settings():
 
 bluetooth_status_cache = {'timestamp': 0, 'status': 'Not Connected'}
 
+bluetooth_status_cache = {'timestamp': 0, 'status': 'Not Connected'}
+
 @app.route('/bluetooth-status')
 def bluetooth_status():
     now = time.time()
     if now - bluetooth_status_cache['timestamp'] < 10:
         return jsonify({'status': bluetooth_status_cache['status']})
 
+    status = 'Not Connected'
     try:
-        # Get list of paired devices
-        paired_output = subprocess.check_output(['bluetoothctl', 'paired-devices'], stderr=subprocess.DEVNULL).decode()
-        paired_lines = paired_output.strip().split('\n')
-        if not paired_lines or paired_lines == ['']:
-            status = 'Not Connected'
+        # Check if Bluetooth controller is available
+        subprocess.check_output(['bluetoothctl', 'show'], stderr=subprocess.DEVNULL, text=True)
+
+        # Get list of devices (paired or discovered)
+        devices_output = subprocess.check_output(['bluetoothctl', 'devices'], stderr=subprocess.DEVNULL, text=True).strip()
+        app.logger.debug(f"Devices output: {devices_output}")
+
+        if not devices_output:
+            raise ValueError("No devices found")
+
+        # Parse devices output
+        device_lines = devices_output.split('\n')
+        first_device = None
+        for line in device_lines:
+            parts = line.split(' ', 2)
+            if len(parts) >= 2 and parts[0] == 'Device':
+                first_device = parts[1]  # MAC address
+                break
+
+        if not first_device:
+            raise ValueError("No valid device MAC found")
+
+        # Check if the device is connected
+        info_output = subprocess.check_output(['bluetoothctl', 'info', first_device], stderr=subprocess.DEVNULL, text=True)
+        app.logger.debug(f"Info output for {first_device}: {info_output}")
+
+        if 'Connected: yes' in info_output:
+            name = 'Bluetooth Device'
+            for line in info_output.split('\n'):
+                if line.strip().startswith('Name:'):
+                    name = line.split(':', 1)[1].strip()
+                    break
+            status = f"Connected to {name}"
         else:
-            # Extract first paired MAC address
-            first_device = paired_lines[0].split(' ')[1]
-            try:
-                info_output = subprocess.check_output(['bluetoothctl', 'info', first_device], stderr=subprocess.DEVNULL).decode()
-                connected = 'Connected: yes' in info_output
-                if connected:
-                    name = 'Bluetooth Device'
-                    for line in info_output.split('\n'):
-                        if line.strip().startswith('Name:'):
-                            name = line.split(':', 1)[1].strip()
-                            break
-                    status = f"Connected to {name}"
-                else:
-                    status = 'Not Connected'
-            except subprocess.CalledProcessError:
-                status = 'Not Connected'
+            status = 'Not Connected'
+
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"Bluetooth command failed: cmd={e.cmd}, output={e.output}, stderr={e.stderr}")
+        status = 'Not Connected'
     except Exception as e:
+        app.logger.error(f"Bluetooth status error: {e}")
         status = 'Not Connected'
 
     bluetooth_status_cache['status'] = status
     bluetooth_status_cache['timestamp'] = now
     return jsonify({'status': status})
-
 
 @app.route('/bluetooth')
 def bluetooth():

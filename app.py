@@ -841,24 +841,7 @@ def scan_wifi():
         print(f"Wi-Fi scan error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/wifi/connect', methods=['POST'])
-def connect_wifi_vue():
-    data = request.get_json()
-    ssid = data.get('ssid')
-    password = data.get('password', '')
-    if not ssid:
-        return jsonify({'error': 'SSID is required'}), 400
-    try:
-        subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] +
-                       (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []),
-                       check=True)
-        subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-        return jsonify({'success': True})
-    except subprocess.CalledProcessError as e:
-        print(f"Wi-Fi connect error: {e}")
-        return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/wifi/connect', methods=['POST'])

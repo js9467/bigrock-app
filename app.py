@@ -1840,17 +1840,28 @@ def index():
 from dateutil import parser
 from datetime import datetime
 
+from datetime import datetime
+
+leaderboard_cache = {
+    'timestamp': None,
+    'data': None
+}
+
 @app.route('/leaderboard')
 def leaderboard():
-    settings = load_settings()
-    tournament = settings.get('tournament', 'Big Rock')
-    data_source = settings.get('data_source', 'current')
-    if data_source == 'historical':
-        return jsonify(load_historical_data(tournament).get('leaderboard', []))
-    elif data_source == 'demo':
-        return jsonify(load_demo_data(tournament).get('leaderboard', []))
-    else:
-        return jsonify(scrape_leaderboard(tournament))
+    now = datetime.now()
+    if leaderboard_cache['data'] and (now - leaderboard_cache['timestamp']).seconds < 30:
+        return jsonify(leaderboard_cache['data'])
+
+    try:
+        data = scrape_leaderboard(...)
+        leaderboard_cache['data'] = data
+        leaderboard_cache['timestamp'] = now
+        return jsonify(data)
+    except Exception as e:
+        print("⚠️ Failed to scrape leaderboard:", e)
+        return jsonify(leaderboard_cache['data'] or [])
+
 
 
 @app.route('/leaderboard-page')

@@ -1,29 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Test</title>
-  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings</title>
+
+  <!-- Fonts and Vuetify -->
+  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.css" rel="stylesheet">
+
+  <!-- Vue & Vuetify -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.15/dist/vuetify.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+    }
+    .settings-page {
+      max-width: 900px;
+      margin: auto;
+      padding: 2rem;
+    }
+  </style>
 </head>
 <body>
   <div id="app">
     <v-app>
-      <v-main>
-        <v-container>
-          <v-btn color="primary">Test Button</v-btn>
-        </v-container>
-      </v-main>
+      <v-container class="settings-page">
+        <v-card>
+          <v-toolbar color="primary" dark flat>
+            <v-toolbar-title>⚙️ Settings</v-toolbar-title>
+            <v-spacer></v-spacer>
+            <v-btn icon @click="goBack">
+              <v-icon>mdi-arrow-left</v-icon>
+            </v-btn>
+          </v-toolbar>
+
+          <v-card-text>
+            <!-- General Settings -->
+            <v-card class="mb-4">
+              <v-card-title>General</v-card-title>
+              <v-card-text>
+                <v-switch label="Hooked Up Sound" v-model="settings.sounds.hooked"/>
+                <v-switch label="Released Sound" v-model="settings.sounds.released"/>
+                <v-switch label="Boated Sound" v-model="settings.sounds.boated"/>
+                <v-switch label="Disable Sleep Mode" v-model="settings.disable_sleep_mode"/>
+                <v-slider label="Effects Volume" v-model="settings.effects_volume" :max="1" :step="0.1" thumb-label/>
+                <v-slider label="Radio Volume" v-model="settings.radio_volume" :max="1" :step="0.1" thumb-label/>
+              </v-card-text>
+            </v-card>
+
+            <!-- Tournament Settings -->
+            <v-card class="mb-4">
+              <v-card-title>Tournament</v-card-title>
+              <v-card-text>
+                <v-select
+                  label="Tournament"
+                  v-model="settings.tournament"
+                  :items="Object.keys(availableTournaments)"
+                ></v-select>
+                <v-select
+                  label="Data Source"
+                  v-model="settings.data_source"
+                  :items="['current', 'historical', 'demo']"
+                ></v-select>
+              </v-card-text>
+            </v-card>
+
+            <!-- Wi-Fi Settings -->
+            <v-card class="mb-4">
+              <v-card-title>📶 Wi-Fi</v-card-title>
+              <v-card-text>
+                <div v-if="currentNetwork">
+                  <p>
+                    <strong>Connected:</strong> {{ currentNetwork }}
+                    <v-icon v-if="currentSignal >= 75">mdi-wifi-strength-4</v-icon>
+                    <v-icon v-else-if="currentSignal >= 50">mdi-wifi-strength-3</v-icon>
+                    <v-icon v-else-if="currentSignal >= 25">mdi-wifi-strength-2</v-icon>
+                    <v-icon v-else>mdi-wifi-strength-1</v-icon>
+                  </p>
+                  <v-btn color="error" @click="disconnectWifi">Disconnect</v-btn>
+                </div>
+                <div v-else>
+                  <p>Not connected to Wi-Fi.</p>
+                </div>
+                <v-btn color="primary" :loading="connecting" @click="scanWifi">
+                  <v-icon left>mdi-wifi</v-icon>Scan Networks
+                </v-btn>
+                <v-alert v-if="connectionStatus" type="info" class="mt-2">{{ connectionStatus }}</v-alert>
+              </v-card-text>
+            </v-card>
+
+            <!-- Bluetooth -->
+            <v-card class="mb-4">
+              <v-card-title>🔊 Bluetooth</v-card-title>
+              <v-card-text>
+                <v-switch label="Bluetooth On" v-model="bluetoothOn"/>
+                <p>Status: {{ bluetoothStatus }}</p>
+                <v-btn color="primary" @click="discoverDevices">
+                  <v-icon left>mdi-bluetooth</v-icon>Discover Devices
+                </v-btn>
+              </v-card-text>
+            </v-card>
+          </v-card-text>
+        </v-card>
+
+        <!-- Dialog: Wi-Fi Networks -->
+        <v-dialog v-model="showWifiModal" max-width="500px">
+          <v-card>
+            <v-card-title>Select Wi-Fi</v-card-title>
+            <v-divider></v-divider>
+            <v-list>
+              <v-list-item v-for="net in sortedNetworks" :key="net.ssid">
+                <v-list-item-content>
+                  <v-list-item-title>{{ net.ssid }}</v-list-item-title>
+                  <v-list-item-subtitle>Signal: {{ net.signal }}</v-list-item-subtitle>
+                </v-list-item-content>
+                <v-list-item-action>
+                  <v-btn @click="selectNetwork(net)">Select</v-btn>
+                </v-list-item-action>
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </v-dialog>
+
+        <!-- Dialog: Password Entry -->
+        <v-dialog v-model="selectedNetwork" max-width="400px">
+          <v-card>
+            <v-card-title>Enter Password</v-card-title>
+            <v-card-text>
+              <v-text-field
+                v-model="selectedNetwork.password"
+                :label="selectedNetwork.ssid"
+                type="password"
+              ></v-text-field>
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn color="green" @click="connectToWifi(selectedNetwork)">Connect</v-btn>
+              <v-btn text @click="selectedNetwork = null">Cancel</v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+
+      </v-container>
     </v-app>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.js"></script>
+
   <script>
     new Vue({
       el: '#app',
-      vuetify: new Vuetify()
-    });
+      vuetify: new Vuetify(),
   </script>
 </body>
 </html>

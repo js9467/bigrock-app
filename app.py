@@ -293,6 +293,11 @@ import random
 from datetime import datetime, timedelta
 from copy import deepcopy
 
+from copy import deepcopy
+from datetime import datetime, timedelta
+import random
+import json
+
 def inject_hooked_up_events(events, tournament_uid):
     # Load participants master data
     with open('participants_master.json') as f:
@@ -307,17 +312,26 @@ def inject_hooked_up_events(events, tournament_uid):
         if not boat:
             continue
 
-        # Create hookup_id
+        # Parse event time safely
         try:
-            event_dt = datetime.strptime(event['time'], "Jun %d @%I:%M %p")  # Adjust format if needed
-        except:
-            event_dt = datetime.now()
+            event_dt = datetime.fromisoformat(event['time'])
+        except Exception:
+            try:
+                # Try flexible parsing if not ISO
+                from dateutil import parser
+                event_dt = parser.parse(event['time'].replace("@", " "))
+            except:
+                event_dt = datetime.now()
 
+        # Subtract random time to simulate "hooked up" before event
         delta = timedelta(minutes=random.randint(10, 30))
-        hooked_time = "@ " + (event_dt - delta).strftime('%I:%M %p')
-        hookup_id = f"{boat.lower().replace(' ', '_')}_{int((event_dt - delta).timestamp())}"
+        hooked_dt = event_dt - delta
+        hooked_time = hooked_dt.isoformat()
 
-        # Lookup image from participants_master
+        # Unique ID based on boat and hooked timestamp
+        hookup_id = f"{boat.lower().replace(' ', '_')}_{int(hooked_dt.timestamp())}"
+
+        # Lookup image
         image = boat_image_map.get(boat.upper(), "/static/images/placeholder.png")
 
         # Create hooked-up event
@@ -330,14 +344,19 @@ def inject_hooked_up_events(events, tournament_uid):
             "image": image
         }
 
-        # Also assign hookup_id to actual event
+        # Attach same hookup_id to real event, ensure time is ISO too
         real_event = deepcopy(event)
         real_event['hookup_id'] = hookup_id
+        try:
+            real_event['time'] = event_dt.isoformat()
+        except:
+            pass  # leave original if it was already ISO
 
         injected.append(hooked_event)
         injected.append(real_event)
 
     return injected
+
 
 
 def load_cache(tournament):

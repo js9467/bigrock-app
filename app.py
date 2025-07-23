@@ -784,7 +784,7 @@ def get_participants():
 
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
-from flask_socketio import SocketIO
+
 import subprocess
 
 @app.route('/wifi', methods=['GET', 'POST'])
@@ -821,9 +821,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import subprocess
 
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for all routes
-socketio = SocketIO(app, cors_allowed_origins="*")
+
 
 @app.route('/wifi/scan')
 def scan_wifi():
@@ -2435,4 +2433,4 @@ def refresh_data_loop(interval=600):  # 10 minutes
 
 # Example run
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, host='0.0.0.0')

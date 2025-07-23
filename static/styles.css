@@ -586,7 +586,17 @@ header h1 {
 .wifi-settings button {
   margin-left: 5px;
 }
-
+/* Fix for dropdown overflow issue */
+.settings-label select {
+  max-width: 50%;
+  width: 20%;
+  padding: 1px;
+  font-size: .5em;
+  border-radius: 2px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  box-sizing: border-box;
+}
 
 /* Prevent horizontal scrolling in settings area */
 .settings {
@@ -599,44 +609,3 @@ header h1 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.settings-group {
-  margin-bottom: 2rem;
-}
-
-.settings-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-  gap: 10px;
-}
-
-.settings-option label {
-  flex: 0 0 180px;
-  font-weight: 500;
-  font-size: 1em;
-  color: #222;
-  white-space: nowrap;
-}
-
-.settings-option input[type="checkbox"],
-.settings-option input[type="range"],
-.settings-option select {
-  flex: 1 1 300px;
-  min-width: 200px;
-  max-width: 100%;
-  padding: 6px;
-  font-size: 1em;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
-}
-.settings {
-  max-height: calc(100vh - 120px); /* Adjust based on your header height */
-  overflow-y: auto;
-  padding: 1rem;
-}
-
-
-

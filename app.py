@@ -1127,21 +1127,42 @@ def bluetooth():
         except Exception as e:
             print(f"Bluetooth scan error: {e}")
             return jsonify([])
-    elif action == 'pair':
-        mac = request.args.get('mac')
-        try:
-            # Run the pairing and trust commands
-            commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
-            subprocess.check_output(['bluetoothctl'], input=commands.encode(), stderr=subprocess.STDOUT)
+   elif action == 'pair':
+    mac = request.args.get('mac')
+    try:
+        # Run the pairing and trust commands
+        commands = f"agent on\ndefault-agent\npair {mac}\ntrust {mac}\nconnect {mac}\n"
+        subprocess.check_output(['bluetoothctl'], input=commands.encode(), stderr=subprocess.STDOUT)
 
+        # Wait for connection to establish
+        time.sleep(2)
+
+        # Get PipeWire sink name dynamically
+        mac_underscore = mac.upper().replace(':', '_')
+        sinks_output = subprocess.check_output(['wpctl', 'list-sinks']).decode()
+        sink_name = None
+        for line in sinks_output.split('\n'):
+            if 'bluez' in line and mac_underscore in line:
+                # Extract the sink name (assuming format like bluez_output.MAC.1 or similar)
+                parts = line.split()
+                for part in parts:
+                    if mac_underscore in part:
+                        sink_name = part
+                        break
+                if sink_name:
+                    break
+
+        if sink_name:
             # Set the Bluetooth speaker as default in PipeWire
-            subprocess.run(['wpctl', 'set-default', 'bluez_output.F8_DF_15_C2_09_58.1'], check=True)
-            subprocess.run(['wpctl', 'set-mute', 'bluez_output.F8_DF_15_C2_09_58.1', '0'], check=True)
-            subprocess.run(['wpctl', 'set-volume', 'bluez_output.F8_DF_15_C2_09_58.1', '1.0'], check=True)
+            subprocess.run(['wpctl', 'set-default', sink_name], check=True)
+            subprocess.run(['wpctl', 'set-mute', sink_name, '0'], check=True)
+            subprocess.run(['wpctl', 'set-volume', sink_name, '1.0'], check=True)
+            return jsonify({'status': 'success', 'output': f'Paired and audio output set to {sink_name}'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Bluetooth sink not found in PipeWire'})
 
-            return jsonify({'status': 'success', 'output': 'Paired and audio output set'})
-        except subprocess.CalledProcessError as e:
-            return jsonify({'status': 'error', 'message': e.output.decode()})
+    except subprocess.CalledProcessError as e:
+        return jsonify({'status': 'error', 'message': e.output.decode()})
     elif action == 'on':
         try:
             subprocess.run(['bluetoothctl', 'power', 'on'], check=True)

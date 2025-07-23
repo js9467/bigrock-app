@@ -910,7 +910,7 @@ def settings():
         save_settings(settings_data)
 
        # ✅ Always write demo data when tournament changes or on first setup
-if old_settings.get('tournament') != settings_data.get('tournament') or old_settings.get('data_source') != settings_data.get('data_source'):
+            if old_settings.get('tournament') != settings_data.get('tournament') or old_settings.get('data_source') != settings_data.get('data_source'):
 
             tournament = settings_data.get('tournament', 'Big Rock')
             demo_data = {}

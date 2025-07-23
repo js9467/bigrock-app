@@ -2208,23 +2208,37 @@ def settings():
     current_settings = load_settings()
     return jsonify(current_settings)
 
+bluetooth_status_cache = {'timestamp': 0, 'status': 'Not Connected'}
+
 @app.route('/bluetooth-status')
 def bluetooth_status():
-    try:
-        output = subprocess.check_output(['bluetoothctl', 'info']).decode()
-        connected = 'Connected: yes' in output
-        device_name = 'Unknown'
-        if connected:
-            for line in output.split('\n'):
-                if line.strip().startswith('Name:'):
-                    device_name = line.split(':', 1)[1].strip()
-                    break
-        status = f"Connected to {device_name}" if connected else 'Not Connected'
-        return jsonify({'status': status})
-    except Exception as e:
-        print(f"Bluetooth status error: {e}")
-        return jsonify({'status': 'Unknown'})
+    now = time.time()
+    if now - bluetooth_status_cache['timestamp'] < 10:
+        return jsonify({'status': bluetooth_status_cache['status']})
 
+    try:
+        bus = dbus.SystemBus()
+        bluez = bus.get_object('org.bluez', '/')
+        manager = dbus.Interface(bluez, 'org.freedesktop.DBus.ObjectManager')
+        objects = manager.GetManagedObjects()
+
+        connected = False
+        status = 'Not Connected'
+        for path, interfaces in objects.items():
+            if 'org.bluez.Device1' in interfaces:
+                props = interfaces['org.bluez.Device1']
+                if props.get('Connected', False):
+                    name = props.get('Name', 'Bluetooth Device')
+                    status = f"Connected to {name}"
+                    connected = True
+                    break  # Assuming single connection; remove break if multiple
+
+    except Exception as e:
+        status = 'Not Connected'
+
+    bluetooth_status_cache['status'] = status
+    bluetooth_status_cache['timestamp'] = now
+    return jsonify({'status': status})
 @app.route('/bluetooth')
 def bluetooth():
     action = request.args.get('action')

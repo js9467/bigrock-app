@@ -38,7 +38,7 @@ jobs:
         with:
           host: 64.99.148.73
           username: pi
-          key: ${{ secrets.PI_SSH_KEY2 }}
+          key: ${{ secrets.PI_SSH_KEY }}
           script: |
             echo "🧹 Removing rogue /home/pi/app.py if it exists..."
             rm -f /home/pi/app.py
@@ -48,7 +48,7 @@ jobs:
         with:
           host: 64.99.148.73
           username: pi
-          key: ${{ secrets.PI_SSH_KEY2 }}
+          key: ${{ secrets.PI_SSH_KEY }}
           source: "./*,./static/**,./templates/**,version.txt"
           target: /home/pi/bigrock-app
           overwrite: true
@@ -59,7 +59,7 @@ jobs:
         with:
           host: 64.99.148.73
           username: pi
-          key: ${{ secrets.PI_SSH_KEY2 }}
+          key: ${{ secrets.PI_SSH_KEY }}
           script: |
             echo "🔁 Restarting bigrock.service..."
             sudo systemctl restart bigrock.service

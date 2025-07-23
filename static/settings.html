@@ -116,27 +116,32 @@
 
   <script>
     new Vue({
-      el: '#app',
-      data: {
-        settings: {
-          sounds: { hooked: true, released: true, boated: true },
-          followed_boats: [],
-          effects_volume: 0.5,
-          radio_volume: 0.5,
-          tournament: 'Big Rock',
-          data_source: 'demo',
-          disable_sleep_mode: true
-        },
-        allTournaments: {},
-        bluetoothOn: false,
-        bluetoothStatus: 'Unknown',
-        devices: [],
-        showModal: false,
-        showWifiModal: false,
-        wifiNetworks: [],
-        lastConnectedSsid: localStorage.getItem('lastConnectedSsid') || '',
-        connecting: false
-      },
+  el: '#app',
+  data: {
+    settings: {
+      sounds: { hooked: true, released: true, boated: true },
+      followed_boats: [],
+      effects_volume: 0.5,
+      radio_volume: 0.5,
+      tournament: 'Big Rock',
+      data_source: 'demo',
+      disable_sleep_mode: true
+    },
+    allTournaments: {},
+    bluetoothOn: false,
+    bluetoothStatus: 'Unknown',
+    devices: [],
+    showModal: false,
+
+    // Wi-Fi modal and scanning
+    showWifiModal: false,
+    wifiNetworks: [],
+    currentSsid: '',  // active connection
+    lastConnectedSsid: localStorage.getItem('lastConnectedSsid') || '',
+    connecting: false,
+    connectionStatus: ''
+  },
+
       computed: {
         logoSrc() {
           const t = this.settings?.tournament;

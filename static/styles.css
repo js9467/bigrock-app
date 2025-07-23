@@ -190,5 +190,14 @@ header h1 {
   border-radius: 8px;
   text-align: center;
   font-size: 1.2em;
+}.demo-banner {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 12px;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 2px solid #ffeeba;
+  font-size: 1.2em;
 }
+
 

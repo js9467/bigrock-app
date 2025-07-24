@@ -859,30 +859,38 @@ def connect_wifi_vue():
         return jsonify({'error': 'SSID is required'}), 400
 
     try:
-        # Try connecting
-        connect_cmd = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
+        # Clean up old bigrock-wifi connections
+        conns_output = subprocess.check_output(['nmcli', '-t', '-f', 'name', 'connection', 'show'], universal_newlines=True)
+        for line in conns_output.strip().split('\n'):
+            if line.strip() == 'bigrock-wifi':
+                subprocess.run(['nmcli', 'connection', 'delete', 'bigrock-wifi'], check=True)
+                print("Deleted old 'bigrock-wifi' connection")
+
+        # Create a new named connection using SSID as the connection name
+        connect_cmd = ['nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             connect_cmd += ['password', password]
         subprocess.run(connect_cmd, check=True)
 
         # Set autoconnect
-        subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
+        subprocess.run(['nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
 
-        # Let network manager stabilize
+        # Let the network manager stabilize
         time.sleep(3)
 
-        # Verify active connection
-        result = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
-        active_ssids = [line.split(':')[1] for line in result.strip().split('\n') if line.startswith('yes:')]
+        # Verify connection
+        verify = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
+        current = [line.split(':')[1] for line in verify.strip().split('\n') if line.startswith('yes:')]
 
-        if ssid in active_ssids:
-            # Try to stop hostapd and dnsmasq, but don't fail if they're not running
+        if ssid in current:
+            # Stop AP-related services, ignore if not running
             try:
-                subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+                subprocess.run(['systemctl', 'stop', 'hostapd'], check=True)
             except subprocess.CalledProcessError:
                 print("hostapd not running or not installed.")
+
             try:
-                subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+                subprocess.run(['systemctl', 'stop', 'dnsmasq'], check=True)
             except subprocess.CalledProcessError:
                 print("dnsmasq not running or not installed.")
 
@@ -894,9 +902,6 @@ def connect_wifi_vue():
         print(f"Wi-Fi connect error: {e}")
         return jsonify({'error': f'nmcli failed: {e}'}), 500
     except Exception as e:
-        print(f"Post-connect verification error: {e}")
-        return jsonify({'error': f'Unexpected error: {e}'}), 500
-
 
 
 

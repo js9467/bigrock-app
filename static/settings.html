@@ -278,12 +278,25 @@
             const data = await response.json();
             console.log('Wi-Fi connect response:', data);
             if (data.success) {
-              this.connectionStatus = `✅ Connected to ${net.ssid}`;
-              this.currentNetwork = net.ssid;
-              this.savedNetworks[net.ssid] = net.password;
-            } else {
-              this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
-            }
+  this.connectionStatus = `⏳ Verifying connection to ${net.ssid}...`;
+  setTimeout(async () => {
+    try {
+      const verify = await fetch('/wifi/scan');
+      const result = await verify.json();
+      if (result.current === net.ssid) {
+        this.connectionStatus = `✅ Connected to ${net.ssid}`;
+        this.currentNetwork = net.ssid;
+      } else {
+        this.connectionStatus = `⚠️ Connection may have succeeded, but verification failed. Try refreshing.`;
+      }
+    } catch (err) {
+      this.connectionStatus = `⚠️ Connected to Wi-Fi, but server unreachable (probably IP change). Try refreshing.`;
+    }
+  }, 3000);
+} else {
+  this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
+}
+
           } catch (e) {
             console.error('Wi-Fi connect error:', e);
             this.connectionStatus = `❌ Error connecting to ${net.ssid}`;

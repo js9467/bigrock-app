@@ -30,6 +30,7 @@
     }
     /* Prevent conflicts with old CSS */
     .modal, .settings, .modal-overlay { display: none; }
+    .password-toggle { cursor: pointer; }
   </style>
 </head>
 <body>
@@ -124,9 +125,11 @@
                 <v-text-field
                   v-model="selectedNetwork.password"
                   label="Password"
-                  type="password"
+                  :type="showPassword ? 'text' : 'password'"
                   outlined
                   autofocus
+                  :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                  @click:append="showPassword = !showPassword"
                 ></v-text-field>
               </v-card-text>
               <v-card-actions>
@@ -193,9 +196,11 @@
         showWifiModal: false,
         selectedNetwork: null,
         showSelectedNetwork: false,
+        showPassword: false,
         connecting: false,
         connectionStatus: '',
-        panel: [0, 1, 2, 3]
+        panel: [0, 1, 2, 3],
+        savedNetworks: {} // Store SSID-password pairs
       },
       computed: {
         logoSrc() {
@@ -232,37 +237,33 @@
           return '📶'.repeat(level) + '⚪'.repeat(4 - level);
         },
         async scanWifi() {
-  this.connectionStatus = 'Scanning...';
-  try {
-    const response = await fetch('/wifi/scan');
-    const data = await response.json();
-    console.log('📡 Wi-Fi scan response (full):', data); // Add emoji to find it easier
-
-    if (!data.networks) {
-      console.error('⚠️ "networks" field missing in scan response!', data);
-      this.connectionStatus = '❌ No networks found.';
-      return;
-    }
-
-    this.wifiNetworks = data.networks;
-    this.currentNetwork = data.current || '';
-    console.log('📶 Current network set to:', this.currentNetwork);
-
-    const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
-    this.currentSignal = current ? current.signal : 0;
-
-    this.showWifiModal = true;
-    this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;
-  } catch (e) {
-    console.error('❌ Wi-Fi scan error:', e);
-    this.connectionStatus = '❌ Scan failed.';
-  }
-}
-,
+          this.connectionStatus = 'Scanning...';
+          try {
+            const response = await fetch('/wifi/scan');
+            const data = await response.json();
+            console.log('📡 Wi-Fi scan response (full):', data);
+            if (!data.networks) {
+              console.error('⚠️ "networks" field missing in scan response!', data);
+              this.connectionStatus = '❌ No networks found.';
+              return;
+            }
+            this.wifiNetworks = data.networks;
+            this.currentNetwork = data.current || '';
+            console.log('📶 Current network set to:', this.currentNetwork);
+            const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
+            this.currentSignal = current ? current.signal : 0;
+            this.showWifiModal = true;
+            this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;
+          } catch (e) {
+            console.error('❌ Wi-Fi scan error:', e);
+            this.connectionStatus = '❌ Scan failed.';
+          }
+        },
         selectNetwork(net) {
-          this.selectedNetwork = { ...net, password: '' };
+          this.selectedNetwork = { ...net, password: this.savedNetworks[net.ssid] || '' };
           this.showWifiModal = false;
           this.showSelectedNetwork = true;
+          this.showPassword = false; // Reset password visibility
         },
         async connectToWifi(net) {
           this.connecting = true;
@@ -278,6 +279,7 @@
             if (data.success) {
               this.connectionStatus = `✅ Connected to ${net.ssid}`;
               this.currentNetwork = net.ssid;
+              this.savedNetworks[net.ssid] = net.password; // Save password
             } else {
               this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
             }
@@ -341,7 +343,7 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(this.settings)
             });
-            const data = await response.json(); // Add response parsing
+            const data = await response.json();
             console.log('Settings save response:', data);
             if (!response.ok) {
               throw new Error(data.error || 'Server error');

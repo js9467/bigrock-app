@@ -501,7 +501,7 @@ def scrape_participants(tournament):
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(ignore_https_errors=True, user_agent="...")
             page = context.new_page()
-            page.goto(url, wait_until="networkidle", timeout=60000)
+            page.goto(url, wait_until="networkidle", timeout=120000)
 
             html_content = page.content()
             print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")

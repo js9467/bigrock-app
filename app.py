@@ -902,9 +902,8 @@ def connect_wifi_vue():
         print(f"Wi-Fi connect error: {e}")
         return jsonify({'error': f'nmcli failed: {e}'}), 500
     except Exception as e:
-
-
-
+        print(f"Post-connect verification error: {e}")
+        return jsonify({'error': f'Unexpected error: {e}'}), 500
 
 @app.route('/events')
 def events():

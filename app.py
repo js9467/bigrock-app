@@ -846,32 +846,44 @@ def scan_wifi():
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
 
+import time
+
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():
     data = request.get_json()
     ssid = data.get('ssid')
     password = data.get('password', '')
+
     if not ssid:
-        response = jsonify({'error': 'SSID is required'})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 400
+        return jsonify({'error': 'SSID is required'}), 400
+
     try:
+        # Try connecting
         connect_args = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
         if password:
             connect_args += ['password', password]
         subprocess.run(connect_args, check=True)
+
+        # Set autoconnect
         subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
+
+        # Stop AP-related services
         subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-        print(f"Wi-Fi connect success: {ssid}")
-        response = jsonify({'success': True})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
+
+        # Small delay then check actual connection
+        time.sleep(2)
+        result = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
+        connected = any(line.startswith("yes:") and ssid in line for line in result.strip().split('\n'))
+
+        if connected:
+            return jsonify({'success': True, 'connected': ssid})
+        else:
+            return jsonify({'error': 'Connection attempt made but SSID not confirmed'}), 500
+
     except subprocess.CalledProcessError as e:
         print(f"Wi-Fi connect error: {e}")
-        response = jsonify({'error': str(e)})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 500
+        return jsonify({'error': str(e)}), 500
 
 
 

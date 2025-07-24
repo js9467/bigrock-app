@@ -408,15 +408,12 @@ def save_cache(tournament, data):
             json.dump(cache, f, indent=4)
     except Exception as e:
         print(f"Error saving cache: {e}")
-PARTICIPANTS_CACHES = {}  # Global cache dictionary
-MOCK_DATA_FILE = "mock_data.json"  # Define mock data file path
-known_boat_images = {}  # Define known boat images dictionary
-
 import time
 import os
 import json
 from playwright.sync_api import sync_playwright, TimeoutError
 
+# Global variables
 PARTICIPANTS_CACHES = {}  # Global cache dictionary
 MOCK_DATA_FILE = "mock_data.json"  # Define mock data file path
 known_boat_images = {}  # Define known boat images dictionary
@@ -554,6 +551,7 @@ def generate_uid(tournament, name):
 def save_participant_to_master(participant):
     """Save participant to master database."""
     pass  # Replace with actual implementation
+    
 def load_historical_data(tournament):
     if os.path.exists(HISTORICAL_DATA_FILE):
         try:

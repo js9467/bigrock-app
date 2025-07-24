@@ -1078,4 +1078,3 @@ def refresh_data_loop(interval=600):
 if __name__ == '__main__':
     refresh_data_loop()  # Start background refresh
     app.run(debug=True, host='0.0.0.0')
-```

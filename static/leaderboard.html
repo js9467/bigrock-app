@@ -1,46 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Leaderboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet"/>
-  <link rel="stylesheet" href="/static/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-  <div id="app">
-    <header>
-      <img v-if="logoSrc" :src="logoSrc" alt="Tournament Logo" />
-      <h1>Leaderboard</h1>
-      <div class="control-buttons">
-        <button class="settings-icon" @click="goBack">← Back</button>
-      </div>
-    </header>
+    <div id="app">
+        <header>
+           <img :src="logoSrc" alt="Tournament Logo">
 
-    <div v-if="error" class="error">{{ error }}</div>
-    <div v-if="isLoading" class="leaderboard">
-      <div class="no-leaderboard">Loading leaderboard...</div>
-    </div>
-    <div v-else class="leaderboard">
-      <div v-if="leaderboard.length > 0">
-        <div v-for="entry in leaderboard" :key="entry.boat" class="leaderboard-item">
-          <img v-if="getBoatImage(entry.boat)" :src="getBoatImage(entry.boat)" alt="Boat Image" class="boat-image" @error="handleImageError" />
-          <span class="boat-name">{{ entry.boat }}</span>
-          <span class="score">{{ entry.points }}</span>
+            <h1>Leaderboard</h1>
+            <div class="control-buttons">
+                <button class="settings-icon" @click="goBack">← Back</button>
+            </div>
+        </header>
+        <div v-if="error" class="error">{{ error }}</div>
+        <div v-if="isLoading" class="leaderboard">
+            <div class="no-leaderboard">Loading leaderboard...</div>
         </div>
-      </div>
-      <div v-else class="no-leaderboard">No leaderboard data available</div>
+        <div v-else class="leaderboard">
+            <div v-if="leaderboard.length > 0">
+                <div v-for="entry in leaderboard" :key="entry.name" class="leaderboard-item">
+                    <img v-if="getBoatImage(entry.name)" :src="getBoatImage(entry.name)" alt="Boat Image" class="boat-image" @error="handleImageError">
+                    <span class="boat-name">{{ entry.name }}</span>
+                    <span class="score">{{ entry.score }}</span>
+                </div>
+            </div>
+            <div v-else class="no-leaderboard">No leaderboard data available</div>
+        </div>
     </div>
-  </div>
-
-
-  <script>
-    var appMounted = false;
-  </script>
-  <script src="/static/main.js"></script>
-  <script>
-    appMounted = true;
-  </script>
+    <div v-if="!appMounted" class="error">
+        Failed to load leaderboard. Please check your connection, ensure the server is serving /leaderboard, or return to the <a href="/">homepage</a>.
+    </div>
+    <script>
+        console.log('Leaderboard.html loaded at:', window.location.pathname);
+        var appMounted = false;
+    </script>
+    <script src="/static/main.js"></script>
+    <script>
+        appMounted = true;
+        console.log('Leaderboard.html scripts executed, appMounted:', appMounted);
+    </script>
 </body>
 </html>

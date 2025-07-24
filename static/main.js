@@ -39,113 +39,65 @@ new Vue({
         wifiConnected: true,
         isLoading: true,
         appMounted: false,
-        wifiNetworks: [],
-        selectedWifi: null,
-        wifiPassword: '',
-        connecting: false,
-        connectionStatus: ''
+        
     },
-    computed: {
-        isDemoMode() {
-            return this.settings.data_source === 'demo';
-        },
-        followedBoats() {
-            return this.settings.followed_boats || [];
-        },
-        logoSrc() {
-            const t = this.settings?.tournament;
-            if (!t || !this.allTournaments || !this.allTournaments[t]) {
-                return '/static/images/WHITELOGOBR.png';
-            }
-            const logo = this.allTournaments[t].logo;
-            return logo ? logo : '/static/images/WHITELOGOBR.png';
-        },
-        enrichedHookedBoats() {
-            const active = new Map();
-            const resolvedHookups = new Set();
+computed: {
+  isDemoMode() {
+    return this.settings.data_source === 'demo';
+  },
+  followedBoats() {
+    return this.settings.followed_boats || [];
+  },
+  logoSrc() {
+    const t = this.settings?.tournament;
+    if (!t || !this.allTournaments || !this.allTournaments[t]) {
+      return '/static/images/WHITELOGOBR.png';
+    }
+    const logo = this.allTournaments[t].logo;
+    return logo ? logo : '/static/images/WHITELOGOBR.png';
+  },
+  enrichedHookedBoats() {
+  const active = new Map();
+  const resolvedHookups = new Set();
 
-            for (const event of this.events) {
-                const action = (event.action || '').toLowerCase();
-                const hookupId = event.hookup_id;
-                const boat = event.boat;
-                const boatKey = boat?.toLowerCase();
+  for (const event of this.events) {
+    const action = (event.action || '').toLowerCase();
+    const hookupId = event.hookup_id;
+    const boat = event.boat;
+    const boatKey = boat?.toLowerCase();
 
-                if (action.includes('hooked up')) {
-                    if (!resolvedHookups.has(hookupId)) {
-                        active.set(hookupId, {
-                            ...event,
-                            image: this.boatImages[boatKey] || '/static/images/placeholder.png'
-                        });
-                    }
-                } else if (
-                    hookupId &&
-                    (
-                        action.includes('boated') ||
-                        action.includes('released') ||
-                        action.includes('pulled hook') ||
-                        action.includes('wrong species')
-                    )
-                ) {
-                    resolvedHookups.add(hookupId);
-                    active.delete(hookupId);
-                }
-            }
+    if (action.includes('hooked up')) {
+      if (!resolvedHookups.has(hookupId)) {
+        active.set(hookupId, {
+          ...event,
+          image: this.boatImages[boatKey] || '/static/images/placeholder.png'
+        });
+      }
+    } else if (
+      hookupId &&
+      (
+        action.includes('boated') ||
+        action.includes('released') ||
+        action.includes('pulled hook') ||
+        action.includes('wrong species')
+      )
+    ) {
+      resolvedHookups.add(hookupId);
+      active.delete(hookupId);
+    }
+  }
 
-            return Array.from(active.values());
-        },
-        activeScalesBoats() {
-            return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
-        }
-    },
+  return Array.from(active.values());
+}
+,
+  activeScalesBoats() {
+    return this.events.filter(e => (e.action || '').toLowerCase().includes('headed to scales'));
+  }
+},
+
+
+
     methods: {
-        scanWifi() {
-            fetch('/wifi/scan')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.networks) {
-                        this.wifiNetworks = data.networks;
-                        this.connectionStatus = `📡 Found ${data.networks.length} networks.`;
-                    } else {
-                        this.connectionStatus = '⚠️ No networks found.';
-                    }
-                })
-                .catch(() => {
-                    this.connectionStatus = '❌ Failed to scan networks.';
-                });
-        },
-        connectToWifi(ssid) {
-            if (!ssid) {
-                this.connectionStatus = '⚠️ SSID is required.';
-                return;
-            }
-
-            this.connecting = true;
-            this.connectionStatus = `🔌 Connecting to ${ssid}...`;
-
-            fetch('/wifi/connect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ssid: ssid,
-                    password: this.wifiPassword
-                })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        this.connectionStatus = `✅ Connected to ${ssid}`;
-                        this.wifiConnected = true;
-                    } else {
-                        this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
-                    }
-                })
-                .catch(() => {
-                    this.connectionStatus = `❌ Error connecting to ${ssid}`;
-                })
-                .finally(() => {
-                    this.connecting = false;
-                });
-        },
         formatTime(timeStr) {
             const date = new Date(timeStr);
             return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -161,55 +113,59 @@ new Vue({
                 return etaStr || 'Unknown ETA';
             }
         },
-        async loadEvents() {
-            if (this.isSleepMode) return;
-            try {
-                this.error = null;
-                const response = await fetch('/events');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                this.events = await response.json() || [];
+async loadEvents() {
+    if (this.isSleepMode) return;
+    try {
+        this.error = null;
+        const response = await fetch('/events');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        this.events = await response.json() || [];
 
-                this.displayedEvents = [...this.events].reverse();
+        // Use reversed copy for display
+        this.displayedEvents = [...this.events].reverse();
 
-                if (this.settings.data_source === 'historical') {
-                    this.startHistoricalScroll();
-                } else {
-                    this.stopHistoricalScroll();
+        if (this.settings.data_source === 'historical') {
+            this.startHistoricalScroll();
+        } else {
+            this.stopHistoricalScroll();
 
-                    const latestBoated = this.events
-                        .filter(e => (e.action || '').toLowerCase() === 'boated')
-                        .slice(-1)[0];
-                    if (latestBoated) {
-                        this.lastBoatedTime = new Date(latestBoated.time);
-                    }
-                }
-            } catch (err) {
-                this.error = 'Error loading events: ' + err.message;
-                console.error('⚠️ Error loading events:', err);
+            const latestBoated = this.events
+                .filter(e => e.action.toLowerCase() === 'boated')
+                .slice(-1)[0];
+            if (latestBoated) {
+                this.lastBoatedTime = new Date(latestBoated.time);
             }
-        },
+        }
+    } catch (err) {
+        this.error = 'Error loading events: ' + err.message;
+        console.error('⚠️ Error loading events:', err);
+    }
+},
+
         async loadParticipants() {
-            try {
-                this.error = null;
-                const response = await fetch('/api/participants');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                this.participants = await response.json() || [];
+    try {
+        this.error = null;
+        const response = await fetch('/api/participants');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        this.participants = await response.json() || [];
 
-                this.boatImages = this.participants.reduce((acc, participant) => {
-                    if (participant.boat && participant.image) {
-                        acc[participant.boat.toLowerCase()] = participant.image;
-                    }
-                    return acc;
-                }, {});
+        this.boatImages = this.participants.reduce((acc, participant) => {
+    if (participant.boat && participant.image) {
+        acc[participant.boat.toLowerCase()] = participant.image;
+    }
+    return acc;
+}, {});
 
-                console.log('✅ Participants loaded:', this.participants.map(p => p.boat));
-            } catch (e) {
-                this.error = 'Failed to load participants: ' + e.message;
-                console.error('Error loading participants:', e);
-                this.participants = [];
-                this.boatImages = typeof known_boat_images !== 'undefined' ? known_boat_images : {};
-            }
-        },
+
+        console.log('✅ Participants loaded:', this.participants.map(p => p.boat));
+    } catch (e) {
+        this.error = 'Failed to load participants: ' + e.message;
+        console.error('Error loading participants:', e);
+        this.participants = [];
+        this.boatImages = typeof known_boat_images !== 'undefined' ? known_boat_images : {};
+    }
+},
+
         async loadLeaderboard() {
             try {
                 this.error = null;
@@ -406,10 +362,10 @@ new Vue({
             if (typeof known_boat_images !== 'undefined' && known_boat_images[boatName]) {
                 return known_boat_images[boatName];
             }
-            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
+            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
         },
         handleImageError(event) {
-            event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
+            event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAA6ElEQVR4nO3QwQ3AIBDAsNLJb3RWIC+EZE8QZc3Mx5n/dsBLzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCswKzArMCjbLZgJIjFtsAQAAAABJRU5ErkJggg==';
         },
         startHistoricalScroll() {
             this.stopHistoricalScroll();
@@ -442,89 +398,90 @@ new Vue({
             }
         },
         toggleRadio() {
-            const player = document.getElementById('radio-player');
-            const primaryStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
-            const fallbackStream = 'https://playertest.longtailvideo.com/adaptive/bbbfull/bbbfull.m3u8';
-            const fallbackMessage = '🎣 Tournament VHF currently unavailable. Using test stream.';
+    const player = document.getElementById('radio-player');
+    const primaryStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+    const fallbackStream = 'https://playertest.longtailvideo.com/adaptive/bbbfull/bbbfull.m3u8';
+    const fallbackMessage = '🎣 Tournament VHF currently unavailable. Using test stream.';
 
-            const playStream = (url, isFallback = false) => {
-                if (Hls.isSupported()) {
-                    this.hls = new Hls();
-                    this.hls.loadSource(url);
-                    this.hls.attachMedia(player);
+    const playStream = (url, isFallback = false) => {
+        if (Hls.isSupported()) {
+            this.hls = new Hls();
+            this.hls.loadSource(url);
+            this.hls.attachMedia(player);
 
-                    this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        player.volume = this.settings.radio_volume || 0.3;
-                        player.play()
-                            .then(() => {
-                                this.radioPlaying = true;
-                                this.error = isFallback ? fallbackMessage : null;
-                                localStorage.setItem('radioPlaying', 'true');
-                            })
-                            .catch(err => {
-                                console.error('🔊 Audio play failed:', err);
-                                if (!isFallback) {
-                                    this.hls.destroy();
-                                    this.hls = null;
-                                    playStream(fallbackStream, true);
-                                } else {
-                                    this.error = fallbackMessage;
-                                    this.radioPlaying = false;
-                                }
-                            });
-                    });
-
-                    this.hls.on(Hls.Events.ERROR, (event, data) => {
-                        if (data.fatal) {
-                            console.warn('💥 HLS fatal error:', data);
+            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                player.volume = this.settings.radio_volume || 0.3;
+                player.play()
+                    .then(() => {
+                        this.radioPlaying = true;
+                        this.error = isFallback ? fallbackMessage : null;
+                        localStorage.setItem('radioPlaying', 'true');
+                    })
+                    .catch(err => {
+                        console.error('🔊 Audio play failed:', err);
+                        if (!isFallback) {
                             this.hls.destroy();
                             this.hls = null;
-                            if (!isFallback) {
-                                playStream(fallbackStream, true);
-                            } else {
-                                this.error = fallbackMessage;
-                                this.radioPlaying = false;
-                            }
+                            playStream(fallbackStream, true);
+                        } else {
+                            this.error = fallbackMessage;
+                            this.radioPlaying = false;
                         }
                     });
-                } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-                    player.src = url;
-                    player.volume = this.settings.radio_volume || 0.3;
-                    player.play()
-                        .then(() => {
-                            this.radioPlaying = true;
-                            this.error = isFallback ? fallbackMessage : null;
-                            localStorage.setItem('radioPlaying', 'true');
-                        })
-                        .catch(err => {
-                            console.error('🔊 Native HLS play failed:', err);
-                            if (!isFallback) {
-                                playStream(fallbackStream, true);
-                            } else {
-                                this.error = fallbackMessage;
-                                this.radioPlaying = false;
-                            }
-                        });
-                } else {
-                    this.error = fallbackMessage;
-                    this.radioPlaying = false;
-                }
-            };
+            });
 
-            if (this.radioPlaying) {
-                if (this.hls) {
+            this.hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    console.warn('💥 HLS fatal error:', data);
                     this.hls.destroy();
                     this.hls = null;
+                    if (!isFallback) {
+                        playStream(fallbackStream, true);
+                    } else {
+                        this.error = fallbackMessage;
+                        this.radioPlaying = false;
+                    }
                 }
-                player.pause();
-                player.src = '';
-                this.radioPlaying = false;
-                this.error = null;
-                localStorage.setItem('radioPlaying', 'false');
-            } else {
-                playStream(primaryStream, false);
-            }
-        },
+            });
+        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+            player.src = url;
+            player.volume = this.settings.radio_volume || 0.3;
+            player.play()
+                .then(() => {
+                    this.radioPlaying = true;
+                    this.error = isFallback ? fallbackMessage : null;
+                    localStorage.setItem('radioPlaying', 'true');
+                })
+                .catch(err => {
+                    console.error('🔊 Native HLS play failed:', err);
+                    if (!isFallback) {
+                        playStream(fallbackStream, true);
+                    } else {
+                        this.error = fallbackMessage;
+                        this.radioPlaying = false;
+                    }
+                });
+        } else {
+            this.error = fallbackMessage;
+            this.radioPlaying = false;
+        }
+    };
+
+    if (this.radioPlaying) {
+        if (this.hls) {
+            this.hls.destroy();
+            this.hls = null;
+        }
+        player.pause();
+        player.src = '';
+        this.radioPlaying = false;
+        this.error = null;
+        localStorage.setItem('radioPlaying', 'false');
+    } else {
+        playStream(primaryStream, false);
+    }
+}
+,
         goToSettings() {
             window.location.href = '/settings-page';
         },
@@ -551,51 +508,61 @@ new Vue({
             deep: true
         }
     },
-    async mounted() {
-        console.log('Vue instance mounted for:', window.location.pathname);
-        window.app = this;
-
-        try {
-            const res = await fetch("https://js9467.github.io/Brtourney/settings.json");
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            this.allTournaments = await res.json();
+mounted() {
+    console.log('Vue instance mounted for:', window.location.pathname);
+    window.app = this;
+    // Load tournament settings first
+    fetch("https://js9467.github.io/Brtourney/settings.json")
+        .then(res => res.json())
+        .then(data => {
+            this.allTournaments = data;
 
             this.isLoading = true;
-
-            await this.loadSettings();
+            this.loadSettings();
             this.checkSleepMode();
             this.checkWifiStatus();
 
+            // Resume radio if it was playing
             if (localStorage.getItem('radioPlaying') === 'true') {
                 this.toggleRadio();
             }
 
-            await this.loadParticipants();
-            console.log('✅ Participants loaded');
+            this.loadParticipants()
+                .then(() => {
+                    console.log('Initial data load complete');
+                    return this.loadLeaderboard();
+                })
+                .then(() => {
+                    this.isLoading = false;
+                    this.appMounted = true;
+                    console.log('Leaderboard page data loaded');
 
-            await this.loadLeaderboard();
-            console.log('✅ Leaderboard loaded');
+                    if (window.location.pathname !== '/leaderboard') {
+                        this.loadEvents();
+                        this.loadHookedBoats();
+                        this.loadScalesBoats();
+                        this.checkVideoTrigger();
 
-            this.isLoading = false;
-            this.appMounted = true;
+                        // 🔁 Auto-refresh every 30 seconds
+                        setInterval(() => {
+                            this.loadEvents();
+                            this.loadHookedBoats();
+                            this.loadScalesBoats();
+                        }, 30000);
+                    }
+                })
+                .catch(err => {
+                    this.error = 'Error in initial data load: ' + err.message;
+                    console.error('Error in initial data load:', err);
+                    this.isLoading = false;
+                    this.appMounted = true;
+                });
 
-            if (window.location.pathname !== '/leaderboard') {
-                await this.loadEvents();
-                await this.loadHookedBoats();
-                await this.loadScalesBoats();
-                await this.checkVideoTrigger();
+        })
+        .catch(err => {
+            this.error = 'Failed to fetch tournament settings: ' + err.message;
+            console.error('Settings fetch error:', err);
+        });
+},
 
-                setInterval(() => {
-                    this.loadEvents();
-                    this.loadHookedBoats();
-                    this.loadScalesBoats();
-                }, 30000);
-            }
-        } catch (err) {
-            this.error = 'Error in initial data load: ' + err.message;
-            console.error('❌ Initialization error:', err);
-            this.isLoading = false;
-            this.appMounted = true;
-        }
-    }
 });

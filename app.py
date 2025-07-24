@@ -680,7 +680,7 @@ def scrape_bigrock_participants():
 
     return boats
 ;
-                }
+                
             """)
 
             browser.close()

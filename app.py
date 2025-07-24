@@ -171,6 +171,7 @@ def scrape_participants_dynamic(tournament):
     current_time = time.time()
     if current_time - PARTICIPANTS_CACHE['last_time'] < 60 and PARTICIPANTS_CACHE['data']:
         return PARTICIPANTS_CACHE['data']
+
     if not PLAYWRIGHT_AVAILABLE:
         print("Playwright not available, using fallback known boats")
         boats = [{'name': name, 'image': image} for name, image in known_boat_images.items()]
@@ -179,35 +180,48 @@ def scrape_participants_dynamic(tournament):
         with open(PARTICIPANTS_CACHE_FILE, 'w') as f:
             json.dump(boats, f)
         return boats
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto('https://thebigrock.com/participants', wait_until='networkidle')
+            context = browser.new_context(ignore_https_errors=True,
+                                          user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0 Safari/537.36")
+            page = context.new_page()
+
+            page.goto('https://thebigrock.com/participants', wait_until='networkidle', timeout=30000)
+            page.wait_for_timeout(3000)  # Wait 3 seconds to ensure images/rendering complete
+
             boats = page.evaluate("""
             () => {
                 const boats = [];
                 document.querySelectorAll('img').forEach(img => {
-                  const src = img.getAttribute('src');
-                  const parent = img.closest('div');
-                  const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
-                  const name = nameTag?.textContent?.trim();
-
-                  if (src && name) {
-                    boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
-                  }
+                    const src = img.getAttribute('src');
+                    const parent = img.closest('div');
+                    const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
+                    const name = nameTag?.textContent?.trim();
+                    if (src && name) {
+                        boats.push({ name, image: src.startsWith('http') ? src : `https:${src}` });
+                    }
                 });
                 return boats;
             }
             """)
+
+            print(f"✅ Scraped {len(boats)} participants")
+            for boat in boats:
+                print(boat)
+
+            context.close()
             browser.close()
+
         PARTICIPANTS_CACHE['data'] = boats
         PARTICIPANTS_CACHE['last_time'] = current_time
         with open(PARTICIPANTS_CACHE_FILE, 'w') as f:
             json.dump(boats, f)
         return boats
+
     except Exception as e:
-        print(f"Error scraping participants dynamically: {e}")
+        print(f"❌ Error scraping participants dynamically: {e}")
         if os.path.exists(PARTICIPANTS_CACHE_FILE):
             with open(PARTICIPANTS_CACHE_FILE, 'r') as f:
                 return json.load(f)

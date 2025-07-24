@@ -154,6 +154,7 @@ def scrape_events(tournament):
 
             print(f"🔗 Navigating to {url}")
             page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(5000)
             try:
                 page.wait_for_selector("#feed-all article", timeout=30000)
             except:
@@ -1427,9 +1428,9 @@ def scrape_events(tournament):
             page = context.new_page()
 
             print(f"🔗 Navigating to {url}")
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.goto(url, wait_until="domcontentloaded", timeout=120000)
             try:
-                page.wait_for_selector("#feed-all article", timeout=30000)
+                page.wait_for_selector("#feed-all article", timeout=60000)
             except:
                 print("No activities found or selector timeout.")
             feed_items = page.query_selector_all("#feed-all article")
@@ -1771,7 +1772,7 @@ def scrape_participants(tournament):
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(ignore_https_errors=True, user_agent="...")
             page = context.new_page()
-            page.goto(url, wait_until="networkidle", timeout=60000)
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
             html_content = page.content()
             print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")

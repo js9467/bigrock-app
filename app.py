@@ -635,36 +635,51 @@ import subprocess
 from bs4 import BeautifulSoup
 
 def scrape_bigrock_participants():
-    print("🔍 Launching Playwright to scrape Big Rock participants...")
+    print("🔍 Launching Playwright to scrape participants...")
     boats = []
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto("https://thebigrock.com/participants", wait_until="load", timeout=120000)
-    page.screenshot(path="static/debug.png")
-    page.wait_for_selector("img", timeout=15000)
+            context = browser.new_context(ignore_https_errors=True)
+            page = context.new_page()
 
+            page.goto("https://thebigrock.com/participants", wait_until="load", timeout=120000)
+            page.screenshot(path="static/debug.png")  # Save what the scraper sees
             page.wait_for_selector("img", timeout=15000)
 
-            boats = page.evaluate("""
-                () => {
-                    const entries = [];
-                    document.querySelectorAll('img').forEach(img => {
-                        const src = img.getAttribute('src');
-                        const parent = img.closest('div');
-                        const nameTag = parent?.querySelector('h2, h3, h4, .name, .title');
-                        const name = nameTag?.textContent?.trim();
+            html = page.content()
+            soup = BeautifulSoup(html, "html.parser")
 
-                        if (src && name) {
-                            entries.push({
-                                name,
-                                image: src.startsWith('http') ? src : 'https:' + src
-                            });
-                        }
-                    });
-                    return entries;
+            cards = soup.select(".elementor-widget-container")
+            for card in cards:
+                name_tag = card.find("h2")
+                img_tag = card.find("img")
+
+                if not name_tag:
+                    continue
+
+                name = name_tag.get_text(strip=True)
+                if not name:
+                    continue
+
+                image_url = img_tag["src"] if img_tag and img_tag.has_attr("src") else None
+                local_image = cache_boat_image(name, image_url)
+
+                participant = {
+                    "uid": generate_uid("Big Rock", name),
+                    "boat": name,
+                    "image": local_image
+                }
+
+                save_participant_to_master(participant)
+                boats.append(participant)
+
+    except Exception as e:
+        print(f"❌ Playwright error for Big Rock: {e}")
+
+    return boats
+;
                 }
             """)
 

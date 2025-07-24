@@ -1064,7 +1064,8 @@ def settings():
 
             # ✅ Generate new events and leaderboard for demo
             demo_data[tournament] = {
-                'events': inject_hooked_up_events(scrape_events(tournament)),
+                'events': inject_hooked_up_events(scrape_events(tournament), tournament.lower().replace(" ", "_")),
+
                 'leaderboard': scrape_leaderboard(tournament)
             }
 
@@ -2320,7 +2321,8 @@ def settings():
 
             # ✅ Generate new events and leaderboard for demo
             demo_data[tournament] = {
-                'events': inject_hooked_up_events(scrape_events(tournament)),
+                'events': inject_hooked_up_events(scrape_events(tournament), tournament.lower().replace(" ", "_")),
+
                 'leaderboard': scrape_leaderboard(tournament)
             }
 

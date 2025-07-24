@@ -200,4 +200,11 @@ header h1 {
   font-size: 1.2em;
 }
 
+.vue-touch-keyboard,
+.vue-touch-keyboard .keyboard-container {
+  font-size: 1.5em;
+  transform: scale(1.2);
+  transform-origin: bottom center;
+  z-index: 9999;
+}
 

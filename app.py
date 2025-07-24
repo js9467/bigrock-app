@@ -866,6 +866,18 @@ def connect_wifi_vue():
 
         # Set autoconnect
         subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
+        time.sleep(3)  # Give network manager time to settle
+
+try:
+    verify = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
+    current = [line.split(':')[1] for line in verify.strip().split('\n') if line.startswith('yes:')]
+    if ssid in current:
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': f'{ssid} not reported as active'})
+except Exception as e:
+    return jsonify({'success': False, 'error': f'Post-connect check failed: {e}'})
+
 
         # Stop AP-related services
         subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)

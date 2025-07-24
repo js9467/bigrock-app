@@ -80,25 +80,29 @@ def normalize_boat_name(name):
 def cache_boat_image(name, image_url):
     """Download and cache image to static/images/boats/, return local path."""
     safe_name = normalize_boat_name(name)
-    safe_name = "".join(c for c in safe_name if c.isalnum() or c in ('_', '-'))  # strip quotes etc.
+    safe_name = "".join(c for c in safe_name if c.isalnum() or c in ('_', '-'))
     ext = ".jpg" if ".jpg" in image_url.lower() else ".png"
     filename = f"{safe_name}{ext}"
-    local_path = os.path.join("static", "images", "boats", filename)
+    local_dir = os.path.join("static", "images", "boats")
+    local_path = os.path.join(local_dir, filename)
     relative_path = f"/static/images/boats/{filename}"
-   
 
-    if not os.path.exists(local_path):
-        try:
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(local_dir, exist_ok=True)
+
+        # Download and save image if not already cached
+        if image_url and not os.path.exists(local_path):
             response = requests.get(image_url, timeout=10, verify=False)
-            if response.status_code == 200:
-                with open(local_path, "wb") as f:
-                    f.write(response.content)
-                print(f"📥 Cached image for {name}")
-            else:
-                print(f"⚠️ Failed to download image for {name}: HTTP {response.status_code}")
-        except Exception as e:
-            print(f"⚠️ Error downloading image for {name}: {e}")
-            return "/static/images/placeholder.png"
+            response.raise_for_status()
+            with open(local_path, "wb") as f:
+                f.write(response.content)
+            print(f"✅ Saved image for {name} to {local_path}")
+        else:
+            print(f"🟡 Skipped download; image already cached for {name}")
+    except Exception as e:
+        print(f"❌ Failed to download image for {name}: {e}")
+        return "/static/images/placeholder.png"
 
     return relative_path
 

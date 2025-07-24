@@ -493,9 +493,9 @@ def scrape_participants(tournament):
             browser.close()
 
             print(f"✅ Scraped and cached {len(boats)} valid boats for {tournament}")
-
-def load_mock_data(tournament):
-    if os.path.exists(MOCK_DATA_FILE):
+            
+    def load_mock_data(tournament):
+        if os.path.exists(MOCK_DATA_FILE):
         try:
             with open(MOCK_DATA_FILE, 'r') as f:
                 data = json.load(f)

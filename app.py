@@ -408,7 +408,91 @@ def save_cache(tournament, data):
             json.dump(cache, f, indent=4)
     except Exception as e:
         print(f"Error saving cache: {e}")
+def scrape_participants(tournament):
+    print(f"🔍 Launching Playwright to scrape participants for {tournament}...")
+    boats = []
 
+    settings = load_remote_settings()
+    config = settings.get(tournament, {})
+    if not config:
+        print(f"❌ No config for tournament: {tournament}")
+        return []
+
+    url = config.get("participants")
+    if not url:
+        print(f"❌ No participant URL for {tournament} in remote settings.")
+        return []
+
+    cache_key = tournament.replace(" ", "_").lower()
+    if cache_key not in PARTICIPANTS_CACHES:
+        PARTICIPANTS_CACHES[cache_key] = {"last_time": 0, "data": []}
+
+    cache = PARTICIPANTS_CACHES[cache_key]
+    now = time.time()
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(ignore_https_errors=True, user_agent="...")
+            page = context.new_page()
+            page.goto(url, wait_until="networkidle", timeout=120000)
+
+            html_content = page.content()
+            print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")
+
+            try:
+                page.wait_for_selector(".participant, .boat, .entry-list", timeout=30000)
+            except:
+                print("No participant list found or selector timeout.")
+
+            exclude_patterns = config.get("exclude_patterns", [",", "2025 Edisto Invitational Billfish"])
+            name_selector = config.get("name_selector", "h1, h2, h3, h4, h5, h6, span.name, div.name, p.name, .participant-name, .title, .boat-name")
+            image_selector = config.get("image_selector", "img")
+
+            entries = page.evaluate(f"""
+                () => {{
+                    const boats = [];
+                    const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
+                    participantContainers.forEach(container => {{
+                        const nameTag = container.query_selector('{name_selector}');
+                        const imgTag = container.query_selector('{image_selector}');
+                        const name = nameTag?.textContent?.trim();
+                        let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
+                        if (image && !image.startsWith('http')) {{
+                            image = `https:${{image}}`;
+                        }}
+                        if (name) {{
+                            boats.push({{ name, image: image || '' }});
+                        }}
+                    }});
+                    return boats;
+                }}
+            """)
+
+            print(f"Found {len(entries)} potential participants for {tournament}")
+
+            for entry in entries:
+                name = entry['name'].strip()
+                if not name or any(pattern in name for pattern in exclude_patterns):
+                    print(f"Skipping invalid entry: {name}")
+                    continue
+
+                image_url = entry['image']
+                local_image = cache_boat_image(name, image_url)
+                participant = {
+                    "uid": generate_uid(tournament, name),
+                    "boat": name,
+                    "image": local_image
+                }
+
+                if participant not in boats:
+                    save_participant_to_master(participant)
+                    boats.append(participant)
+
+            context.close()
+            browser.close()
+
+            print(f"✅ Scraped and cached {len(boats)} valid boats for {tournament}")
 
 def load_mock_data(tournament):
     if os.path.exists(MOCK_DATA_FILE):
@@ -471,91 +555,7 @@ from flask import render_template_string
 
 PARTICIPANTS_CACHES = {}  # tournament_key: {"last_time": 0, "data": []}
 
-def scrape_participants(tournament):
-    print(f"🔍 Launching Playwright to scrape participants for {tournament}...")
-    boats = []
 
-    settings = load_remote_settings()
-    config = settings.get(tournament, {})
-    if not config:
-        print(f"❌ No config for tournament: {tournament}")
-        return []
-
-    url = config.get("participants")
-    if not url:
-        print(f"❌ No participant URL for {tournament} in remote settings.")
-        return []
-
-    cache_key = tournament.replace(" ", "_").lower()
-    if cache_key not in PARTICIPANTS_CACHES:
-        PARTICIPANTS_CACHES[cache_key] = {"last_time": 0, "data": []}
-
-    cache = PARTICIPANTS_CACHES[cache_key]
-    now = time.time()
-
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(ignore_https_errors=True, user_agent="...")
-            page = context.new_page()
-            page.goto(url, wait_until="networkidle", timeout=60000)
-
-            html_content = page.content()
-            print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")
-
-            try:
-                page.wait_for_selector(".participant, .boat, .entry-list", timeout=30000)
-            except:
-                print("No participant list found or selector timeout.")
-
-            exclude_patterns = config.get("exclude_patterns", [",", "2025 Edisto Invitational Billfish"])
-            name_selector = config.get("name_selector", "h1, h2, h3, h4, h5, h6, span.name, div.name, p.name, .participant-name, .title, .boat-name")
-            image_selector = config.get("image_selector", "img")
-
-            entries = page.evaluate(f"""
-                () => {{
-                    const boats = [];
-                    const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
-                    participantContainers.forEach(container => {{
-                        const nameTag = container.query_selector('{name_selector}');
-                        const imgTag = container.query_selector('{image_selector}');
-                        const name = nameTag?.textContent?.trim();
-                        let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
-                        if (image && !image.startsWith('http')) {{
-                            image = `https:${{image}}`;
-                        }}
-                        if (name) {{
-                            boats.push({{ name, image: image || '' }});
-                        }}
-                    }});
-                    return boats;
-                }}
-            """)
-
-            print(f"Found {len(entries)} potential participants for {tournament}")
-
-            for entry in entries:
-                name = entry['name'].strip()
-                if not name or any(pattern in name for pattern in exclude_patterns):
-                    print(f"Skipping invalid entry: {name}")
-                    continue
-
-                image_url = entry['image']
-                local_image = cache_boat_image(name, image_url)
-                participant = {
-                    "uid": generate_uid(tournament, name),
-                    "boat": name,
-                    "image": local_image
-                }
-
-                if participant not in boats:
-                    save_participant_to_master(participant)
-                    boats.append(participant)
-
-            context.close()
-            browser.close()
-
-            print(f"✅ Scraped and cached {len(boats)} valid boats for {tournament}")
 
     except Exception as e:
         print(f"❌ Playwright error for {tournament}: {e}")

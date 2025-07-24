@@ -279,23 +279,35 @@
             console.log('Wi-Fi connect response:', data);
             if (data.success) {
   this.connectionStatus = `⏳ Verifying connection to ${net.ssid}...`;
+  
   setTimeout(async () => {
     try {
       const verify = await fetch('/wifi/scan');
       const result = await verify.json();
+
       if (result.current === net.ssid) {
         this.connectionStatus = `✅ Connected to ${net.ssid}`;
         this.currentNetwork = net.ssid;
+
+        // Optional: reload to reset state cleanly
+        setTimeout(() => {
+          console.log("🔁 Reloading to finalize connection...");
+          location.reload();
+        }, 3000);
+
       } else {
-        this.connectionStatus = `⚠️ Connection may have succeeded, but verification failed. Try refreshing.`;
+        this.connectionStatus = `⚠️ Connected to Wi-Fi, but could not verify connection to ${net.ssid}. Try refreshing manually.`;
       }
+
     } catch (err) {
-      this.connectionStatus = `⚠️ Connected to Wi-Fi, but server unreachable (probably IP change). Try refreshing.`;
+      console.warn('Wi-Fi verification failed:', err);
+      this.connectionStatus = `⚠️ Connected, but server is unreachable (possibly due to IP/network change). Try refreshing manually.`;
     }
   }, 3000);
 } else {
   this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
 }
+
 
           } catch (e) {
             console.error('Wi-Fi connect error:', e);

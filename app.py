@@ -1434,7 +1434,7 @@ def scrape_events(tournament):
             page = context.new_page()
 
             print(f"🔗 Navigating to {url}")
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.goto(url, wait_until="domcontentloaded", timeout=120000)
             try:
                 page.wait_for_selector("#feed-all article", timeout=30000)
             except:
@@ -1778,7 +1778,7 @@ def scrape_participants(tournament):
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(ignore_https_errors=True, user_agent="...")
             page = context.new_page()
-            page.goto(url, wait_until="networkidle", timeout=60000)
+            page.goto(url, wait_until="networkidle", timeout=120000)
 
             html_content = page.content()
             print(f"Page HTML snippet for {tournament}:\n{html_content[:500]}...")

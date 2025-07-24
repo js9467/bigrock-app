@@ -797,8 +797,11 @@ def wifi():
         settings['wifi_password'] = password
         save_settings(settings)
         try:
-            subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] + (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []), check=True)
-            subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
+            connect_args = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
+            if password:
+                connect_args += ['password', password]
+            subprocess.run(connect_args, check=True)
+            subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
             subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
             subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
             return jsonify({'status': 'success'})
@@ -806,20 +809,6 @@ def wifi():
             print(f"Error connecting to WiFi: {e}")
             return jsonify({'status': 'error', 'message': str(e)})
     return render_template('wifi.html')
-
-import subprocess
-from flask import jsonify
-
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-import subprocess
-
-app = Flask(__name__)
-CORS(app, resources={r"/wifi/*": {"origins": "*"}})  # Allow all origins for testing
-
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-import subprocess
 
 
 
@@ -867,10 +856,11 @@ def connect_wifi_vue():
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 400
     try:
-        subprocess.run(['sudo', 'nmcli', 'con', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'bigrock-wifi', 'ssid', ssid] +
-                       (['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password] if password else []),
-                       check=True)
-        subprocess.run(['sudo', 'nmcli', 'con', 'up', 'bigrock-wifi'], check=True)
+        connect_args = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
+        if password:
+            connect_args += ['password', password]
+        subprocess.run(connect_args, check=True)
+        subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
         subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
         print(f"Wi-Fi connect success: {ssid}")
@@ -882,6 +872,7 @@ def connect_wifi_vue():
         response = jsonify({'error': str(e)})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
+
 
 
 @app.route('/events')

@@ -850,6 +850,7 @@ import time
 
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():
+    import subprocess, time
     data = request.get_json()
     ssid = data.get('ssid')
     password = data.get('password', '')
@@ -858,29 +859,36 @@ def connect_wifi_vue():
         return jsonify({'error': 'SSID is required'}), 400
 
     try:
-        # Attempt connection
+        # Try connecting
         connect_cmd = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
         if password:
             connect_cmd += ['password', password]
         subprocess.run(connect_cmd, check=True)
 
-        # Enable autoconnect
+        # Set autoconnect
         subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
 
-        # Let network settle
+        # Let network manager stabilize
         time.sleep(3)
 
-        # Check active connection
+        # Verify active connection
         result = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
         active_ssids = [line.split(':')[1] for line in result.strip().split('\n') if line.startswith('yes:')]
 
         if ssid in active_ssids:
-            # Only stop hotspot if connection verified
-            subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-            subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+            # Try to stop hostapd and dnsmasq, but don't fail if they're not running
+            try:
+                subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+            except subprocess.CalledProcessError:
+                print("hostapd not running or not installed.")
+            try:
+                subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+            except subprocess.CalledProcessError:
+                print("dnsmasq not running or not installed.")
+
             return jsonify({'success': True})
         else:
-            return jsonify({'success': False, 'error': f'Connected but {ssid} not reported as active'}), 500
+            return jsonify({'success': False, 'error': f'{ssid} not reported as active'}), 500
 
     except subprocess.CalledProcessError as e:
         print(f"Wi-Fi connect error: {e}")
@@ -888,6 +896,7 @@ def connect_wifi_vue():
     except Exception as e:
         print(f"Post-connect verification error: {e}")
         return jsonify({'error': f'Unexpected error: {e}'}), 500
+
 
 
 

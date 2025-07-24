@@ -1,16 +1,15 @@
 {
-  "tournament": "Edisto Invitational Billfish",
-  "logo_url": "https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490",
-  "data_source": "demo",
-  "followed_boats": [],
-  "sounds": {
-    "boated": true,
-    "hooked": true,
-    "released": true
-  },
-  "effects_volume": "0.5",
-  "radio_volume": "0.3",
-  "disable_sleep_mode": true,
-  "wifi_password": null,
-  "wifi_ssid": null
+    "sounds": {
+        "boated": true,
+        "hooked": true,
+        "released": true
+    },
+    "followed_boats": [],
+    "effects_volume": 0.5,
+    "radio_volume": 0.5,
+    "tournament": "Big Rock",
+    "data_source": "current",
+    "disable_sleep_mode": true,
+    "wifi_password": "",
+    "wifi_ssid": ""
 }

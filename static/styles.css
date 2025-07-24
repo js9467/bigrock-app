@@ -67,10 +67,6 @@ header h1 {
     flex-direction: column;
     gap: 10px;
 }
-.widget-content.scrollable {
-  max-height: 300px; /* Adjust height as needed */
-  overflow-y: auto;
-}
 .hooked-up, .headed-to-scales {
     background: #FFFFFF;
     border-radius: 8px;
@@ -497,13 +493,12 @@ header h1 {
 .theme-kids header {
     background: #fbc02d;
 }
-.demo-banner {
-  background-color: #00FF00;
-  color: #000;
-  padding: 10px;
-  font-weight: bold;
-  text-align: center;
-  border-bottom: 2px solid #000;
+.loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 1.5em;
+  color: white;
+  background-color: #001f3f; /* Match your theme */
 }
-
-

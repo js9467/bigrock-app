@@ -851,6 +851,8 @@ import time
 @app.route('/wifi/connect', methods=['POST'])
 def connect_wifi_vue():
     import subprocess, time
+    from flask import request, jsonify
+
     data = request.get_json()
     ssid = data.get('ssid')
     password = data.get('password', '')
@@ -859,51 +861,49 @@ def connect_wifi_vue():
         return jsonify({'error': 'SSID is required'}), 400
 
     try:
-        # Clean up old bigrock-wifi connections
-        conns_output = subprocess.check_output(['nmcli', '-t', '-f', 'name', 'connection', 'show'], universal_newlines=True)
-        for line in conns_output.strip().split('\n'):
-            if line.strip() == 'bigrock-wifi':
-                subprocess.run(['nmcli', 'connection', 'delete', 'bigrock-wifi'], check=True)
-                print("Deleted old 'bigrock-wifi' connection")
+        # 🔥 Delete all connections named 'bigrock-wifi'
+        existing_conns = subprocess.check_output(['nmcli', '-t', '-f', 'name', 'connection', 'show'], universal_newlines=True)
+        for conn in existing_conns.strip().split('\n'):
+            if conn.strip() == 'bigrock-wifi':
+                subprocess.run(['nmcli', 'connection', 'delete', conn.strip()], check=True)
+                print("Deleted stale 'bigrock-wifi' connection")
 
-        # Create a new named connection using SSID as the connection name
+        # ✅ Connect using SSID and optional password
         connect_cmd = ['nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             connect_cmd += ['password', password]
         subprocess.run(connect_cmd, check=True)
 
-        # Set autoconnect
+        # 🔁 Set autoconnect for the new connection
         subprocess.run(['nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
 
-        # Let the network manager stabilize
+        # ⏳ Let it stabilize
         time.sleep(3)
 
-        # Verify connection
+        # 🔍 Verify active connection
         verify = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
         current = [line.split(':')[1] for line in verify.strip().split('\n') if line.startswith('yes:')]
 
         if ssid in current:
-            # Stop AP-related services, ignore if not running
-            try:
-                subprocess.run(['systemctl', 'stop', 'hostapd'], check=True)
-            except subprocess.CalledProcessError:
-                print("hostapd not running or not installed.")
-
-            try:
-                subprocess.run(['systemctl', 'stop', 'dnsmasq'], check=True)
-            except subprocess.CalledProcessError:
-                print("dnsmasq not running or not installed.")
+            # 🛑 Stop AP services if running
+            for service in ['hostapd', 'dnsmasq']:
+                try:
+                    subprocess.run(['systemctl', 'stop', service], check=True)
+                    print(f"{service} stopped.")
+                except subprocess.CalledProcessError:
+                    print(f"{service} not running or not installed.")
 
             return jsonify({'success': True})
         else:
             return jsonify({'success': False, 'error': f'{ssid} not reported as active'}), 500
 
     except subprocess.CalledProcessError as e:
-        print(f"Wi-Fi connect error: {e}")
+        print(f"❌ nmcli error: {e}")
         return jsonify({'error': f'nmcli failed: {e}'}), 500
     except Exception as e:
-        print(f"Post-connect verification error: {e}")
+        print(f"❌ Unexpected error: {e}")
         return jsonify({'error': f'Unexpected error: {e}'}), 500
+
 
 @app.route('/events')
 def events():

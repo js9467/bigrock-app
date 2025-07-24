@@ -412,6 +412,15 @@ PARTICIPANTS_CACHES = {}  # Global cache dictionary
 MOCK_DATA_FILE = "mock_data.json"  # Define mock data file path
 known_boat_images = {}  # Define known boat images dictionary
 
+import time
+import os
+import json
+from playwright.sync_api import sync_playwright, TimeoutError
+
+PARTICIPANTS_CACHES = {}  # Global cache dictionary
+MOCK_DATA_FILE = "mock_data.json"  # Define mock data file path
+known_boat_images = {}  # Define known boat images dictionary
+
 def scrape_participants(tournament):
     print(f"🔍 Launching Playwright to scrape participants for {tournament}...")
     boats = []

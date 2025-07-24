@@ -251,7 +251,10 @@
             this.wifiNetworks = data.networks;
             this.currentNetwork = data.current || '';
             console.log('📶 Current network set to:', this.currentNetwork);
-            const current = this.wifiNetworks.find(n => n.ssid === this.currentNetwork);
+            const current = [...new Set(this.wifiNetworks.map(n => n.ssid))]
+            .map(ssid => this.wifiNetworks.find(n => n.ssid === ssid))
+  .find(n => n.ssid === this.currentNetwork);
+
             this.currentSignal = current ? current.signal : 0;
             this.showWifiModal = true;
             this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;

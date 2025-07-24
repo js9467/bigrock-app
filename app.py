@@ -858,54 +858,37 @@ def connect_wifi_vue():
         return jsonify({'error': 'SSID is required'}), 400
 
     try:
-        # Try connecting
-        connect_args = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
+        # Attempt connection
+        connect_cmd = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
         if password:
-            connect_args += ['password', password]
-        subprocess.run(connect_args, check=True)
+            connect_cmd += ['password', password]
+        subprocess.run(connect_cmd, check=True)
 
-        # Set autoconnect
+        # Enable autoconnect
         subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
-        time.sleep(3)  # Give network manager time to settle
 
-try:
-    # Set autoconnect
-    subprocess.run(['sudo', 'nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'yes'], check=True)
-    time.sleep(3)  # Give network manager time to settle
+        # Let network settle
+        time.sleep(3)
 
-    # Verify connection
-    verify = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
-    current = [line.split(':')[1] for line in verify.strip().split('\n') if line.startswith('yes:')]
-    
-    if ssid in current:
-        # Stop AP-related services *after* success
-        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-        return jsonify({'success': True})
-    else:
-        return jsonify({'success': False, 'error': f'{ssid} not reported as active'})
-except Exception as e:
-    return jsonify({'success': False, 'error': f'Post-connect check failed: {e}'})
-
-
-
-        # Stop AP-related services
-        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-
-        # Small delay then check actual connection
-        time.sleep(2)
+        # Check active connection
         result = subprocess.check_output(['nmcli', '-t', '-f', 'active,ssid', 'dev', 'wifi'], universal_newlines=True)
-        connected = any(line.startswith("yes:") and ssid in line for line in result.strip().split('\n'))
+        active_ssids = [line.split(':')[1] for line in result.strip().split('\n') if line.startswith('yes:')]
 
-        if connected:
-            return jsonify({'success': True, 'connected': ssid})
+        if ssid in active_ssids:
+            # Only stop hotspot if connection verified
+            subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+            subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+            return jsonify({'success': True})
         else:
-            return jsonify({'error': 'Connection attempt made but SSID not confirmed'}), 500
+            return jsonify({'success': False, 'error': f'Connected but {ssid} not reported as active'}), 500
 
     except subprocess.CalledProcessError as e:
         print(f"Wi-Fi connect error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'nmcli failed: {e}'}), 500
+    except Exception as e:
+        print(f"Post-connect verification error: {e}")
+        return jsonify({'error': f'Unexpected error: {e}'}), 500
+
 
 
 

@@ -512,25 +512,24 @@ def scrape_participants(tournament):
             image_selector = config.get("image_selector", "img")
 
             entries = page.evaluate(f"""
-    () => {{
-        const boats = [];
-        const containers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
-        containers.forEach(container => {{
-            const nameTag = container.querySelector('{name_selector}');
-            const imgTag = container.querySelector('{image_selector}');
-            const name = nameTag?.textContent?.trim();
-            let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
-            if (image && !image.startsWith('http')) {{
-                image = `https:${{image}}`;
-            }}
-            if (name) {{
-                boats.push({{ name, image: image || '' }});
-            }}
-        }});
-        return boats;
-    }}
-""")
-
+                () => {{
+                    const boats = [];
+                    const participantContainers = document.querySelectorAll('div.boat-entry, li.boat, article.boat, section.boat, div, li, article, section');
+                    participantContainers.forEach(container => {{
+                        const nameTag = container.query_selector('{name_selector}');
+                        const imgTag = container.query_selector('{image_selector}');
+                        const name = nameTag?.textContent?.trim();
+                        let image = imgTag?.getAttribute('src') || imgTag?.getAttribute('data-src');
+                        if (image && !image.startsWith('http')) {{
+                            image = `https:${{image}}`;
+                        }}
+                        if (name) {{
+                            boats.push({{ name, image: image || '' }});
+                        }}
+                    }});
+                    return boats;
+                }}
+            """)
 
             print(f"Found {len(entries)} potential participants for {tournament}")
 

@@ -28,9 +28,9 @@
     .v-text-field input {
       touch-action: manipulation; /* Enable touch for virtual keyboard */
     }
+    .password-toggle { cursor: pointer; font-size: 1.2em; }
     /* Prevent conflicts with old CSS */
     .modal, .settings, .modal-overlay { display: none; }
-    .password-toggle { cursor: pointer; }
   </style>
 </head>
 <body>
@@ -129,7 +129,8 @@
                   outlined
                   autofocus
                   :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-                  @click:append="showPassword = !showPassword"
+                  @click:append="togglePasswordVisibility"
+                  class="password-field"
                 ></v-text-field>
               </v-card-text>
               <v-card-actions>
@@ -200,7 +201,7 @@
         connecting: false,
         connectionStatus: '',
         panel: [0, 1, 2, 3],
-        savedNetworks: {} // Store SSID-password pairs
+        savedNetworks: {}
       },
       computed: {
         logoSrc() {
@@ -263,7 +264,7 @@
           this.selectedNetwork = { ...net, password: this.savedNetworks[net.ssid] || '' };
           this.showWifiModal = false;
           this.showSelectedNetwork = true;
-          this.showPassword = false; // Reset password visibility
+          this.showPassword = false;
         },
         async connectToWifi(net) {
           this.connecting = true;
@@ -279,7 +280,7 @@
             if (data.success) {
               this.connectionStatus = `✅ Connected to ${net.ssid}`;
               this.currentNetwork = net.ssid;
-              this.savedNetworks[net.ssid] = net.password; // Save password
+              this.savedNetworks[net.ssid] = net.password;
             } else {
               this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
             }
@@ -316,6 +317,10 @@
           this.selectedNetwork = null;
           this.showSelectedNetwork = false;
           console.log('Password modal closed');
+        },
+        togglePasswordVisibility() {
+          this.showPassword = !this.showPassword;
+          console.log('Password visibility toggled:', this.showPassword);
         },
         closeBluetoothModal() {
           this.showModal = false;

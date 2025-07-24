@@ -1,196 +1,467 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings</title>
-    <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Montserrat:wght@700&family=Roboto:wght@400;500" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Settings</title>
+  <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Lobster&display=swap" rel="stylesheet"/>
+  <style>
+    .v-application { font-family: 'Roboto', sans-serif; }
+    .settings-container { padding: 16px; max-width: 800px; margin: 0 auto; }
+    .header { background: #003366; color: #FFFFFF; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-family: 'Lobster', cursive; font-size: 1.4em; margin: 0; }
+    .logo { max-width: 150px; margin-bottom: 16px; }
+    .v-expansion-panel-header { font-weight: 500; }
+    .wifi-network { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+    .error-text { color: #ff5252; font-size: 0.875rem; }
+    .theme-big-rock .v-application { background: #F0F8FF; color: #333333; }
+    .theme-big-rock .header { background: #003366; }
+    .theme-kids .v-application { background: #fff9c4; color: #212121; }
+    .theme-kids .header { background: #fbc02d; }
+    .theme-kwla .v-application { background: #fff0f6; color: #880e4f; }
+    .theme-kwla .header { background: #880e4f; }
+    .theme-edisto-invitational-billfish .v-application { background: #e6f2ef; color: #004d40; }
+    .theme-edisto-invitational-billfish .header { background: #004d40; }
+    .v-text-field input {
+      touch-action: manipulation; /* Enable touch for virtual keyboard */
+    }
+    .password-toggle { cursor: pointer; font-size: 1.2em; }
+    /* Prevent conflicts with old CSS */
+    .modal, .settings, .modal-overlay { display: none; }
+  </style>
 </head>
 <body>
-    <div id="app">
-        <header>
-            <img :src="logoSrc" alt="Tournament Logo">
+  <div id="app">
+    <v-app>
+      <v-main>
+        <div class="settings-container">
+          <div class="header">
+            <img :src="logoSrc" alt="Tournament Logo" class="logo">
             <h1>Settings</h1>
-            <div class="control-buttons">
-                <button class="settings-icon" @click="goBack">← Back</button>
-            </div>
-        </header>
-        <div class="settings">
-            <div class="settings-label">
-                Hooked Up Sound:
-                <input type="checkbox" v-model="settings.sounds.hooked">
-            </div>
-            <div class="settings-label">
-                Released Sound:
-                <input type="checkbox" v-model="settings.sounds.released">
-            </div>
-            <div class="settings-label">
-                Boated Sound:
-                <input type="checkbox" v-model="settings.sounds.boated">
-            </div>
-            <div class="settings-label">
-                Disable Sleep Mode:
-                <input type="checkbox" v-model="settings.disable_sleep_mode">
-            </div>
-            <div class="settings-label">
-                Effects Volume: {{ settings.effects_volume }}
-                <input type="range" v-model="settings.effects_volume" min="0" max="1" step="0.1">
-            </div>
-            <div class="settings-label">
-                Radio Volume: {{ settings.radio_volume }}
-                <input type="range" v-model="settings.radio_volume" min="0" max="1" step="0.1">
-            </div>
-            <div class="settings-label">
-                Tournament:
-                <select v-model="settings.tournament">
-                    <option value="Big Rock">Big Rock</option>
-                    <option value="Kids">Kids</option>
-                    <option value="KWLA">KWLA</option>
-                    <option value="Edisto Invitational Billfish">Edisto Invitational Billfish</option>
-                </select>
-            </div>
-            <div class="settings-label">
-                Data Source:
-                <select v-model="settings.data_source">
-                    <option value="current">Current</option>
-                    <option value="historical">Historical</option>
-                    <option value="demo">Demo</option>
-                </select>
-            </div>
-            <div class="bluetooth-section">
-                <div>Bluetooth Speaker</div>
-                <div>Status: {{ bluetoothStatus }}</div>
-                <div class="settings-label">
-                    Bluetooth On:
-                    <input type="checkbox" v-model="bluetoothOn">
+            <v-btn color="primary" @click="goBack">← Back</v-btn>
+          </div>
+          <v-expansion-panels v-model="panel" multiple>
+            <v-expansion-panel>
+              <v-expansion-panel-header>General Settings</v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <v-switch v-model="settings.sounds.hooked" label="Hooked Up Sound" @change="saveSettings"></v-switch>
+                <v-switch v-model="settings.sounds.released" label="Released Sound" @change="saveSettings"></v-switch>
+                <v-switch v-model="settings.sounds.boated" label="Boated Sound" @change="saveSettings"></v-switch>
+                <v-switch v-model="settings.disable_sleep_mode" label="Disable Sleep Mode" @change="saveSettings"></v-switch>
+                <v-slider v-model="settings.effects_volume" label="Effects Volume" min="0" max="1" step="0.1" thumb-label @change="saveSettings"></v-slider>
+                <v-slider v-model="settings.radio_volume" label="Radio Volume" min="0" max="1" step="0.1" thumb-label @change="saveSettings"></v-slider>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+            <v-expansion-panel>
+              <v-expansion-panel-header>Tournament Configuration</v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <v-select
+                  v-model="settings.tournament"
+                  :items="Object.keys(availableTournaments)"
+                  label="Tournament"
+                  outlined
+                  @change="saveSettings"
+                ></v-select>
+                <v-select
+                  v-model="settings.data_source"
+                  :items="['current', 'historical', 'demo']"
+                  label="Data Source"
+                  outlined
+                  @change="saveSettings"
+                ></v-select>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+            <v-expansion-panel>
+              <v-expansion-panel-header>📶 Wi-Fi Configuration</v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <div v-if="currentNetwork">
+                  <p><strong>Connected to:</strong> {{ currentNetwork }} <span v-html="signalBars(currentSignal)"></span></p>
+                  <v-btn color="error" @click="disconnectWifi" :disabled="connecting">Disconnect</v-btn>
                 </div>
-                <button @click="discoverDevices">Discover Devices</button>
-                <div v-if="showModal" class="modal-overlay">
-                    <div class="modal">
-                        <h3>Bluetooth Devices</h3>
-                        <div class="device-list">
-                            <div v-for="device in devices" :key="device.mac">
-                                {{ device.name }} ({{ device.mac }})
-                                <button @click="pairDevice(device.mac)">Pair</button>
-                            </div>
-                        </div>
-                        <button class="close-btn" @click="showModal = false">Close</button>
-                    </div>
-                </div>
-            </div>
+                <p v-else>Not connected to Wi-Fi.</p>
+                <v-btn color="primary" @click="scanWifi" :loading="connecting" :disabled="connecting">🔍 Scan Networks</v-btn>
+                <p v-if="connectionStatus" class="error-text">{{ connectionStatus }}</p>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+            <v-expansion-panel>
+              <v-expansion-panel-header>🔊 Bluetooth Speaker</v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <v-switch v-model="bluetoothOn" label="Bluetooth On"></v-switch>
+                <p><strong>Status:</strong> {{ bluetoothStatus }}</p>
+                <v-btn color="primary" @click="discoverDevices">Discover Devices</v-btn>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+          </v-expansion-panels>
+          <v-dialog v-model="showWifiModal" max-width="500">
+            <v-card>
+              <v-card-title>Select Wi-Fi Network</v-card-title>
+              <v-card-text>
+                <v-list>
+                  <v-list-item v-for="net in sortedNetworks" :key="net.ssid" class="wifi-network">
+                    <v-list-item-content>
+                      <v-list-item-title>
+                        <strong>{{ net.ssid }}</strong> <span v-html="signalBars(net.signal)"></span>
+                      </v-list-item-title>
+                    </v-list-item-content>
+                    <v-list-item-action>
+                      <v-btn color="primary" @click="selectNetwork(net)">Select</v-btn>
+                    </v-list-item-action>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn color="secondary" @click="closeWifiModal">Close</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
+          <v-dialog v-model="showSelectedNetwork" max-width="500">
+            <v-card v-if="selectedNetwork">
+              <v-card-title>Enter Password for {{ selectedNetwork.ssid }}</v-card-title>
+              <v-card-text>
+                <v-text-field
+                  v-model="selectedNetwork.password"
+                  label="Password"
+                  :type="showPassword ? 'text' : 'password'"
+                  outlined
+                  autofocus
+                  :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                  @click:append="togglePasswordVisibility"
+                  class="password-field"
+                ></v-text-field>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn color="primary" @click="connectToWifi(selectedNetwork)" :loading="connecting">Connect</v-btn>
+                <v-btn color="secondary" @click="closePasswordModal">Cancel</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
+          <v-dialog v-model="showModal" max-width="500">
+            <v-card>
+              <v-card-title>Bluetooth Devices</v-card-title>
+              <v-card-text>
+                <v-list>
+                  <v-list-item v-for="device in devices" :key="device.mac">
+                    <v-list-item-content>
+                      <v-list-item-title>{{ device.name }} ({{ device.mac }})</v-list-item-title>
+                    </v-list-item-content>
+                    <v-list-item-action>
+                      <v-btn color="primary" @click="pairDevice(device.mac)">Pair</v-btn>
+                    </v-list-item-action>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn color="secondary" @click="closeBluetoothModal">Close</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
         </div>
-    </div>
-    <script>
-        new Vue({
-            el: '#app',
-            data: {
-                settings: {
-                    sounds: { hooked: true, released: true, boated: true },
-                    followed_boats: [],
-                    effects_volume: 0.5,
-                    radio_volume: 0.5,
-                    tournament: 'Big Rock',
-                    data_source: 'demo',
-                    disable_sleep_mode: true
-                },
-                bluetoothOn: false,
-                bluetoothStatus: 'Unknown',
-                devices: [],
-                showModal: false
-            },
-            computed: {
-                logoSrc() {
-                    const t = this.settings.tournament;
-                    if (t === 'Edisto Invitational Billfish') {
-                        return 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490';
-                    } else if (t === 'KWLA') {
-                        return 'https://tournament.thebigrock.com/assets/kwla-logo.png';
-                    } else if (t === 'Kids') {
-                        return 'https://tournament.thebigrock.com/assets/kids-logo.png';
-                    } else {
-                        return 'https://tournament.thebigrock.com/assets/big-rock-white-5c3b0bc68e3d5833fc237321d769b1f8741cd422693811aa9791ed34822bedac.png';
-                    }
-                }
-            },
-            methods: {
-                goBack() {
-                    window.location.href = '/';
-                },
-                async loadSettings() {
-                    try {
-                        const response = await fetch('/settings');
-                        if (response.ok) {
-                            const data = await response.json();
-                            this.settings = { ...this.settings, ...data };
-                        }
-                    } catch (e) {
-                        console.error('Error loading settings:', e);
-                    }
-                },
-                async saveSettings() {
-                    try {
-                        await fetch('/settings', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(this.settings)
-                        });
-                    } catch (e) {
-                        console.error('Error saving settings:', e);
-                    }
-                },
-                toggleBluetooth() {
-                    fetch(`/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`)
-                        .then(res => res.json())
-                        .then(data => console.log(data))
-                        .catch(err => console.error(err));
-                },
-                discoverDevices() {
-                    fetch('/bluetooth?action=scan')
-                        .then(res => res.json())
-                        .then(data => {
-                            this.devices = data;
-                            this.showModal = true;
-                        })
-                        .catch(err => console.error(err));
-                },
-                pairDevice(mac) {
-                    fetch(`/bluetooth?action=pair&mac=${mac}`)
-                        .then(res => res.json())
-                        .then(data => console.log(data))
-                        .catch(err => console.error(err));
-                },
-                updateBluetoothStatus() {
-                    fetch('/bluetooth-status')
-                        .then(res => res.json())
-                        .then(data => this.bluetoothStatus = data.status)
-                        .catch(err => console.error(err));
-                },
-                applyTheme() {
-                    const slug = this.settings.tournament.toLowerCase().replace(/\s+/g, '-');
-                    document.body.className = `theme-${slug}`;
-                }
-            },
-            watch: {
-                settings: {
-                    handler() {
-                        this.saveSettings();
-                        this.applyTheme();
-                    },
-                    deep: true
-                },
-                bluetoothOn() {
-                    this.toggleBluetooth();
-                }
-            },
-            mounted() {
-                this.loadSettings();
-                this.applyTheme();
-                this.updateBluetoothStatus();
-                setInterval(this.updateBluetoothStatus, 5000);
+      </v-main>
+    </v-app>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.10/dist/vuetify.min.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+      data: {
+        settings: {
+          sounds: { hooked: true, released: true, boated: true },
+          followed_boats: [],
+          effects_volume: 0.5,
+          radio_volume: 0.5,
+          tournament: 'Big Rock',
+          data_source: 'demo',
+          disable_sleep_mode: true
+        },
+        allTournaments: {
+          'Big Rock': { logo: 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490' },
+          'Kids': { logo: '/static/images/kids.png' },
+          'KWLA': { logo: '/static/images/kwla.png' },
+          'Edisto Invitational Billfish': { logo: '/static/images/edisto.png' }
+        },
+        bluetoothOn: false,
+        bluetoothStatus: 'Unknown',
+        devices: [],
+        showModal: false,
+        wifiNetworks: [],
+        currentNetwork: '',
+        currentSignal: 0,
+        showWifiModal: false,
+        selectedNetwork: null,
+        showSelectedNetwork: false,
+        showPassword: false,
+        connecting: false,
+        connectionStatus: '',
+        panel: [0, 1, 2, 3],
+        savedNetworks: {}
+      },
+      computed: {
+        logoSrc() {
+          console.log('Computing logoSrc, tournament:', this.settings.tournament);
+          return this.allTournaments[this.settings.tournament]?.logo || 'https://cdn.reeltimeapps.com/tournaments/logos/000/000/720/original/AppIconLight2025.png?1740721490';
+        },
+        availableTournaments() {
+          const filtered = {};
+          for (const [name, value] of Object.entries(this.allTournaments)) {
+            if (value) filtered[name] = value;
+          }
+          console.log('Available tournaments:', filtered);
+          return filtered;
+        },
+        sortedNetworks() {
+          const seen = new Set();
+          const networks = this.wifiNetworks
+            .filter(n => {
+              if (seen.has(n.ssid)) return false;
+              seen.add(n.ssid);
+              return true;
+            })
+            .sort((a, b) => b.signal - a.signal);
+          console.log('Sorted networks:', networks);
+          return networks;
+        }
+      },
+      methods: {
+        goBack() {
+          window.location.href = '/';
+        },
+        signalBars(strength) {
+          const level = Math.min(Math.floor(strength / 25), 4);
+          return '📶'.repeat(level) + '⚪'.repeat(4 - level);
+        },
+        async scanWifi() {
+          this.connectionStatus = 'Scanning...';
+          try {
+            const response = await fetch('/wifi/scan');
+            const data = await response.json();
+            console.log('📡 Wi-Fi scan response (full):', data);
+            if (!data.networks) {
+              console.error('⚠️ "networks" field missing in scan response!', data);
+              this.connectionStatus = '❌ No networks found.';
+              return;
             }
-        });
-    </script>
+            this.wifiNetworks = data.networks;
+            this.currentNetwork = data.current || '';
+            console.log('📶 Current network set to:', this.currentNetwork);
+            const current = [...new Set(this.wifiNetworks.map(n => n.ssid))]
+            .map(ssid => this.wifiNetworks.find(n => n.ssid === ssid))
+  .find(n => n.ssid === this.currentNetwork);
+
+            this.currentSignal = current ? current.signal : 0;
+            this.showWifiModal = true;
+            this.connectionStatus = `📡 Found ${this.wifiNetworks.length} networks.`;
+          } catch (e) {
+            console.error('❌ Wi-Fi scan error:', e);
+            this.connectionStatus = '❌ Scan failed.';
+          }
+        },
+        selectNetwork(net) {
+          this.selectedNetwork = { ...net, password: this.savedNetworks[net.ssid] || '' };
+          this.showWifiModal = false;
+          this.showSelectedNetwork = true;
+          this.showPassword = false;
+        },
+        async connectToWifi(net) {
+          this.connecting = true;
+          this.connectionStatus = `🔌 Connecting to ${net.ssid}...`;
+          try {
+            const response = await fetch('/wifi/connect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ssid: net.ssid, password: net.password || '' })
+            });
+            const data = await response.json();
+            console.log('Wi-Fi connect response:', data);
+            if (data.success) {
+  this.connectionStatus = `⏳ Verifying connection to ${net.ssid}...`;
+  
+  setTimeout(async () => {
+    try {
+      const verify = await fetch('/wifi/scan');
+      const result = await verify.json();
+
+      if (result.current === net.ssid) {
+        this.connectionStatus = `✅ Connected to ${net.ssid}`;
+        this.currentNetwork = net.ssid;
+
+        // Optional: reload to reset state cleanly
+        setTimeout(() => {
+          console.log("🔁 Reloading to finalize connection...");
+          location.reload();
+        }, 3000);
+
+      } else {
+        this.connectionStatus = `⚠️ Connected to Wi-Fi, but could not verify connection to ${net.ssid}. Try refreshing manually.`;
+      }
+
+    } catch (err) {
+      console.warn('Wi-Fi verification failed:', err);
+      this.connectionStatus = `⚠️ Connected, but server is unreachable (possibly due to IP/network change). Try refreshing manually.`;
+    }
+  }, 3000);
+} else {
+  this.connectionStatus = `❌ Failed: ${data.error || 'Unknown error'}`;
+}
+
+
+          } catch (e) {
+            console.error('Wi-Fi connect error:', e);
+            this.connectionStatus = `❌ Error connecting to ${net.ssid}`;
+          } finally {
+            this.connecting = false;
+            this.selectedNetwork = null;
+            this.showSelectedNetwork = false;
+          }
+        },
+        async disconnectWifi() {
+          try {
+            const response = await fetch('/wifi/disconnect', { method: 'POST' });
+            const data = await response.json();
+            console.log('Wi-Fi disconnect response:', data);
+            if (data.success) {
+              this.connectionStatus = 'Disconnected.';
+              this.currentNetwork = '';
+            } else {
+              this.connectionStatus = '❌ Disconnect failed.';
+            }
+          } catch (e) {
+            console.error('Wi-Fi disconnect error:', e);
+            this.connectionStatus = '❌ Disconnect failed.';
+          }
+        },
+        closeWifiModal() {
+          this.showWifiModal = false;
+          console.log('Wi-Fi modal closed');
+        },
+        closePasswordModal() {
+          this.selectedNetwork = null;
+          this.showSelectedNetwork = false;
+          console.log('Password modal closed');
+        },
+        togglePasswordVisibility() {
+          this.showPassword = !this.showPassword;
+          console.log('Password visibility toggled:', this.showPassword);
+        },
+        closeBluetoothModal() {
+          this.showModal = false;
+          console.log('Bluetooth modal closed');
+        },
+        async loadSettings() {
+          try {
+            const response = await fetch('/settings');
+            const data = await response.json();
+            console.log('Settings response:', data);
+            this.settings = {
+              ...this.settings,
+              ...data,
+              effects_volume: parseFloat(data.effects_volume) || 0.5,
+              radio_volume: parseFloat(data.radio_volume) || 0.5
+            };
+          } catch (e) {
+            console.error('Error loading settings:', e);
+          }
+        },
+        async saveSettings() {
+          try {
+            const response = await fetch('/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.settings)
+            });
+            const data = await response.json();
+            console.log('Settings save response:', data);
+            if (!response.ok) {
+              throw new Error(data.error || 'Server error');
+            }
+          } catch (e) {
+            console.error('Error saving settings:', e);
+            console.warn('Settings save failed, server returned 500. Check server logs.');
+          }
+        },
+        async toggleBluetooth() {
+          try {
+            const response = await fetch(`/bluetooth?action=${this.bluetoothOn ? 'on' : 'off'}`);
+            const data = await response.json();
+            console.log('Bluetooth toggle response:', data);
+          } catch (e) {
+            console.error('Bluetooth toggle error:', e);
+          }
+        },
+        async discoverDevices() {
+          try {
+            const response = await fetch('/bluetooth?action=scan');
+            const data = await response.json();
+            console.log('Bluetooth scan response:', data);
+            this.devices = data;
+            this.showModal = true;
+          } catch (e) {
+            console.error('Bluetooth scan error:', e);
+          }
+        },
+        async pairDevice(mac) {
+          try {
+            const response = await fetch(`/bluetooth?action=pair&mac=${mac}`);
+            const data = await response.json();
+            console.log('Bluetooth pair response:', data);
+          } catch (e) {
+            console.error('Bluetooth pair error:', e);
+          }
+        },
+        async updateBluetoothStatus() {
+          try {
+            const response = await fetch('/bluetooth-status');
+            const data = await response.json();
+            console.log('Bluetooth status:', data);
+            this.bluetoothStatus = data.status;
+          } catch (e) {
+            console.error('Bluetooth status error:', e);
+          }
+        },
+        applyTheme() {
+          const slug = this.settings.tournament.toLowerCase().replace(/\s+/g, '-');
+          document.documentElement.className = `theme-${slug}`;
+          console.log('Applied theme:', slug);
+        },
+        async loadRemoteTournaments() {
+          try {
+            const response = await fetch('https://js9467.github.io/Brtourney/settings.json');
+            const remote = await response.json();
+            console.log('Tournaments response:', remote);
+            this.allTournaments = remote;
+          } catch (e) {
+            console.error('Failed to fetch tournament list:', e);
+          }
+        }
+      },
+      watch: {
+        settings: {
+          handler() {
+            this.saveSettings();
+            this.applyTheme();
+          },
+          deep: true
+        },
+        bluetoothOn() {
+          this.toggleBluetooth();
+        }
+      },
+      mounted() {
+        console.log('Vue instance mounted');
+        this.applyTheme();
+        this.loadSettings();
+        this.updateBluetoothStatus();
+        setInterval(this.updateBluetoothStatus, 5000);
+        this.loadRemoteTournaments();
+      }
+    });
+  </script>
 </body>
 </html>

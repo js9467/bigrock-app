@@ -604,8 +604,7 @@ from flask import render_template_string
 PARTICIPANTS_CACHES = {}  # tournament_key: {"last_time": 0, "data": []}
 
 
-
-    except Exception as e:
+except Exception as e:
         print(f"❌ Playwright error for {tournament}: {e}")
         print(f"URL: {url}")
         print(f"Config: {config}")

@@ -1,4 +1,4 @@
-
+```python
 import json
 import os
 import time
@@ -14,7 +14,6 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError
 from dateutil import parser
 import re
-import dbus
 
 # Check Playwright availability
 try:
@@ -23,7 +22,14 @@ try:
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
-print("App starting... PLAYWRIGHT_AVAILABLE:", PLAYWRIGHT_AVAILABLE)
+# Check D-Bus availability
+try:
+    import dbus
+    DBUS_AVAILABLE = True
+except ImportError:
+    DBUS_AVAILABLE = False
+
+print("App starting... PLAYWRIGHT_AVAILABLE:", PLAYWRIGHT_AVAILABLE, "DBUS_AVAILABLE:", DBUS_AVAILABLE)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -249,7 +255,7 @@ def save_settings(settings):
     except Exception as e:
         print(f"Error saving settings: {e}")
 
-    if settings.get('data_source') == 'demo':
+    if settings.get('data_source') == 'n/a':
         tournament = settings.get('tournament', 'Big Rock')
         demo_data = {}
         if os.path.exists(DEMO_DATA_FILE):
@@ -945,22 +951,51 @@ def bluetooth_status():
     if now - bluetooth_status_cache['timestamp'] < 10:
         return jsonify({'status': bluetooth_status_cache['status']})
 
-    try:
-        bus = dbus.SystemBus()
-        bluez = bus.get_object('org.bluez', '/')
-        manager = dbus.Interface(bluez, 'org.freedesktop.DBus.ObjectManager')
-        objects = manager.GetManagedObjects()
-        status = 'Not Connected'
-        for path, interfaces in objects.items():
-            if 'org.bluez.Device1' in interfaces:
-                props = interfaces['org.bluez.Device1']
-                if props.get('Connected', False):
-                    name = props.get('Name', 'Bluetooth Device')
-                    status = f"Connected to {name}"
-                    break
-    except Exception as e:
-        print(f"Bluetooth status error: {e}")
-        status = 'Not Connected'
+    status = 'Not Connected'
+    if DBUS_AVAILABLE:
+        try:
+            bus = dbus.SystemBus()
+            bluez = bus.get_object('org.bluez', '/')
+            manager = dbus.Interface(bluez, 'org.freedesktop.DBus.ObjectManager')
+            objects = manager.GetManagedObjects()
+            for path, interfaces in objects.items():
+                if 'org.bluez.Device1' in interfaces:
+                    props = interfaces['org.bluez.Device1']
+                    if props.get('Connected', False):
+                        name = props.get('Name', 'Bluetooth Device')
+                        status = f"Connected to {name}"
+                        break
+        except Exception as e:
+            print(f"Bluetooth status error (D-Bus): {e}")
+            status = 'Not Connected'
+    else:
+        try:
+            devices_output = subprocess.check_output(['bluetoothctl', 'devices'], stderr=subprocess.DEVNULL, text=True).strip()
+            if not devices_output:
+                status = 'Not Connected'
+            else:
+                device_lines = devices_output.split('\n')
+                first_device = None
+                for line in device_lines:
+                    parts = line.split(' ', 2)
+                    if len(parts) >= 2 and parts[0] == 'Device':
+                        first_device = parts[1]
+                        break
+                if first_device:
+                    info_output = subprocess.check_output(['bluetoothctl', 'info', first_device], stderr=subprocess.DEVNULL, text=True)
+                    if 'Connected: yes' in info_output:
+                        name = 'Bluetooth Device'
+                        for line in info_output.split('\n'):
+                            if line.strip().startswith('Name:'):
+                                name = line.split(':', 1)[1].strip()
+                                break
+                        status = f"Connected to {name}"
+        except subprocess.CalledProcessError as e:
+            print(f"Bluetooth command failed: {e}")
+            status = 'Not Connected'
+        except Exception as e:
+            print(f"Bluetooth status error (subprocess): {e}")
+            status = 'Not Connected'
 
     bluetooth_status_cache['status'] = status
     bluetooth_status_cache['timestamp'] = now
@@ -1078,3 +1113,4 @@ def refresh_data_loop(interval=600):
 if __name__ == '__main__':
     refresh_data_loop()  # Start background refresh
     app.run(debug=True, host='0.0.0.0')
+```

@@ -157,7 +157,9 @@ def scrape_events(tournament):
             page = context.new_page()
 
             print(f"🔗 Navigating to {url}")
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.goto(url, wait_until="domcontentloaded", timeout=120000)
+            print(page.content()[:1000])
+
             try:
                 page.wait_for_selector("#feed-all article", timeout=30000)
             except:

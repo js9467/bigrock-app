@@ -57,7 +57,7 @@ jobs:
         if: env.py_changed == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 64.99.148.73
+          host: 174.106.217.107
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
           script: |

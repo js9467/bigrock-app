@@ -34,7 +34,7 @@ def cache_boat_image(boat_name, image_url):
     os.makedirs(folder, exist_ok=True)
     safe_name = boat_name.replace(' ', '_').replace('/', '_')
     file_path = os.path.join(folder, f"{safe_name}.jpg")
-
+    
     if not os.path.exists(file_path):
         try:
             response = requests.get(image_url, timeout=5)
@@ -54,7 +54,7 @@ def load_settings():
                 return json.load(f)
         except Exception as e:
             print(f"Error loading settings: {e}")
-
+    
     return {
         'sounds': {'hooked': True, 'released': True, 'boated': True},
         'followed_boats': [],
@@ -63,7 +63,8 @@ def load_settings():
         'tournament': 'Kids',
         'wifi_ssid': None,
         'wifi_password': None,
-        'data_source': 'current'
+        'data_source': 'current',
+        'disable_sleep_mode': False
     }
 
 
@@ -112,7 +113,7 @@ def scrape_edisto_playwright():
         print("📋 Scraped Teams:")
         for t in teams:
             print(f"- {t['name']}: {t['image']}")
-
+        
         return teams
 
 
@@ -142,7 +143,7 @@ def scrape_bigrock_participants():
                     boats.append({"boat": name, "image": local_image})
     except Exception as e:
         print(f"❌ Playwright error for Big Rock: {e}")
-
+    
     return boats
 
 
@@ -186,7 +187,21 @@ def index():
 def settings_page():
     return app.send_static_file('settings.html')
 
+@app.route("/participants")
+def participants_page():
+    return app.send_static_file("participants.html")
 
+
+@app.route("/api/gallery")
+def get_gallery():
+    # Stubbed empty gallery to prevent frontend errors
+    return jsonify([])
+
+
+if __name__ == '__main__':
+    if os.environ.get("FLASK_RUN_FROM_CLI") != "false":
+        app.run(host='0.0.0.0', port=5000)
+        
 @app.route("/participants")
 def participants_page():
     return app.send_static_file("participants.html")

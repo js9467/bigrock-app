@@ -42,6 +42,7 @@ jobs:
           script: |
             echo "🧹 Removing rogue /home/pi/app.py if it exists..."
             rm -f /home/pi/app.py
+          ssh-option: StrictHostKeyChecking=no
 
       - name: Upload all source files to Raspberry Pi
         uses: appleboy/scp-action@v0.1.4
@@ -52,6 +53,7 @@ jobs:
           source: "./*,./static/**,./templates/**,version.txt"
           target: /home/pi/bigrock-app
           overwrite: true
+          ssh-option: StrictHostKeyChecking=no
 
       - name: Restart bigrock.service if Python files changed
         if: env.py_changed == 'true'
@@ -65,3 +67,4 @@ jobs:
             sudo systemctl restart bigrock.service
             sleep 2
             sudo systemctl status bigrock.service
+          ssh-option: StrictHostKeyChecking=no

@@ -34,7 +34,7 @@ def cache_boat_image(boat_name, image_url):
     os.makedirs(folder, exist_ok=True)
     safe_name = boat_name.replace(' ', '_').replace('/', '_')
     file_path = os.path.join(folder, f"{safe_name}.jpg")
-    
+
     if not os.path.exists(file_path):
         try:
             response = requests.get(image_url, timeout=5)
@@ -54,7 +54,7 @@ def load_settings():
                 return json.load(f)
         except Exception as e:
             print(f"Error loading settings: {e}")
-    
+
     return {
         'sounds': {'hooked': True, 'released': True, 'boated': True},
         'followed_boats': [],
@@ -63,8 +63,7 @@ def load_settings():
         'tournament': 'Kids',
         'wifi_ssid': None,
         'wifi_password': None,
-        'data_source': 'current',
-        'disable_sleep_mode': False
+        'data_source': 'current'
     }
 
 
@@ -113,7 +112,7 @@ def scrape_edisto_playwright():
         print("📋 Scraped Teams:")
         for t in teams:
             print(f"- {t['name']}: {t['image']}")
-        
+
         return teams
 
 
@@ -143,7 +142,7 @@ def scrape_bigrock_participants():
                     boats.append({"boat": name, "image": local_image})
     except Exception as e:
         print(f"❌ Playwright error for Big Rock: {e}")
-    
+
     return boats
 
 

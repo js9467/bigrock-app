@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Participants</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+</head>
+<body>
+  <div id="app" class="p-6 max-w-6xl mx-auto">
+    <h1 class="section-title">Participants</h1>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div v-for="participant in visibleParticipants" :key="participant.uid" class="card text-center">
+        <img :src="participant.image_path" :alt="participant.boat" class="w-full h-40 object-cover rounded mb-2">
+        <div class="text-lg font-bold">{{ participant.boat }}</div>
+        <div class="text-sm text-gray-600 mb-2">{{ participant.type }}</div>
+        <button class="btn btn-primary w-full" @click="toggleFollow(participant.uid)">
+          {{ followedBoats.includes(participant.uid) ? 'Unfollow' : 'Follow' }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="loading" class="text-center mt-6">
+      <span class="text-gray-500">Loading more participants...</span>
+    </div>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        allParticipants: [],
+        visibleParticipants: [],
+        followedBoats: [],
+        batchSize: 20,
+        offset: 0,
+        loading: false
+      },
+      mounted() {
+        fetch('/participants')
+          .then(res => res.json())
+          .then(data => {
+            this.allParticipants = data.participants;
+            this.loadMore();
+            window.addEventListener('scroll', this.handleScroll);
+          });
+      },
+      methods: {
+        loadMore() {
+          if (this.loading) return;
+          this.loading = true;
+          setTimeout(() => {
+            const nextBatch = this.allParticipants.slice(this.offset, this.offset + this.batchSize);
+            this.visibleParticipants.push(...nextBatch);
+            this.offset += this.batchSize;
+            this.loading = false;
+          }, 500);
+        },
+        handleScroll() {
+          const scrollY = window.scrollY;
+          const visibleHeight = window.innerHeight;
+          const pageHeight = document.body.offsetHeight;
+          if (scrollY + visibleHeight + 100 >= pageHeight) {
+            this.loadMore();
+          }
+        },
+        toggleFollow(uid) {
+          if (this.followedBoats.includes(uid)) {
+            this.followedBoats = this.followedBoats.filter(b => b !== uid);
+          } else {
+            this.followedBoats.push(uid);
+          }
+        }
+      },
+      beforeDestroy() {
+        window.removeEventListener('scroll', this.handleScroll);
+      }
+    });
+  </script>
+</body>
+</html>

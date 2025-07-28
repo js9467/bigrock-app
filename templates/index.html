@@ -1,90 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Feed</title>
-  <link rel="stylesheet" href="/static/css/main.css">
-  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tournament Feed</title>
+  <link rel="stylesheet" href="/static/css/main.css" />
+  <script defer src="/static/js/feed.js"></script>
 </head>
 <body>
-  <div id="app" class="p-4 max-w-7xl mx-auto">
-    <h1 class="section-title">Live Tournament Feed</h1>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <!-- Hooked Up Feed -->
-      <div class="card">
-        <h2 class="font-bold text-lg mb-3">Hooked Up</h2>
-        <div v-for="event in hookedUp" :key="event.timestamp + event.uid" class="mb-4 p-2 border rounded">
-          <img :src="getImage(event.uid)" class="w-full h-32 object-cover rounded mb-2" :alt="event.boat">
-          <div class="font-bold text-base">{{ event.boat }}</div>
-          <div class="text-sm text-gray-600">Hooked at {{ formatTime(event.timestamp) }}</div>
-        </div>
+  <header>
+    <h1>Tournament Feed</h1>
+  </header>
+  <main class="grid grid-cols-2 gap-4 p-4 h-screen overflow-hidden">
+    <!-- Hooked Up Feed -->
+    <section class="card overflow-y-scroll">
+      <h2 class="section-title">Hooked Up</h2>
+      <div id="hooked-up-feed" class="space-y-4">
+        <!-- Hooked up items dynamically inserted here -->
       </div>
+    </section>
 
-      <!-- Main Event Feed -->
-      <div class="col-span-2 card">
-        <h2 class="font-bold text-lg mb-3">Event Feed</h2>
-        <div v-for="event in events" :key="event.timestamp + event.uid" class="mb-4 border-b pb-3">
-          <div class="flex items-center gap-4">
-            <img :src="getImage(event.uid)" class="w-24 h-24 object-cover rounded" :alt="event.boat">
-            <div>
-              <div class="font-bold text-lg">{{ event.boat }}</div>
-              <div class="text-sm text-gray-600">{{ event.details }}</div>
-              <div class="text-xs text-gray-500">{{ formatTime(event.timestamp) }}</div>
-            </div>
-          </div>
-        </div>
+    <!-- Main Events Feed -->
+    <section class="card overflow-y-scroll">
+      <h2 class="section-title">Event Feed</h2>
+      <div id="event-feed" class="space-y-4">
+        <!-- Event items dynamically inserted here -->
       </div>
-    </div>
-  </div>
-
-  <script>
-    new Vue({
-      el: '#app',
-      data: {
-        events: [],
-        hookedUp: [],
-        boatImages: {}
-      },
-      mounted() {
-        this.fetchEvents();
-        this.fetchHooked();
-        this.loadBoatImages();
-      },
-      methods: {
-        fetchEvents() {
-          fetch('/events')
-            .then(res => res.json())
-            .then(data => {
-              this.events = data.events;
-            });
-        },
-        fetchHooked() {
-          fetch('/hooked')
-            .then(res => res.json())
-            .then(data => {
-              this.hookedUp = data.events;
-            });
-        },
-        loadBoatImages() {
-          fetch('/participants')
-            .then(res => res.json())
-            .then(data => {
-              data.participants.forEach(p => {
-                this.boatImages[p.uid] = p.image_path;
-              });
-            });
-        },
-        getImage(uid) {
-          return this.boatImages[uid] || '/static/images/default.jpg';
-        },
-        formatTime(ts) {
-          const date = new Date(ts);
-          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-      }
-    });
-  </script>
+    </section>
+  </main>
 </body>
 </html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+</head>
+<body>
+  <div id="app" class="p-6 max-w-4xl mx-auto">
+    <h1 class="section-title">App Settings</h1>
+
+    <!-- Tournament Selection -->
+    <div class="card mb-6">
+      <label class="label" for="tournament">Tournament</label>
+      <select id="tournament" v-model="settings.tournament" class="input">
+        <option v-for="(value, key) in tournamentOptions" :value="key">{{ key }}</option>
+      </select>
+    </div>
+
+    <!-- Data Source -->
+    <div class="card mb-6">
+      <label class="label">Data Source</label>
+      <div class="flex gap-4">
+        <label><input type="radio" value="live" v-model="settings.data_source"> Live</label>
+        <label><input type="radio" value="demo" v-model="settings.data_source"> Demo</label>
+      </div>
+    </div>
+
+    <!-- Volume Sliders -->
+    <div class="card mb-6">
+      <label class="label">VHF Volume: {{ settings.vhf_volume }}%</label>
+      <input type="range" min="0" max="100" v-model="settings.vhf_volume" class="w-full">
+
+      <label class="label mt-4">Event Volume: {{ settings.event_volume }}%</label>
+      <input type="range" min="0" max="100" v-model="settings.event_volume" class="w-full">
+    </div>
+
+    <!-- Auto Refresh -->
+    <div class="card mb-6">
+      <label class="label">Auto Refresh (seconds)</label>
+      <select v-model="settings.refresh_interval" class="input">
+        <option :value="15">15</option>
+        <option :value="30">30</option>
+        <option :value="60">60</option>
+        <option :value="120">120</option>
+      </select>
+    </div>
+
+    <!-- Theme and Sounds -->
+    <div class="card mb-6">
+      <label class="label">Theme</label>
+      <select v-model="settings.theme" class="input">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+
+      <label class="label mt-4">Play Event Sounds</label>
+      <input type="checkbox" v-model="settings.sound_enabled">
+    </div>
+
+    <!-- Scrape Now Button -->
+    <div class="flex gap-4">
+      <button class="btn btn-primary" @click="saveSettings">Save Settings</button>
+      <button class="btn btn-success" @click="triggerScrape">Scrape Now</button>
+    </div>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        settings: {
+          tournament: '',
+          data_source: 'live',
+          refresh_interval: 30,
+          vhf_volume: 75,
+          event_volume: 80,
+          theme: 'light',
+          sound_enabled: true
+        },
+        tournamentOptions: {}
+      },
+      mounted() {
+        fetch('/settings')
+          .then(res => res.json())
+          .then(data => {
+            this.settings = data;
+          });
+
+        fetch('https://js9467.github.io/Brtourney/settings.json')
+          .then(res => res.json())
+          .then(data => {
+            this.tournamentOptions = data;
+          });
+      },
+      methods: {
+        saveSettings() {
+          fetch('/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.settings)
+          })
+          .then(() => alert('Settings saved.'));
+        },
+        triggerScrape() {
+          fetch('/scrape/participants');
+          fetch('/scrape/events');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

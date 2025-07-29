@@ -108,18 +108,24 @@
   <script src="/static/main.js"></script>
 <script>
   fetch('/api/settings')
-    .then(res => res.json())
-    .then(settings => {
-      const tournament = settings.tournament;
-      if (tournament) {
-        fetch(`/scrape/participants?t=${encodeURIComponent(tournament)}`)
-          .then(res => {
-            if (!res.ok) throw new Error("Failed to scrape participants");
-            console.log(`✅ Participants refreshed for ${tournament}`);
-          })
-          .catch(err => console.error("❌ Error refreshing participants:", err));
-      }
-    });
+  .then(res => res.json())
+  .then(settings => {
+    const tournament = settings.tournament;
+    if (tournament) {
+      return fetch(`/scrape/participants?t=${encodeURIComponent(tournament)}`);
+    }
+  })
+  .then(res => {
+    if (!res?.ok) throw new Error("Failed to scrape participants");
+    console.log("✅ Participants refreshed");
+
+    // Reload Vue data (this assumes your Vue app has a global refresh method)
+    if (window.app && typeof window.app.loadParticipants === 'function') {
+      window.app.loadParticipants();
+    }
+  })
+  .catch(err => console.error("❌ Error refreshing participants:", err));
+
 </script>
 
 </body>

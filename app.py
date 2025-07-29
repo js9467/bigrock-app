@@ -465,7 +465,9 @@ def participants_data():
 def get_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
-    events_file = get_cache_path("events.json")
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
+
 
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)

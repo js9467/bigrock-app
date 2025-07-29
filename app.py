@@ -12,19 +12,27 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 
 app = Flask(__name__)
-CACHE_FILE = 'cache.json'
-EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
+def get_cache_dir():
+    tournament = get_current_tournament().lower().replace(' ', '_').replace("'", "").replace("/", "_")
+    cache_dir = f"cache/{tournament}"
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
 def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, 'r') as f:
+    cache_dir = get_cache_dir()
+    cache_file = f"{cache_dir}/cache.json"
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
             return json.load(f)
     return {}
 
 def save_cache(cache):
-    with open(CACHE_FILE, 'w') as f:
+    cache_dir = get_cache_dir()
+    cache_file = f"{cache_dir}/cache.json"
+    with open(cache_file, 'w') as f:
         json.dump(cache, f, indent=2)
 
 def load_settings():
@@ -221,14 +229,17 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
+        cache_dir = get_cache_dir()
+        participants_file = f"{cache_dir}/participants.json"
+
         existing_participants = {}
-        if os.path.exists("participants_master.json"):
-            with open("participants_master.json", "r") as f:
+        if os.path.exists(participants_file):
+            with open(participants_file, "r") as f:
                 for p in json.load(f):
                     existing_participants[p["uid"]] = p
 
         html = fetch_page_html(participants_url, "article.post.format-image")
-        with open("debug_participants.html", "w", encoding="utf-8") as f:
+        with open(f"{cache_dir}/debug_participants.html", "w", encoding="utf-8") as f:
             f.write(html)
 
         soup = BeautifulSoup(html, 'html.parser')
@@ -288,7 +299,7 @@ def scrape_participants(force=False):
 
         updated_list = list(updated_participants.values())
         if updated_list != list(existing_participants.values()):
-            with open("participants_master.json", "w") as f:
+            with open(participants_file, "w") as f:
                 json.dump(updated_list, f, indent=2)
             print(f"✅ Updated and saved {len(updated_list)} participants")
         else:
@@ -308,8 +319,10 @@ def scrape_events(force=False, skip_timestamp_check=False):
 
     if not force and is_cache_fresh(cache, "events", 2):
         print("✅ Event cache is fresh — skipping scrape.")
-        if os.path.exists("events.json"):
-            with open("events.json", "r") as f:
+        cache_dir = get_cache_dir()
+        events_file = f"{cache_dir}/events.json"
+        if os.path.exists(events_file):
+            with open(events_file, "r") as f:
                 return json.load(f)
         return []
 
@@ -328,22 +341,25 @@ def scrape_events(force=False, skip_timestamp_check=False):
         print(f"➡️ Events URL: {events_url}")
 
         # Load participants for UID mapping
+        cache_dir = get_cache_dir()
+        participants_file = f"{cache_dir}/participants.json"
         participants_dict = {}
-        if os.path.exists("participants_master.json"):
-            with open("participants_master.json", "r") as f:
+        if os.path.exists(participants_file):
+            with open(participants_file, "r") as f:
                 participants = json.load(f)
                 participants_dict = {p["uid"]: p for p in participants}
         else:
-            print("⚠️ participants_master.json missing — regenerating...")
+            print("⚠️ participants.json missing — regenerating...")
             scrape_participants(force=True)
-            with open("participants_master.json", "r") as f:
+            with open(participants_file, "r") as f:
                 participants = json.load(f)
                 participants_dict = {p["uid"]: p for p in participants}
 
+        events_file = f"{cache_dir}/events.json"
         existing = []
         last_known_ts = None
-        if os.path.exists("events.json"):
-            with open("events.json", "r") as f:
+        if os.path.exists(events_file):
+            with open(events_file, "r") as f:
                 existing = json.load(f)
                 try:
                     last_known_ts = max(
@@ -353,7 +369,7 @@ def scrape_events(force=False, skip_timestamp_check=False):
                     print(f"⚠️ Failed to determine last known timestamp: {e}")
 
         html = fetch_page_html(events_url, "article.m-b-20, article.entry, div.activity, li.event, div.feed-item")
-        with open("debug_events.html", "w", encoding="utf-8") as f:
+        with open(f"{cache_dir}/debug_events.html", "w", encoding="utf-8") as f:
             f.write(html or "<!-- No HTML returned -->")
 
         soup = BeautifulSoup(html, 'html.parser')
@@ -409,7 +425,7 @@ def scrape_events(force=False, skip_timestamp_check=False):
             if uid in participants_dict:
                 boat_name = participants_dict[uid]["boat"]  # Use original boat name
             else:
-                print(f"⚠️ Boat {boat_name} (uid: {uid}) not found in participants_master.json")
+                print(f"⚠️ Boat {boat_name} (uid: {uid}) not found in participants.json")
 
             new_events.append({
                 "timestamp": timestamp_iso,
@@ -424,7 +440,7 @@ def scrape_events(force=False, skip_timestamp_check=False):
         all_events = existing + new_events
         all_events.sort(key=lambda e: e["timestamp"])
 
-        with open("events.json", "w") as f:
+        with open(events_file, "w") as f:
             json.dump(all_events, f, indent=2)
 
         cache["events"] = {"last_scraped": datetime.now().isoformat()}
@@ -473,7 +489,9 @@ def scrape_participants_route():
 @app.route('/participants_data')
 def get_participants_data():
     try:
-        with open("participants_master.json", "r") as f:
+        cache_dir = get_cache_dir()
+        participants_file = f"{cache_dir}/participants.json"
+        with open(participants_file, "r") as f:
             data = json.load(f)
         limit = int(request.args.get("limit", 100))
         offset = int(request.args.get("offset", 0))
@@ -508,8 +526,10 @@ def get_events():
 
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force)
-    if not events and os.path.exists("events.json"):
-        with open("events.json", "r") as f:
+    cache_dir = get_cache_dir()
+    events_file = f"{cache_dir}/events.json"
+    if not events and os.path.exists(events_file):
+        with open(events_file, "r") as f:
             events = json.load(f)
     events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
     return jsonify({
@@ -544,10 +564,7 @@ def api_settings():
         new_tournament = settings_data.get("tournament")
         new_mode = settings_data.get("data_source")
         if new_tournament != old_tournament and new_mode == "live":
-            for f in ["events.json", "participants_master.json"]:
-                if os.path.exists(f):
-                    os.remove(f)
-                    print(f"🧹 Cleared {f} due to tournament change in live mode.")
+            # No need to remove files; new tournament uses new cache dir
             run_in_thread(lambda: scrape_events(force=True), "events")
             run_in_thread(lambda: scrape_participants(force=True), "participants")
         save_demo_data_if_needed(settings_data, old_settings)
@@ -589,9 +606,11 @@ def get_hooked_up_events():
         data = load_demo_data(tournament)
         events = data.get("events", [])
     else:
-        if not os.path.exists("events.json"):
+        cache_dir = get_cache_dir()
+        events_file = f"{cache_dir}/events.json"
+        if not os.path.exists(events_file):
             return jsonify({"status": "ok", "events": [], "count": 0})
-        with open("events.json", "r") as f:
+        with open(events_file, "r") as f:
             events = json.load(f)
 
     now = datetime.now()
@@ -706,7 +725,7 @@ def wifi_connect():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jupytext({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():

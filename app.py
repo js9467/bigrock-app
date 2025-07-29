@@ -567,6 +567,42 @@ def scrape_all():
     })
 
 
+@app.route("/status")
+def get_status():
+    try:
+        cache = load_cache()
+        tournament = get_current_tournament()
+        data_source = load_settings().get("data_source", "live")
+        status = {
+            "mode": data_source,
+            "tournament": tournament,
+            "participants_last_scraped": None,
+            "events_last_scraped": None,
+            "participants_cache_fresh": False,
+            "events_cache_fresh": False,
+        }
+
+        # Build dynamic keys
+        part_key = f"{tournament}_participants"
+        event_key = f"{tournament}_events"
+
+        # Check and format timestamps
+        if part_key in cache:
+            ts = cache[part_key].get("last_scraped")
+            status["participants_last_scraped"] = ts
+            status["participants_cache_fresh"] = is_cache_fresh(cache, part_key, 1440)
+
+        if event_key in cache:
+            ts = cache[event_key].get("last_scraped")
+            status["events_last_scraped"] = ts
+            status["events_cache_fresh"] = is_cache_fresh(cache, event_key, 2)
+
+        return jsonify(status)
+
+    except Exception as e:
+        print(f"❌ Error in /status: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
     if request.method == 'POST':

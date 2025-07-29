@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap');
+
+body {
+  font-family: 'Barlow', sans-serif;
+}
+
+.bg-brand-blue {
+  background-color: #002855; /* Deep navy blue used on Big Rock */
+}
+
+.text-brand-gold {
+  color: #f6c553; /* Gold accent from Big Rock */
+}
+
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}

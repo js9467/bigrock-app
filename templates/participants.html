@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Participants</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/base.css" />
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
+  <div id="app">
+    <!-- Header with logo and back -->
+    <header class="bg-blue-900 text-white flex items-center justify-between px-6 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
+      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition bg-blue-900">
+        ← Back
+      </a>
+    </header>
+
+    <div class="p-4 max-w-screen-xl mx-auto">
+      <header class="flex items-center justify-between mb-6">
+        <h1 class="text-4xl font-bold text-yellow-600">Tournament Participants</h1>
+        <button @click="reload" class="px-4 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800">Reload</button>
+      </header>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div v-for="p in participants" :key="p.uid" class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
+          <img :src="p.image_path || 'static/images/default.jpg'" alt="Boat Image" class="w-full h-48 object-cover" loading="lazy" />
+          <div class="p-4">
+            <h2 class="text-xl font-semibold">{{ p.boat }}</h2>
+            <p class="text-sm text-gray-600 mb-3">{{ p.type }}</p>
+            <button
+              @click="toggleFollow(p.uid)"
+              :class="{
+                'bg-green-600 hover:bg-green-700': isFollowed(p.uid),
+                'bg-gray-300 hover:bg-gray-400': !isFollowed(p.uid)
+              }"
+              class="px-4 py-1 text-white rounded w-full">
+              {{ isFollowed(p.uid) ? 'Following' : 'Follow' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">Loading more boats...</div>
+      <div v-if="allLoaded" class="text-center py-6 text-green-600 text-sm">All boats loaded.</div>
+    </div>
+  </div>
+
+  <script>
+    const app = Vue.createApp({
+      data() {
+        return {
+          participants: [],
+          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+          limit: 20,
+          offset: 0,
+          loading: false,
+          allLoaded: false,
+          tournaments: {},
+          tournamentLogo: ''
+        };
+      },
+      methods: {
+        async loadMore() {
+          if (this.loading || this.allLoaded) return;
+          this.loading = true;
+          try {
+            const res = await fetch(`/participants_data?limit=${this.limit}&offset=${this.offset}`);
+            const data = await res.json();
+            if (data.participants.length > 0) {
+              this.participants.push(...data.participants);
+              this.offset += this.limit;
+            } else {
+              this.allLoaded = true;
+            }
+          } catch (err) {
+            console.error('Failed to load participants:', err);
+          }
+          this.loading = false;
+        },
+        handleScroll() {
+          const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
+          if (nearBottom) this.loadMore();
+        },
+        reload() {
+          this.participants = [];
+          this.offset = 0;
+          this.allLoaded = false;
+          this.loadMore();
+        },
+        toggleFollow(uid) {
+          if (this.followed.includes(uid)) {
+            this.followed = this.followed.filter(id => id !== uid);
+          } else {
+            this.followed.push(uid);
+          }
+          localStorage.setItem('followedBoats', JSON.stringify(this.followed));
+        },
+        isFollowed(uid) {
+          return this.followed.includes(uid);
+        }
+      },
+      async mounted() {
+        this.loadMore();
+        window.addEventListener('scroll', this.handleScroll);
+
+        try {
+          const settingsRes = await fetch('/api/settings');
+          const settings = await settingsRes.json();
+          const tournament = settings.tournament;
+
+          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const allTournaments = await configRes.json();
+          this.tournamentLogo = allTournaments[tournament]?.logo || '';
+        } catch (e) {
+          console.error('Failed to load tournament logo:', e);
+        }
+      },
+      unmounted() {
+        window.removeEventListener('scroll', this.handleScroll);
+      }
+    });
+    app.mount('#app');
+  </script>
+</body>
+</html>

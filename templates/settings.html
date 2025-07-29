@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    select, option {
+      color: black !important;
+      background-color: white !important;
+    }
+    .modal-bg {
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 text-lg">
+<div id="app" class="p-6 max-w-2xl mx-auto space-y-8">
+  <h1 class="text-3xl font-bold mb-4">⚙️ Settings</h1>
+
+  <!-- Wi-Fi Section -->
+  <div>
+    <div class="flex justify-between items-center mb-2">
+      <label class="font-semibold">Wi-Fi</label>
+      <button @click="showWifiModal = true" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Scan</button>
+    </div>
+
+    <div v-if="connectedWifi">
+      <div class="flex justify-between items-center border p-3 rounded">
+        <span>{{ connectedWifi.ssid }} ({{ connectedWifi.signal }}%)</span>
+        <button class="text-red-600 font-semibold" @click="disconnectWifi">Disconnect</button>
+      </div>
+    </div>
+    <div v-else class="text-sm text-gray-500">Not connected</div>
+  </div>
+
+  <!-- Wi-Fi Modal -->
+  <div v-if="showWifiModal" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
+    <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-4">
+      <h2 class="text-xl font-bold mb-4">Available Networks</h2>
+      <ul class="space-y-2 max-h-96 overflow-y-auto">
+        <li v-for="wifi in availableNetworks" :key="wifi.ssid" class="flex justify-between items-center border p-3 rounded">
+          <span>{{ wifi.ssid }} ({{ wifi.signal }}%)</span>
+          <button class="text-green-600 font-semibold" @click="promptPassword(wifi.ssid)">Connect</button>
+        </li>
+      </ul>
+      <div class="mt-4 text-right">
+        <button @click="showWifiModal = false" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Prompt Modal -->
+  <div v-if="passwordPrompt" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
+    <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-4">
+      <h2 class="text-lg font-bold mb-4">Enter password for {{ pendingSSID }}</h2>
+      <input v-model="password" type="password" placeholder="Password"
+             class="w-full border p-2 rounded mb-4">
+      <div class="text-right">
+        <button @click="connectWifi" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Connect</button>
+        <button @click="cancelPassword" class="ml-2 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+createApp({
+  data() {
+    return {
+      wifiList: [],
+      connectedWifi: null,
+      showWifiModal: false,
+      passwordPrompt: false,
+      pendingSSID: '',
+      password: '',
+      knownPasswords: JSON.parse(localStorage.getItem("wifiPasswords") || "{}")
+    };
+  },
+  computed: {
+    availableNetworks() {
+      const seen = new Map();
+      this.wifiList.forEach(net => {
+        if (!seen.has(net.ssid) || net.signal > seen.get(net.ssid).signal) {
+          seen.set(net.ssid, net);
+        }
+      });
+      return [...seen.values()].filter(n => !n.connected).sort((a, b) => b.signal - a.signal);
+    }
+  },
+  mounted() {
+    this.scanWifi();
+  },
+  methods: {
+    scanWifi() {
+      axios.get('/wifi/scan').then(res => {
+        this.wifiList = res.data.networks || [];
+        this.connectedWifi = this.wifiList.find(n => n.connected) || null;
+
+        // Auto-connect if possible
+        if (!this.connectedWifi) {
+          const known = this.availableNetworks.find(n => this.knownPasswords[n.ssid]);
+          if (known) {
+            this.pendingSSID = known.ssid;
+            this.password = this.knownPasswords[known.ssid];
+            this.connectWifi(true);
+          }
+        }
+      });
+    },
+    disconnectWifi() {
+      axios.post('/wifi/disconnect').then(() => this.scanWifi());
+    },
+    promptPassword(ssid) {
+      this.pendingSSID = ssid;
+      this.password = this.knownPasswords[ssid] || '';
+      this.passwordPrompt = true;
+    },
+    cancelPassword() {
+      this.pendingSSID = '';
+      this.password = '';
+      this.passwordPrompt = false;
+    },
+    connectWifi(auto = false) {
+      if (!this.password) return;
+      axios.post('/wifi/connect', {
+        ssid: this.pendingSSID,
+        password: this.password
+      }).then(() => {
+        this.knownPasswords[this.pendingSSID] = this.password;
+        localStorage.setItem("wifiPasswords", JSON.stringify(this.knownPasswords));
+        this.passwordPrompt = false;
+        this.pendingSSID = '';
+        this.password = '';
+        this.scanWifi();
+        this.showWifiModal = false;
+      });
+    }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

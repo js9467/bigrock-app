@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Events Feed</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <style>
+    body { touch-action: manipulation; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900 font-sans">
+
+  <div id="app">
+    <!-- Final header: logo + border-only buttons -->
+    <header class="bg-blue-900 text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/participants"
+           class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          Participants
+        </a>
+        <a href="/settings-page"
+           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          ⚙
+        </a>
+      </div>
+    </header>
+
+    <div class="flex h-screen overflow-hidden">
+      <!-- Hooked Up Column -->
+      <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
+        <div class="p-4 border-b text-xl font-bold bg-blue-900 text-white">Hooked Up</div>
+        <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
+        <div v-for="event in hooked" :key="event.timestamp + event.uid" class="p-4 border-b hover:bg-gray-50">
+          <img :src="getBoatImage(event.uid)" class="w-full h-40 object-cover rounded mb-2" onerror="this.style.display='none'" />
+          <div class="text-lg font-semibold">{{ event.boat }}</div>
+          <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
+        </div>
+      </div>
+
+      <!-- Main Events Column -->
+      <div class="w-2/3 overflow-y-auto">
+        <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-blue-900 text-white">
+          Event Feed
+          <button @click="fetchEvents" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
+        </div>
+        <div v-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+        <div v-for="event in events" :key="event.timestamp + event.uid" class="p-4 border-b flex items-center gap-4 hover:bg-gray-50">
+          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <div>
+            <div class="text-lg font-semibold">{{ event.boat }}</div>
+            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+            <div class="text-sm">{{ event.details }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue
+
+    createApp({
+      data() {
+        return {
+          events: [],
+          hooked: [],
+          boatImages: {},
+          tournamentLogo: ''
+        }
+      },
+      mounted() {
+        this.fetchEvents()
+        this.fetchHooked()
+        this.loadBoatImages()
+        this.loadTournamentLogo()
+      },
+      methods: {
+        fetchEvents() {
+          fetch('/scrape/events')
+            .then(res => res.json())
+            .then(data => {
+              this.events = data.events || []
+            })
+        },
+        fetchHooked() {
+          fetch('/hooked')
+            .then(res => res.json())
+            .then(data => {
+              this.hooked = data.hooked || []
+            })
+        },
+        loadBoatImages() {
+          fetch('/scrape/participants')
+            .then(res => res.json())
+            .then(data => {
+              const images = {}
+              for (const p of data.participants) {
+                images[p.uid] = p.image_path
+              }
+              this.boatImages = images
+            })
+        },
+        loadTournamentLogo() {
+          fetch('/api/settings')
+            .then(res => res.json())
+            .then(settings => {
+              const tournament = settings.tournament
+              return fetch('https://js9467.github.io/Brtourney/settings.json')
+                .then(res => res.json())
+                .then(all => {
+                  this.tournamentLogo = all[tournament]?.logo || ''
+                })
+            })
+        },
+        getBoatImage(uid) {
+          return this.boatImages[uid] || ''
+        },
+        formatTime(ts) {
+          try {
+            const dt = new Date(ts)
+            return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          } catch {
+            return ts
+          }
+        }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>

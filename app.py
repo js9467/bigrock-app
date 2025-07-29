@@ -210,7 +210,8 @@ def run_in_thread(target, name):
 def scrape_participants(force=False):
     cache = load_cache()
     tournament = get_current_tournament()
-    participants_file = get_cache_path("participants.json")
+    participants_file = get_cache_path(tournament, "participants.json")
+
 
     if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
@@ -440,7 +441,8 @@ def scrape_participants_route():
 @app.route('/participants_data')
 def get_participants_data():
     try:
-        participants_file = get_cache_path("participants.json")
+        participants_file = get_cache_path(tournament, "participants.json")
+
         if not os.path.exists(participants_file):
             return jsonify({"status": "error", "message": "Participants cache not found"}), 404
 

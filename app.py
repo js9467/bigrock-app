@@ -706,54 +706,67 @@ from datetime import datetime
 import json
 import os
 
+from flask import jsonify
+from dateutil import parser as date_parser
+from datetime import datetime
+
 @app.route("/hooked")
-def get_hooked():
-    try:
-        mode = get_data_source()
-        tournament = get_current_tournament()
+def get_hooked_up_events():
+    settings = load_settings()
+    tournament = settings.get("tournament", "Big Rock")
 
-        if mode == "demo":
-            if not os.path.exists(DEMO_DATA_FILE):
-                return jsonify({"status": "ok", "count": 0, "events": []})
-            with open(DEMO_DATA_FILE, "r") as f:
-                data = json.load(f)
-            events = data.get(tournament, {}).get("events", [])
-        else:
-            if not os.path.exists(EVENTS_FILE):
-                return jsonify({"status": "ok", "count": 0, "events": []})
-            with open(EVENTS_FILE, "r") as f:
-                events = json.load(f)
+    if settings.get("data_source") == "demo":
+        data = load_demo_data(tournament)
+        events = data.get("events", [])
+    else:
+        if not os.path.exists(EVENTS_FILE):
+            return jsonify({"status": "ok", "events": [], "count": 0})
+        with open(EVENTS_FILE, "r") as f:
+            events = json.load(f)
 
-        now = datetime.now()
-        active_hookups = []
+    now = datetime.now()
+    current_time = now.time()
 
-        # Build a set of all resolved hookup_ids
-        resolved_ids = set()
-        for event in events:
-            if event["event"] in ["Released", "Boated", "Pulled Hook", "Wrong Species"]:
-                boat = event["boat"]
-                ts = event["timestamp"]
-                resolved_ids.add(f"{boat}_{ts}")
+    # Build set of resolution times
+    resolution_times = set()
+    for event in events:
+        if event["event"] in ["Released", "Boated"] or \
+           "pulled hook" in event["details"].lower() or \
+           "wrong species" in event["details"].lower():
+            try:
+                ts = date_parser.parse(event["timestamp"])
+                resolution_times.add(ts.time() if settings.get("data_source") == "demo" else ts.isoformat())
+            except:
+                continue
 
-        # Filter only Hooked Up events that are NOT resolved yet and are in the past
-        for event in events:
-            if event["event"] == "Hooked Up":
-                if "hookup_id" not in event:
-                    continue
-                if event["hookup_id"] in resolved_ids:
-                    continue
-                event_time = datetime.fromisoformat(event["timestamp"])
-                if event_time <= now:
-                    active_hookups.append(event)
+    unresolved = []
+    for event in events:
+        if event["event"] != "Hooked Up":
+            continue
 
-        return jsonify({
-            "status": "ok",
-            "count": len(active_hookups),
-            "events": sorted(active_hookups, key=lambda e: e["timestamp"])
-        })
+        hookup_id = event.get("hookup_id", "")
+        if "_" not in hookup_id:
+            continue
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        try:
+            ts_str = hookup_id.rsplit("_", 1)[-1]
+            ts = date_parser.parse(ts_str)
+            key = ts.time() if settings.get("data_source") == "demo" else ts.isoformat()
+            if key > current_time if settings.get("data_source") == "demo" else key not in resolution_times:
+                unresolved.append(event)
+        except Exception as e:
+            print(f"⚠️ Failed to parse hookup_id timestamp: {hookup_id}")
+            continue
+
+    unresolved = sorted(unresolved, key=lambda e: e["timestamp"], reverse=True)
+
+    print(f"📊 Hooked Up Unresolved Count: {len(unresolved)}")
+    return jsonify({
+        "status": "ok",
+        "count": len(unresolved),
+        "events": unresolved
+    })
+
 
 
 

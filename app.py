@@ -445,19 +445,23 @@ def scrape_participants_route():
 @app.route("/participants_data")
 def participants_data():
     tournament = get_current_tournament()
-    participants_file = get_cache_path(tournament, "participants.json")
+    path = f"cache/{tournament}/participants.json"
 
-    try:
-        with open(participants_file) as f:
-            participants = json.load(f)
-    except:
-        participants = []
+    # If file missing or empty, trigger scrape
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        print(f"📦 No cache found for {tournament}, scraping participants...")
+        try:
+            scrape_participants(tournament)
+        except Exception as e:
+            print(f"❌ Failed to scrape participants for {tournament}: {e}")
 
-    return jsonify({
-        "status": "ok",
-        "participants": participants,
-        "count": len(participants)
-    })
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = json.load(f)
+        return jsonify({"participants": data})
+    else:
+        return jsonify({"participants": []})
+
 
 
 

@@ -56,7 +56,7 @@
           :key="event.timestamp + event.uid"
           :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError" />
+          <img :src="getBoatImage(event.uid)" :class="['w-20 h-20 object-cover rounded', getBoatImage(event.uid).includes('default.jpg') ? 'opacity-30' : '']" @error="hideOnError" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
@@ -82,7 +82,7 @@
           :key="event.timestamp + event.uid"
           :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError" />
+          <img :src="getBoatImage(event.uid)" :class="['w-20 h-20 object-cover rounded', getBoatImage(event.uid).includes('default.jpg') ? 'opacity-30' : '']" @error="hideOnError" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
@@ -125,7 +125,6 @@
         this.loadTournamentLogo()
         this.fetchAll()
 
-        // ✅ Auto-trigger scrape like settings "Save"
         fetch('/api/settings')
           .then(res => res.json())
           .then(settings => {
@@ -136,7 +135,6 @@
             })
           })
           .then(() => {
-            console.log('🕒 Scrape started — polling for readiness...')
             this.pollForScrapeReady()
           })
       },
@@ -169,8 +167,9 @@
               this.boatImages = map
               this.ready = true
 
-              this.events = [...this.events]
-              this.hooked = [...this.hooked]
+              // Force image re-bind
+              this.events = this.events.map(e => ({ ...e }))
+              this.hooked = this.hooked.map(e => ({ ...e }))
             })
             .catch(err => {
               console.error("❌ Participants fetch error:", err)
@@ -183,15 +182,12 @@
               .then(res => res.json())
               .then(status => {
                 if (status.participants_cache_fresh && status.events_cache_fresh) {
-                  console.log('✅ Scrape complete — fetching data now')
                   this.fetchAll()
                 } else {
-                  console.log('⏳ Still waiting for scrape to finish...')
                   setTimeout(poll, 2000)
                 }
               })
               .catch(err => {
-                console.error("❌ Status poll error:", err)
                 setTimeout(poll, 2000)
               })
           }

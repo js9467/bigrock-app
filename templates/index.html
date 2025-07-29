@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/css/base.css" />
   <style>
     body { touch-action: manipulation; }
+
     .spinner {
       border: 4px solid rgba(0, 0, 0, 0.1);
       border-left-color: #f6c553;
@@ -17,13 +18,30 @@
       height: 36px;
       animation: spin 1s linear infinite;
     }
+
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+
+    .fade-enter-active {
+      transition: opacity 0.5s ease;
+    }
+
+    .fade-enter-from {
+      opacity: 0;
+    }
+
+    .highlight-new {
+      animation: flash 2s ease-in-out;
+    }
+
+    @keyframes flash {
+      0% { background-color: #fef9c3; }
+      100% { background-color: transparent; }
     }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-
   <div id="app">
     <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
@@ -57,7 +75,7 @@
           :key="event.timestamp + event.uid"
           :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
@@ -76,17 +94,30 @@
           <span>Fetching event data...</span>
         </div>
         <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
-        <div
-          v-for="event in events"
-          :key="event.timestamp + event.uid"
-          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
-        >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
-          <div>
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
-            <div class="text-sm">{{ event.details }}</div>
+
+        <transition-group name="fade" tag="div">
+          <div
+            v-for="(event, index) in visibleEvents"
+            :key="event.timestamp + event.uid"
+            :class="[
+              'p-4 border-b flex items-center gap-4 hover:bg-gray-50 transition-all duration-500',
+              isFollowed(event.uid) ? 'bg-yellow-100' : '',
+              newEventUids.has(event.timestamp + event.uid) ? 'highlight-new' : ''
+            ]"
+          >
+            <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+            <div>
+              <div class="text-lg font-semibold">{{ event.boat }}</div>
+              <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+              <div class="text-sm">{{ event.details }}</div>
+            </div>
           </div>
+        </transition-group>
+
+        <div v-if="events.length > maxVisible" class="p-4 text-center">
+          <button @click="expand = !expand" class="text-blue-700 font-medium hover:underline">
+            {{ expand ? 'Show Less' : 'Show More' }}
+          </button>
         </div>
       </div>
     </div>
@@ -103,7 +134,16 @@
           boatImages: {},
           tournamentLogo: '',
           loading: true,
+          ready: false,
+          expand: false,
+          maxVisible: 20,
+          newEventUids: new Set(),
           followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
+        }
+      },
+      computed: {
+        visibleEvents() {
+          return this.expand ? this.events : this.events.slice(0, this.maxVisible)
         }
       },
       mounted() {
@@ -113,17 +153,31 @@
       methods: {
         fetchAll() {
           this.loading = true
+          this.ready = false
 
-          // Fetch events and hooked immediately
           const eventsPromise = fetch('/scrape/events').then(res => res.json())
           const hookedPromise = fetch('/hooked').then(res => res.json())
-
-          // Fetch participants for images (may lag slightly)
           const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
 
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
-              this.events = eventsData.events || []
+              const newUids = new Set()
+              for (const e of eventsData.events || []) {
+                newUids.add(e.timestamp + e.uid)
+              }
+
+              // Track newly added events
+              const oldUids = new Set(this.events.map(e => e.timestamp + e.uid))
+              const incoming = eventsData.events || []
+              const newOnes = incoming.filter(e => !oldUids.has(e.timestamp + e.uid))
+
+              newOnes.forEach(e => {
+                const key = e.timestamp + e.uid
+                this.newEventUids.add(key)
+                setTimeout(() => this.newEventUids.delete(key), 2000)
+              })
+
+              this.events = incoming
               this.hooked = hookedData.events || []
             })
             .catch(err => {
@@ -137,10 +191,12 @@
                 images[p.uid] = p.image_path
               }
               this.boatImages = images
+              this.ready = true
               this.loading = false
             })
             .catch(err => {
               console.error("❌ Participants fetch error:", err)
+              this.ready = true
               this.loading = false
             })
         },

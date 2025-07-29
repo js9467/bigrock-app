@@ -90,12 +90,13 @@
             })
         },
         fetchHooked() {
-          fetch('/hooked')
-            .then(res => res.json())
-            .then(data => {
-              this.hooked = data.hooked || []
-            })
-        },
+  fetch('/hooked')
+    .then(res => res.json())
+    .then(data => {
+      this.hooked = data.events || []
+    })
+}
+,
         loadBoatImages() {
           fetch('/scrape/participants')
             .then(res => res.json())

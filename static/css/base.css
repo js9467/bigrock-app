@@ -5,11 +5,11 @@ body {
 }
 
 .bg-brand-blue {
-  background-color: #002855; /* Deep navy blue used on Big Rock */
+  background-color: #002855;
 }
 
 .text-brand-gold {
-  color: #f6c553; /* Gold accent from Big Rock */
+  color: #f6c553;
 }
 
 button {
@@ -18,4 +18,10 @@ button {
 
 button:hover {
   transform: translateY(-1px);
+}
+
+.loading {
+  padding: 1rem;
+  font-style: italic;
+  color: #666;
 }

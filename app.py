@@ -689,14 +689,13 @@ def generate_demo():
         print(f"❌ Error generating demo data: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
+from dateutil import parser as date_parser
+
 @app.route("/hooked")
 def get_hooked_up_events():
-    from dateutil import parser as date_parser
-
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    # Load event data
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -706,42 +705,45 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    print(f"📦 Loaded {len(events)} total events")
-
-    # Collect resolution timestamps
+    # Parse all resolution event timestamps
     resolution_times = set()
-    for event in events:
-        if event["event"] in ["Boated", "Released"]:
-            resolution_times.add(event["timestamp"])
-        elif "pulled hook" in event.get("details", "").lower() or "wrong species" in event.get("details", "").lower():
-            resolution_times.add(event["timestamp"])
+    for e in events:
+        if e["event"] in ["Released", "Boated"] or \
+           "pulled hook" in e.get("details", "").lower() or \
+           "wrong species" in e.get("details", "").lower():
+            try:
+                ts = date_parser.parse(e["timestamp"])
+                resolution_times.add(ts)
+            except Exception as ex:
+                print(f"⚠️ Failed to parse resolution timestamp: {e.get('timestamp')}")
 
-    resolution_dt_set = {date_parser.parse(ts) for ts in resolution_times}
-
-    # Identify unresolved Hooked Up events
     unresolved = []
-    for event in events:
-        if event.get("event") != "Hooked Up":
+    for e in events:
+        if e["event"] != "Hooked Up":
             continue
 
-        hookup_id = event.get("hookup_id", "")
+        hookup_id = e.get("hookup_id", "")
         try:
-            _, ts = hookup_id.rsplit("_", 1)
-            hookup_time = date_parser.parse(ts)
-        except Exception as e:
-            print(f"⚠️ Invalid hookup_id format or parse error: {hookup_id}")
+            # Parse timestamp from hookup_id
+            parts = hookup_id.rsplit("_", 1)
+            if len(parts) != 2:
+                continue
+            hookup_time = date_parser.parse(parts[1])
+        except Exception as ex:
+            print(f"⚠️ Failed to parse hookup_id: {hookup_id}")
             continue
 
-        if hookup_time not in resolution_dt_set:
-            unresolved.append(event)
+        # If the hookup_time does NOT exist in resolution times, it's unresolved
+        if hookup_time not in resolution_times:
+            unresolved.append(e)
 
-    print(f"🎯 Returning {len(unresolved)} unresolved Hooked Up events")
-
+    # Return all unresolved "Hooked Up" events
     return jsonify({
         "status": "ok",
         "count": len(unresolved),
         "events": unresolved
     })
+
 
 
 

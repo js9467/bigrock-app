@@ -18,82 +18,49 @@
       animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    .fade-in {
-      animation: fadein 0.5s ease-in;
-    }
-    @keyframes fadein {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
   <div id="app">
-    <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
+    <header class="bg-blue-900 text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <div class="flex items-center gap-3">
-        <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
-      </div>
+      <a href="/settings" class="border border-white text-white px-3 py-1 rounded hover:bg-white hover:text-blue-900 transition">Settings</a>
     </header>
 
-    <div class="flex h-screen overflow-hidden">
-      <!-- Hooked Up Column -->
-      <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
-        <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
-        <div v-if="loading" class="flex items-center gap-3 p-4 text-gray-600">
-          <div class="spinner"></div>
-          <span>Loading Hooked Up Events...</span>
-        </div>
-        <div v-else-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
-        <div
-          v-for="event in hooked"
-          :key="event.timestamp + event.uid"
-          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
-        >
-          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
-          <div>
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
+    <div class="flex">
+      <!-- Hooked Up Feed -->
+      <div class="w-1/2 border-r border-gray-300 p-4">
+        <h2 class="text-xl font-semibold mb-2">Hooked Up</h2>
+        <div v-if="loading" class="flex justify-center items-center h-32"><div class="spinner"></div></div>
+        <div v-else-if="hooked.length === 0" class="text-gray-500">No current hookups</div>
+        <div v-else class="space-y-2">
+          <div v-for="event in hooked" :key="event.timestamp + event.uid" class="p-3 bg-yellow-100 rounded flex items-center space-x-4">
+            <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError">
+            <div>
+              <div class="font-semibold">{{ event.boat }}</div>
+              <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Events Column -->
-      <div class="w-2/3 overflow-y-auto">
-        <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
-          Event Feed
-          <button @click="fetchAll" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
-        </div>
-
-        <div v-if="loading && events.length === 0" class="flex items-center gap-3 p-4 text-gray-600">
-          <div class="spinner"></div>
-          <span>Fetching event data...</span>
-        </div>
-        <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
-
-        <div
-          v-for="(event, index) in displayedEvents"
-          :key="event.timestamp + event.uid"
-          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
-        >
-          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
-          <div>
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
-            <div class="text-sm">{{ event.details }}</div>
+      <!-- Event Feed -->
+      <div class="w-1/2 p-4">
+        <h2 class="text-xl font-semibold mb-2">Event Feed</h2>
+        <div v-if="loading" class="flex justify-center items-center h-32"><div class="spinner"></div></div>
+        <div v-else-if="events.length === 0" class="text-gray-500">No events to show.</div>
+        <div v-else class="space-y-2">
+          <div v-for="event in events" :key="event.timestamp + event.uid" class="p-3 bg-white rounded shadow flex items-center space-x-4">
+            <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError">
+            <div>
+              <div class="font-semibold">{{ event.boat }}</div>
+              <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }} - {{ event.event }}</div>
+              <div class="text-sm text-gray-600">{{ event.details }}</div>
+            </div>
           </div>
-        </div>
-
-        <div v-if="events.length > visibleCount" class="p-4 flex justify-center">
-          <button @click="showAll = !showAll" class="text-sm px-4 py-2 bg-blue-100 rounded hover:bg-blue-200">
-            {{ showAll ? 'Show Less' : 'Show More' }}
-          </button>
         </div>
       </div>
     </div>
@@ -101,96 +68,72 @@
 
   <script>
     const { createApp } = Vue
-
     createApp({
       data() {
         return {
           events: [],
           hooked: [],
           boatImages: {},
-          tournamentLogo: '',
           loading: true,
-          ready: false,
-          showAll: false,
-          visibleCount: 20,
-          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
+          tournamentLogo: '',
+          ready: false
         }
-      },
-      computed: {
-        displayedEvents() {
-          return this.showAll ? this.events : this.events.slice(0, this.visibleCount)
-        }
-      },
-      mounted() {
-        this.fetchAll()
-        this.loadTournamentLogo()
       },
       methods: {
         fetchAll() {
           this.loading = true
-          this.ready = false
 
-          const eventsPromise = fetch('/scrape/events').then(res => res.json())
-          const hookedPromise = fetch('/hooked').then(res => res.json())
-          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
+          Promise.all([
+            fetch('/scrape/events').then(res => res.json()),
+            fetch('/hooked').then(res => res.json()),
+            fetch('/participants_data?limit=1000&offset=0').then(res => res.json()),
+            fetch('/api/settings').then(res => res.json())
+          ]).then(([eventsData, hookedData, participants, settings]) => {
+            this.events = eventsData
+            this.hooked = hookedData
+            this.tournamentLogo = settings.logo
 
-          // Load event/hooked data quickly
-          Promise.all([eventsPromise, hookedPromise])
-            .then(([eventsData, hookedData]) => {
-              this.events = eventsData.events || []
-              this.hooked = hookedData.events || []
-              this.loading = false
-            })
-            .catch(err => {
-              console.error("❌ Event/Hooked fetch error:", err)
-              this.loading = false
-            })
+            const map = {}
+            for (const p of participants) {
+              map[p.uid] = p.image_path
+            }
+            this.boatImages = map
+            this.ready = true
 
-          // Load participant image data (doesn't block rendering)
-          participantsPromise
-            .then(participantsData => {
-              const images = {}
-              for (const p of participantsData.participants) {
-                images[p.uid] = p.image_path
-              }
-              this.boatImages = images
-              this.ready = true
-            })
-            .catch(err => {
-              console.error("❌ Participants fetch error:", err)
-              this.ready = true
-            })
+            // Trigger refresh to ensure image bindings update
+            this.$nextTick(() => {
+  this.events = this.events.map(e => ({ ...e }))
+  this.hooked = this.hooked.map(e => ({ ...e }))
+  this.loading = false
+})
+          })
         },
         getBoatImage(uid) {
-          return this.boatImages[uid] || ''
+          return this.boatImages[uid] || '/static/images/boats/default.jpg'
         },
-        formatTime(ts) {
-          try {
-            const dt = new Date(ts)
-            return dt.toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            })
-          } catch {
-            return ts
-          }
+        formatTime(isoString) {
+          const date = new Date(isoString)
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         },
-        isFollowed(uid) {
-          return this.followed.includes(uid)
-        },
-        loadTournamentLogo() {
-          fetch('/api/settings')
+        hideOnError(event) {
+          event.target.style.display = 'none'
+        }
+      },
+      mounted() {
+        const waitForReady = () => {
+          fetch('/status')
             .then(res => res.json())
-            .then(settings => {
-              const tournament = settings.tournament
-              return fetch('https://js9467.github.io/Brtourney/settings.json')
-                .then(res => res.json())
-                .then(all => {
-                  this.tournamentLogo = all[tournament]?.logo || ''
-                })
+            .then(status => {
+              if (status.participants_cache_fresh && status.events_cache_fresh) {
+                console.log('✅ Backend scrape ready — loading feed...')
+                this.fetchAll()
+              } else {
+                console.log('⏳ Waiting for backend to finish scraping...')
+                setTimeout(waitForReady, 2000)
+              }
             })
         }
+        waitForReady()
       }
     }).mount('#app')
   </script>

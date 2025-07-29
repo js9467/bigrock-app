@@ -88,16 +88,20 @@
           ]).then(([participantsData, eventsData, hookedData]) => {
             const images = {}
             for (const p of participantsData.participants) {
-              images[p.uid] = p.image_path
+              const uid = this.normalizeUid(p.uid)
+              images[uid] = p.image_path
             }
             this.boatImages = images
             this.events = eventsData.events || []
             this.hooked = hookedData.events || []
           })
         },
+        normalizeUid(name) {
+          return name.toLowerCase().replace(/['/]/g, "").replace(/\s+/g, "_")
+        },
         getBoatImage(uid) {
-          console.log('🔍 Looking up image for UID:', uid)
-          return this.boatImages[uid] || this.boatImages[uid?.toLowerCase?.()] || ''
+          const normalized = this.normalizeUid(uid)
+          return this.boatImages[normalized] || ''
         },
         formatTime(ts) {
           try {

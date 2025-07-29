@@ -222,7 +222,7 @@ def scrape_participants(force=False):
     try:
         tournament = get_current_tournament()
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
-        settings = requests.get(settings_url, timeout=10).json()
+        settings = requests.get(settings_url, timeout=30).json()
 
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
         if not matching_key:

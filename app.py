@@ -415,7 +415,7 @@ def scrape_events(force=False, skip_timestamp_check=False):
         new_events = []
 
         for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-            time_tag = article.select_one("p.pull-right")//
+            time_tag = article.select_one("p.pull-right")
             name_tag = article.select_one("h4.montserrat")
             desc_tag = article.select_one("p > strong")
 

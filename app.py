@@ -717,6 +717,7 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
+    # Load event data based on mode
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -727,17 +728,19 @@ def get_hooked_up_events():
             events = json.load(f)
 
     now = datetime.now()
-
     resolution_lookup = set()
+
+    # Build lookup of all resolution events
     for e in events:
         if e["event"] in ["Released", "Boated"] or \
            "pulled hook" in e.get("details", "").lower() or \
            "wrong species" in e.get("details", "").lower():
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                # Only count resolutions that have already occurred (by time of day)
                 if settings.get("data_source") == "demo" and ts.time() > now.time():
                     continue
-                resolution_lookup.add((e["uid"], ts.isoformat()))
+                resolution_lookup.add((e["uid"], ts))
             except:
                 continue
 
@@ -748,7 +751,7 @@ def get_hooked_up_events():
 
         try:
             uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
-            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+            target_ts = date_parser.parse(ts_str).replace(microsecond=0)
         except:
             unresolved.append(e)
             continue
@@ -761,6 +764,7 @@ def get_hooked_up_events():
         "count": len(unresolved),
         "events": unresolved
     })
+
 
 
 @app.route('/bluetooth/status')

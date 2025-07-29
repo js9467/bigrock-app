@@ -456,17 +456,25 @@ def participants_data():
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
 
-    try:
-        with open(participants_file) as f:
-            participants = json.load(f)
-    except:
-        participants = []
+    participants = []
+
+    if not os.path.exists(participants_file):
+        print(f"📡 Cache missing for {tournament} participants — triggering scrape...")
+        participants = scrape_participants(force=True)
+    else:
+        try:
+            with open(participants_file) as f:
+                participants = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Failed to read participants file — triggering scrape: {e}")
+            participants = scrape_participants(force=True)
 
     return jsonify({
         "status": "ok",
         "participants": participants,
         "count": len(participants)
     })
+
 
 
 

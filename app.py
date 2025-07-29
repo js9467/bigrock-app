@@ -281,7 +281,7 @@ def scrape_participants(force=False):
         )
 
         if force_download:
-            if image_url:
+        if image_url:
             download_tasks.append((uid, boat_name, image_url))
             image_path = ""  # Will be updated after download
         else:

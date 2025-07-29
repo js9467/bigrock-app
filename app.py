@@ -699,50 +699,20 @@ def get_hooked_up_events():
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
+        print(f"🧪 Loaded {len(events)} demo events for {tournament}")
     else:
         if not os.path.exists("events.json"):
             return jsonify({"status": "ok", "events": [], "count": 0})
         with open("events.json", "r") as f:
             events = json.load(f)
+        print(f"🧪 Loaded {len(events)} events from events.json")
 
-    # Parse all resolution event timestamps
-    resolution_times = set()
-    for e in events:
-        if e["event"] in ["Released", "Boated"] or \
-           "pulled hook" in e.get("details", "").lower() or \
-           "wrong species" in e.get("details", "").lower():
-            try:
-                ts = date_parser.parse(e["timestamp"])
-                resolution_times.add(ts)
-            except Exception as ex:
-                print(f"⚠️ Failed to parse resolution timestamp: {e.get('timestamp')}")
-
-    unresolved = []
-    for e in events:
-        if e["event"] != "Hooked Up":
-            continue
-
-        hookup_id = e.get("hookup_id", "")
-        try:
-            # Parse timestamp from hookup_id
-            parts = hookup_id.rsplit("_", 1)
-            if len(parts) != 2:
-                continue
-            hookup_time = date_parser.parse(parts[1])
-        except Exception as ex:
-            print(f"⚠️ Failed to parse hookup_id: {hookup_id}")
-            continue
-
-        # If the hookup_time does NOT exist in resolution times, it's unresolved
-        if hookup_time not in resolution_times:
-            unresolved.append(e)
-
-    # Return all unresolved "Hooked Up" events
     return jsonify({
         "status": "ok",
-        "count": len(unresolved),
-        "events": unresolved
+        "count": len(events),
+        "events": events[:5]  # just preview 5 events
     })
+
 
 
 

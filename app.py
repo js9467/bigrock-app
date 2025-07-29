@@ -717,7 +717,6 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    # Load events
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -729,7 +728,6 @@ def get_hooked_up_events():
 
     now = datetime.now()
 
-    # Build lookup set of resolution events (uid, timestamp)
     resolution_lookup = set()
     for e in events:
         if e["event"] in ["Released", "Boated"] or \
@@ -737,12 +735,11 @@ def get_hooked_up_events():
            "wrong species" in e.get("details", "").lower():
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                #if settings.get("data_source") == "demo" and ts.time() > now.time():
-                    #continue
+                if settings.get("data_source") == "demo" and ts.time() > now.time():
+                    continue
                 resolution_lookup.add((e["uid"], ts.isoformat()))
-                print(f"✅ RESOLUTION: {e['uid']} @ {ts.isoformat()}")
-            except Exception as ex:
-                print(f"⚠️ Error parsing resolution timestamp: {e.get('timestamp')}")
+            except:
+                continue
 
     unresolved = []
     for e in events:
@@ -752,24 +749,18 @@ def get_hooked_up_events():
         try:
             uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
             target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-            print(f"🔎 Checking hookup: {uid} @ {target_ts}")
-        except Exception as ex:
-            print(f"⚠️ Bad hookup_id: {e.get('hookup_id')}")
+        except:
             unresolved.append(e)
             continue
 
         if (uid, target_ts) not in resolution_lookup:
-            print(f"❌ UNRESOLVED: {uid} @ {target_ts}")
             unresolved.append(e)
-        else:
-            print(f"✅ MATCHED: {uid} @ {target_ts}")
 
     return jsonify({
         "status": "ok",
         "count": len(unresolved),
         "events": unresolved
     })
-
 
 
 @app.route('/bluetooth/status')

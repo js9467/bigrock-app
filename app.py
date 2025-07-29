@@ -691,9 +691,12 @@ def generate_demo():
 
 @app.route("/hooked")
 def get_hooked_up_events():
+    from dateutil import parser as date_parser
+
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
+    # Load event data
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -703,10 +706,9 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    # 🔍 Step 1: Print how many events were loaded
     print(f"📦 Loaded {len(events)} total events")
 
-    # Step 2: Build resolution timestamps
+    # Collect resolution timestamps
     resolution_times = set()
     for event in events:
         if event["event"] in ["Boated", "Released"]:
@@ -714,31 +716,24 @@ def get_hooked_up_events():
         elif "pulled hook" in event.get("details", "").lower() or "wrong species" in event.get("details", "").lower():
             resolution_times.add(event["timestamp"])
 
-    print("✅ Resolution timestamps:")
-    for ts in resolution_times:
-        print(" -", ts)
+    resolution_dt_set = {date_parser.parse(ts) for ts in resolution_times}
 
-    # Step 3: Identify unresolved Hooked Up events
+    # Identify unresolved Hooked Up events
     unresolved = []
     for event in events:
         if event.get("event") != "Hooked Up":
             continue
 
         hookup_id = event.get("hookup_id", "")
-        print(f"🔍 Hooked Up: {hookup_id}")
-
         try:
             _, ts = hookup_id.rsplit("_", 1)
-            print(f" → extracted resolution timestamp: {ts}")
+            hookup_time = date_parser.parse(ts)
         except Exception as e:
-            print(f"⚠️ Invalid hookup_id format: {hookup_id}")
+            print(f"⚠️ Invalid hookup_id format or parse error: {hookup_id}")
             continue
 
-        if ts not in resolution_times:
-            print(f" ✅ Unresolved: {event['boat']} (hooked at {event['timestamp']})")
+        if hookup_time not in resolution_dt_set:
             unresolved.append(event)
-        else:
-            print(f" ⛔ Resolved already: {event['boat']}")
 
     print(f"🎯 Returning {len(unresolved)} unresolved Hooked Up events")
 
@@ -747,6 +742,7 @@ def get_hooked_up_events():
         "count": len(unresolved),
         "events": unresolved
     })
+
 
 
 

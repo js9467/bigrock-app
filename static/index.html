@@ -125,7 +125,7 @@
         this.loadTournamentLogo()
         this.fetchAll()
 
-        // ✅ Auto-trigger initial scrape just like settings "Save"
+        // ✅ Auto-trigger scrape like settings "Save"
         fetch('/api/settings')
           .then(res => res.json())
           .then(settings => {
@@ -136,10 +136,8 @@
             })
           })
           .then(() => {
-            console.log('🔁 Auto-triggered scrape from initial load')
-            setTimeout(() => {
-              this.fetchAll()
-            }, 5000)
+            console.log('🕒 Scrape started — polling for readiness...')
+            this.pollForScrapeReady()
           })
       },
       methods: {
@@ -150,7 +148,6 @@
           const eventsPromise = fetch('/scrape/events').then(res => res.json())
           const hookedPromise = fetch('/hooked').then(res => res.json())
 
-          // Load events/hooked feed fast
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
               this.events = eventsData.events || []
@@ -162,7 +159,6 @@
               this.loading = false
             })
 
-          // Load participant images in background
           fetch('/participants_data?limit=1000&offset=0')
             .then(res => res.json())
             .then(data => {
@@ -173,7 +169,6 @@
               this.boatImages = map
               this.ready = true
 
-              // ✅ Force Vue to re-render with correct images
               this.events = [...this.events]
               this.hooked = [...this.hooked]
             })
@@ -181,6 +176,26 @@
               console.error("❌ Participants fetch error:", err)
               this.ready = true
             })
+        },
+        pollForScrapeReady() {
+          const poll = () => {
+            fetch('/status')
+              .then(res => res.json())
+              .then(status => {
+                if (status.participants_cache_fresh && status.events_cache_fresh) {
+                  console.log('✅ Scrape complete — fetching data now')
+                  this.fetchAll()
+                } else {
+                  console.log('⏳ Still waiting for scrape to finish...')
+                  setTimeout(poll, 2000)
+                }
+              })
+              .catch(err => {
+                console.error("❌ Status poll error:", err)
+                setTimeout(poll, 2000)
+              })
+          }
+          poll()
         },
         getBoatImage(uid) {
           return this.boatImages[uid] || '/static/images/boats/default.jpg'

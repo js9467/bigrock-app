@@ -710,61 +710,55 @@ from flask import jsonify
 from dateutil import parser as date_parser
 from datetime import datetime
 
+from dateutil import parser as date_parser
+
 @app.route("/hooked")
-def get_hooked_feed():
-    try:
-        tournament = get_current_tournament()
-        data_source = get_data_source()
+def get_hooked_up_events():
+    settings = load_settings()
+    tournament = settings.get("tournament", "Big Rock")
 
-        if data_source != "demo":
-            return jsonify({"hooked": []})  # skip live/historical for now
+    if settings.get("data_source") == "demo":
+        data = load_demo_data(tournament)
+        events = data.get("events", [])
+    else:
+        if not os.path.exists("events.json"):
+            return jsonify({"status": "ok", "events": [], "count": 0})
+        with open("events.json", "r") as f:
+            events = json.load(f)
 
-        print(f"🐟 [HOOKED] Demo mode feed for {tournament}")
-        if not os.path.exists(DEMO_DATA_FILE):
-            return jsonify({"hooked": []})
-
-        with open(DEMO_DATA_FILE, 'r') as f:
-            demo_data = json.load(f)
-
-        all_events = demo_data.get(tournament, {}).get("events", [])
-
-        # Separate hooked and resolution events
-        hooked_events = [e for e in all_events if e["event"] == "Hooked Up"]
-        resolution_events = [
-            e for e in all_events
-            if e["event"] in ["Released", "Boated"] or
-            "pulled hook" in e["details"].lower() or
-            "wrong species" in e["details"].lower()
-        ]
-
-        # Build a set of resolution times (time-of-day only)
-        resolved_times = set()
-        for e in resolution_events:
+    # Collect rounded resolution times (to the second)
+    resolution_times = set()
+    for e in events:
+        if e["event"] in ["Released", "Boated"] or \
+           "pulled hook" in e.get("details", "").lower() or \
+           "wrong species" in e.get("details", "").lower():
             try:
-                t = date_parser.parse(e["timestamp"]).time()
-                resolved_times.add(t)
-            except:
+                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                resolution_times.add(ts)
+            except Exception:
                 continue
 
-        # Return only unresolved events
-        unresolved = []
-        for e in hooked_events:
-            try:
-                # Extract time portion from hookup_id (e.g., "boatname_2025-06-14T10:13:00")
-                ts_str = e.get("hookup_id", "").split("_")[-1]
-                t = date_parser.parse(ts_str).time()
-                if t not in resolved_times:
-                    unresolved.append(e)
-            except Exception as ex:
-                print(f"⚠️ Failed to process {e.get('hookup_id')}: {ex}")
-                continue
+    unresolved = []
+    for e in events:
+        if e["event"] != "Hooked Up":
+            continue
 
-        print(f"✅ [HOOKED] Returning {len(unresolved)} unresolved demo events")
-        return jsonify({"hooked": unresolved})
+        hookup_id = e.get("hookup_id", "")
+        try:
+            _, ts_str = hookup_id.rsplit("_", 1)
+            ts = date_parser.parse(ts_str).replace(microsecond=0)
+        except Exception:
+            continue
 
-    except Exception as ex:
-        print(f"⚠️ Error loading hooked up feed: {ex}")
-        return jsonify({"status": "error", "message": str(ex)})
+        if ts not in resolution_times:
+            unresolved.append(e)
+
+    return jsonify({
+        "status": "ok",
+        "count": len(unresolved),
+        "events": unresolved
+    })
+
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

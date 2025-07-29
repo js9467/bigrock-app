@@ -1,0 +1,67 @@
+name: Auto Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate dynamic version based on commit count
+        run: |
+          VERSION="3.$(git rev-list --count HEAD)"
+          echo "$VERSION" > version.txt
+          echo "Generated version: $VERSION"
+
+      - name: Get list of changed files
+        id: changed
+        run: |
+          git fetch origin main --depth=2
+          FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          echo "$FILES" > files.txt
+          echo "files=$(paste -sd "," files.txt)" >> $GITHUB_OUTPUT
+          if grep -Ei '\.py$' files.txt; then
+            echo "py_changed=true" >> $GITHUB_ENV
+          else
+            echo "py_changed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Clean up rogue app.py in home
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 64.99.148.73
+          username: pi
+          key: ${{ secrets.PI_SSH_KEY }}
+          script: |
+            echo "🧹 Removing rogue /home/pi/app.py if it exists..."
+            rm -f /home/pi/app.py
+
+      - name: Upload all source files to Raspberry Pi
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: 64.99.148.73
+          username: pi
+          key: ${{ secrets.PI_SSH_KEY }}
+          source: "./*,./static/**,./templates/**,version.txt"
+          target: /home/pi/bigrock-app
+          overwrite: true
+
+      - name: Restart bigrock.service if Python files changed
+        if: env.py_changed == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 64.99.148.73
+          username: pi
+          key: ${{ secrets.PI_SSH_KEY }}
+          script: |
+            echo "🔁 Restarting bigrock.service..."
+            sudo systemctl restart bigrock.service
+            sleep 2
+            sudo systemctl status bigrock.service

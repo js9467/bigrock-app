@@ -707,32 +707,40 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    # Build set of all known resolution timestamps
     resolution_events = {"Boated", "Released", "Pulled Hook", "Wrong Species"}
-    resolved_timestamps = set()
+    resolved_ids = set()
 
     for e in events:
         if e["event"] in resolution_events:
-            ts = e["timestamp"]
-            resolved_timestamps.add(f"{e['uid']}_{ts}")
+            key = f"{e['uid']}_{e['timestamp']}"
+            resolved_ids.add(key)
 
-    # Now find all unresolved hook-ups
-    hooked = []
+    print(f"✅ Found {len(resolved_ids)} resolved events")
+
+    unresolved = []
     for e in events:
         if e["event"] != "Hooked Up":
             continue
-        hook_id = e.get("hookup_id")
-        if hook_id and hook_id not in resolved_timestamps:
-            hooked.append(e)
 
-    # Sort newest first
-    hooked = sorted(hooked, key=lambda e: e["timestamp"], reverse=True)
+        hook_id = e.get("hookup_id")
+        if not hook_id:
+            print(f"⚠️ Missing hookup_id for {e['uid']} at {e['timestamp']}")
+            continue
+
+        if hook_id in resolved_ids:
+            print(f"🔗 Resolved: {hook_id}")
+        else:
+            print(f"❗️Unresolved: {hook_id}")
+            unresolved.append(e)
+
+    print(f"📊 Hooked Up Unresolved Count: {len(unresolved)}")
 
     return jsonify({
         "status": "ok",
-        "count": len(hooked),
-        "events": hooked
+        "count": len(unresolved),
+        "events": unresolved
     })
+
 
 
 

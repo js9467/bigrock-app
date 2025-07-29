@@ -703,38 +703,51 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    # Build a set of timestamps for resolution events
+    # 🔍 Step 1: Print how many events were loaded
+    print(f"📦 Loaded {len(events)} total events")
+
+    # Step 2: Build resolution timestamps
     resolution_times = set()
     for event in events:
         if event["event"] in ["Boated", "Released"]:
             resolution_times.add(event["timestamp"])
-        elif "pulled hook" in event["details"].lower() or "wrong species" in event["details"].lower():
+        elif "pulled hook" in event.get("details", "").lower() or "wrong species" in event.get("details", "").lower():
             resolution_times.add(event["timestamp"])
 
-    # Return all Hooked Up events not resolved
+    print("✅ Resolution timestamps:")
+    for ts in resolution_times:
+        print(" -", ts)
+
+    # Step 3: Identify unresolved Hooked Up events
     unresolved = []
     for event in events:
-        if event["event"] != "Hooked Up":
+        if event.get("event") != "Hooked Up":
             continue
 
         hookup_id = event.get("hookup_id", "")
-        if "_" not in hookup_id:
-            continue
+        print(f"🔍 Hooked Up: {hookup_id}")
 
         try:
             _, ts = hookup_id.rsplit("_", 1)
+            print(f" → extracted resolution timestamp: {ts}")
         except Exception as e:
             print(f"⚠️ Invalid hookup_id format: {hookup_id}")
             continue
 
         if ts not in resolution_times:
+            print(f" ✅ Unresolved: {event['boat']} (hooked at {event['timestamp']})")
             unresolved.append(event)
+        else:
+            print(f" ⛔ Resolved already: {event['boat']}")
+
+    print(f"🎯 Returning {len(unresolved)} unresolved Hooked Up events")
 
     return jsonify({
         "status": "ok",
         "count": len(unresolved),
         "events": unresolved
     })
+
 
 
 @app.route('/bluetooth/status')

@@ -491,18 +491,27 @@ def scrape_participants_route():
 @app.route('/participants_data')
 def get_participants_data():
     try:
-        with open("participants_master.json", "r") as f:
+        participants_file = get_cache_path("participants.json")
+        if not os.path.exists(participants_file):
+            return jsonify({"status": "error", "message": "Participants cache not found"}), 404
+
+        with open(participants_file, "r") as f:
             data = json.load(f)
+
         limit = int(request.args.get("limit", 100))
         offset = int(request.args.get("offset", 0))
         sliced = data[offset:offset + limit]
+
         return jsonify({
             "count": len(data),
             "participants": sliced,
             "status": "ok"
         })
+
     except Exception as e:
+        print(f"⚠️ Error in /participants_data: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route("/scrape/events")
 def get_events():
@@ -541,16 +550,22 @@ def get_events():
 
 @app.route("/scrape/all")
 def scrape_all():
+    tournament = get_current_tournament()
+    print(f"🔁 Starting full scrape for tournament: {tournament}")
+
     events = scrape_events(force=True)
     participants = scrape_participants(force=True)
     run_in_thread(scrape_leaderboard, "leaderboard")
     run_in_thread(scrape_gallery, "gallery")
+
     return jsonify({
         "status": "ok",
+        "tournament": tournament,
         "events": len(events),
         "participants": len(participants),
         "message": "Scraped events & participants. Leaderboard & gallery running in background."
     })
+
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():

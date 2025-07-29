@@ -717,7 +717,6 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    # Load event data based on mode
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -728,19 +727,17 @@ def get_hooked_up_events():
             events = json.load(f)
 
     now = datetime.now()
-    resolution_lookup = set()
 
-    # Build lookup of all resolution events
+    resolution_lookup = set()
     for e in events:
         if e["event"] in ["Released", "Boated"] or \
            "pulled hook" in e.get("details", "").lower() or \
            "wrong species" in e.get("details", "").lower():
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                # Only count resolutions that have already occurred (by time of day)
                 if settings.get("data_source") == "demo" and ts.time() > now.time():
                     continue
-                resolution_lookup.add((e["uid"], ts))
+                resolution_lookup.add((e["uid"], ts.isoformat()))
             except:
                 continue
 
@@ -749,9 +746,18 @@ def get_hooked_up_events():
         if e["event"] != "Hooked Up":
             continue
 
+        # Add this block to filter future "Hooked Up" events in demo mode
+        try:
+            hookup_ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+            if settings.get("data_source") == "demo" and hookup_ts.time() > now.time():
+                continue
+        except Exception as ex:
+            print(f"⚠️ Failed to parse hookup timestamp in demo mode: {ex}")
+            continue
+
         try:
             uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
-            target_ts = date_parser.parse(ts_str).replace(microsecond=0)
+            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
         except:
             unresolved.append(e)
             continue

@@ -717,6 +717,7 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
+    # Load events
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -727,33 +728,39 @@ def get_hooked_up_events():
             events = json.load(f)
 
     now = datetime.now()
-    resolution_times = set()
 
+    # Get all real resolution events (by uid)
+    resolutions = []
     for e in events:
-        if e["event"] in ["Released", "Boated"] or \
+        if e["event"] in ["Boated", "Released"] or \
            "pulled hook" in e.get("details", "").lower() or \
            "wrong species" in e.get("details", "").lower():
             try:
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                ts = date_parser.parse(e["timestamp"])
                 if settings.get("data_source") == "demo" and ts.time() > now.time():
                     continue
-                resolution_times.add(ts)
+                resolutions.append((e["uid"], ts))
             except Exception:
                 continue
 
+    # Build unresolved list
     unresolved = []
     for e in events:
         if e["event"] != "Hooked Up":
             continue
 
-        hookup_id = e.get("hookup_id", "")
         try:
-            _, ts_str = hookup_id.rsplit("_", 1)
-            ts = date_parser.parse(ts_str).replace(microsecond=0)
+            hooked_ts = date_parser.parse(e["timestamp"])
         except Exception:
             continue
 
-        if ts not in resolution_times:
+        resolved = False
+        for uid, res_ts in resolutions:
+            if uid == e["uid"] and res_ts >= hooked_ts:
+                resolved = True
+                break
+
+        if not resolved:
             unresolved.append(e)
 
     return jsonify({
@@ -761,6 +768,7 @@ def get_hooked_up_events():
         "count": len(unresolved),
         "events": unresolved
     })
+
 
 
 @app.route('/bluetooth/status')

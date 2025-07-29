@@ -442,26 +442,23 @@ def scrape_participants_route():
         "status": "ok"
     })
 
-@app.route('/participants_data')
-def get_participants_data():
+@app.route("/participants_data")
+def participants_data():
+    tournament = get_current_tournament()
+    participants_file = get_cache_path(tournament, "participants.json")
+
     try:
-        participants_file = get_cache_path(tournament, "participants.json")
+        with open(participants_file) as f:
+            participants = json.load(f)
+    except:
+        participants = []
 
-        if not os.path.exists(participants_file):
-            return jsonify({"status": "error", "message": "Participants cache not found"}), 404
+    return jsonify({
+        "status": "ok",
+        "participants": participants,
+        "count": len(participants)
+    })
 
-        with open(participants_file, "r") as f:
-            data = json.load(f)
-
-        limit = int(request.args.get("limit", 100))
-        offset = int(request.args.get("offset", 0))
-        sliced = data[offset:offset + limit]
-
-        return jsonify({
-            "count": len(data),
-            "participants": sliced,
-            "status": "ok"
-        })
 
     except Exception as e:
         print(f"⚠️ Error in /participants_data: {e}")

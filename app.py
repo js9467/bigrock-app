@@ -329,93 +329,85 @@ def scrape_participants(force=False):
 
 
 
-def scrape_events(force=False, tournament=None):
-    cache = load_cache()
-    settings = load_settings()
-    tournament = tournament or get_current_tournament()
+def scrape_events(force=False, skip_timestamp_check=False):
+    from datetime import datetime, timedelta
+
+    tournament = get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
+    cache = load_cache()
 
-    if not force and is_cache_fresh(cache, f"events_{tournament}", 2):
-        if os.path.exists(events_file):
-            with open(events_file) as f:
-                return json.load(f)
-        return []
+    # Auto-force scrape if no cache file exists
+    if not force and not os.path.exists(events_file):
+        print("🟡 No event cache found, forcing initial scrape.")
+        force = True
 
+    if not force and not skip_timestamp_check and is_cache_fresh(cache, f"{tournament}_events", 2):
+        print("✅ Event cache is fresh — skipping scrape.")
+        with open(events_file, "r") as f:
+            return json.load(f)
+
+    print(f"📡 Scraping events for {tournament}...")
+
+    # Fetch the proper URL from settings.json
+    settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
-        settings_url = "https://js9467.github.io/Brtourney/settings.json"
-        remote = requests.get(settings_url).json()
-        key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
-        events_url = remote[key]["events"]
-
-        html = fetch_page_html(events_url, "article.m-b-20, article.entry, div.activity, li.event, div.feed-item")
-        soup = BeautifulSoup(html, 'html.parser')
-        events = []
-        seen = set()
-
-        participants_file = get_cache_path(tournament, "participants.json")
-        participants = {}
-        if os.path.exists(participants_file):
-            with open(participants_file) as f:
-                participants = {p["uid"]: p for p in json.load(f)}
-
-        for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-            time_tag = article.select_one("p.pull-right")
-            name_tag = article.select_one("h4.montserrat")
-            desc_tag = article.select_one("p > strong")
-            if not time_tag or not name_tag or not desc_tag:
-                continue
-
-            raw = time_tag.get_text(strip=True).replace("@", "").strip()
-            try:
-                ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
-            except:
-                continue
-
-            boat = name_tag.get_text(strip=True)
-            desc = desc_tag.get_text(strip=True)
-            uid = normalize_boat_name(boat)
-
-            # Use participant boat name if found
-            if uid in participants:
-                boat = participants[uid]["boat"]
-
-            if "released" in desc.lower():
-                event_type = "Released"
-            elif "boated" in desc.lower():
-                event_type = "Boated"
-            elif "pulled hook" in desc.lower():
-                event_type = "Pulled Hook"
-            elif "wrong species" in desc.lower():
-                event_type = "Wrong Species"
-            else:
-                event_type = "Other"
-
-            # Deduplication check
-            key = f"{uid}_{event_type}_{ts}"
-            if key in seen:
-                continue
-            seen.add(key)
-
-            events.append({
-                "timestamp": ts,
-                "event": event_type,
-                "boat": boat,
-                "uid": uid,
-                "details": desc,
-                "image_path": participants.get(uid, {}).get("image_path", "/static/images/boats/default.jpg")
-            })
-
-        events.sort(key=lambda e: e["timestamp"])
-        with open(events_file, "w") as f:
-            json.dump(events, f, indent=2)
-
-        cache[f"events_{tournament}"] = {"last_scraped": datetime.now().isoformat()}
-        save_cache(cache)
-        return events
-
+        settings = requests.get(settings_url, timeout=30).json()
+        source = settings.get(tournament, {}).get("events")
+        if not source:
+            raise Exception(f"Missing events URL for {tournament}")
     except Exception as e:
-        print(f"❌ Error in scrape_events: {e}")
-        return []
+        print(f"❌ Error loading tournament settings: {e}")
+        return {"events": []}
+
+    html = fetch_page_html(source, "article")
+    with open("debug_events.html", "w", encoding="utf-8") as f:
+        f.write(html)
+
+    soup = BeautifulSoup(html, "html.parser")
+    articles = soup.select("article")
+    parsed_events = []
+
+    for article in articles:
+        h2 = article.select_one("h2")
+        time_tag = article.select_one("time")
+        details = article.select_one(".post-content")
+
+        if not (h2 and time_tag):
+            continue
+
+        timestamp = time_tag["datetime"]
+        line = h2.get_text(strip=True)
+        if " - " in line:
+            boat, event = line.split(" - ", 1)
+        else:
+            boat = line
+            event = "Other"
+
+        uid = normalize_boat_name(boat)
+        parsed_events.append({
+            "timestamp": timestamp,
+            "event": event.strip(),
+            "boat": boat.strip(),
+            "uid": uid,
+            "details": details.get_text(strip=True) if details else ""
+        })
+
+    print(f"📦 Parsed {len(parsed_events)} raw events")
+
+    # Inject demo Hooked Up events if needed
+    if get_mode() == "demo":
+        parsed_events = inject_hooked_up_events(parsed_events, tournament)
+
+    # Cache result
+    os.makedirs(os.path.dirname(events_file), exist_ok=True)
+    with open(events_file, "w") as f:
+        json.dump(parsed_events, f, indent=2)
+    print(f"✅ Saved {len(parsed_events)} events to cache")
+
+    cache[f"{tournament}_events"] = {"last_scraped": datetime.now().isoformat()}
+    save_cache(cache)
+    return {"events": parsed_events}
+
 
 
 def scrape_leaderboard(force=False):

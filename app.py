@@ -737,8 +737,8 @@ def get_hooked_up_events():
            "wrong species" in e.get("details", "").lower():
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if settings.get("data_source") == "demo" and ts.time() > now.time():
-                    continue
+                #if settings.get("data_source") == "demo" and ts.time() > now.time():
+                    #continue
                 resolution_lookup.add((e["uid"], ts.isoformat()))
                 print(f"✅ RESOLUTION: {e['uid']} @ {ts.isoformat()}")
             except Exception as ex:

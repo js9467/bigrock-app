@@ -549,13 +549,27 @@ def get_events():
     tournament = settings.get("tournament", "Big Rock")
 
     if settings.get("data_source") == "demo":
-        data = load_demo_data(tournament)
-        events = sorted(data["events"], key=lambda e: e["timestamp"], reverse=True)  # 🔁 NEWEST FIRST
-        return jsonify({
-            "status": "ok",
-            "count": len(events),
-            "events": events
-        })
+    data = load_demo_data(tournament)
+    all_events = data.get("events", [])
+
+    now = datetime.now()
+    filtered = []
+
+    for e in all_events:
+        try:
+            ts = date_parser.parse(e["timestamp"])
+            if ts.time() <= now.time():
+                filtered.append(e)
+        except Exception as ex:
+            print(f"⚠️ Failed to parse timestamp in demo mode: {e.get('timestamp')}")
+            continue
+
+    return jsonify({
+        "status": "ok",
+        "count": len(filtered),
+        "events": filtered[:10]
+    })
+
 
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force)

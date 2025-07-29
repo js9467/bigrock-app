@@ -216,7 +216,6 @@ def scrape_participants(force=False):
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
 
-
     if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
         if os.path.exists(participants_file):
@@ -272,28 +271,28 @@ def scrape_participants(force=False):
 
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
             image_path = existing_participants.get(uid, {}).get("image_path", "")
+            local_path = image_path[1:] if image_path.startswith('/') else image_path
 
             # Always download on first scrape or if image is missing
-        force_download = (
-            uid not in existing_participants or
-            not image_path or
-            not os.path.exists(image_path[1:] if image_path.startswith('/') else image_path)
-        )
+            force_download = (
+                uid not in existing_participants or
+                not image_path or
+                not os.path.exists(local_path)
+            )
 
-        if force_download:
-        if image_url:
-            download_tasks.append((uid, boat_name, image_url))
-            image_path = ""  # Will be updated after download
-        else:
-            image_path = "/static/images/boats/default.jpg"
+            if force_download:
+                if image_url:
+                    download_tasks.append((uid, boat_name, image_url))
+                    image_path = ""  # Will be updated after download
+                else:
+                    image_path = "/static/images/boats/default.jpg"
 
-        updated_participants[uid] = {
-            "uid": uid,
-            "boat": boat_name,
-            "type": boat_type,
-            "image_path": image_path
-        }
-
+            updated_participants[uid] = {
+                "uid": uid,
+                "boat": boat_name,
+                "type": boat_type,
+                "image_path": image_path
+            }
 
         # Download images in parallel
         if download_tasks:
@@ -327,6 +326,7 @@ def scrape_participants(force=False):
     except Exception as e:
         print(f"⚠️ Error scraping participants: {e}")
         return []
+
 
 
 def scrape_events(force=False, tournament=None):

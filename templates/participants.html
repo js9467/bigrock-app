@@ -22,13 +22,23 @@
     </header>
 
     <div class="p-4 max-w-screen-xl mx-auto">
-      <header class="flex items-center justify-between mb-6">
+      <!-- Heading and Controls -->
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <h1 class="text-4xl font-bold text-yellow-600">Tournament Participants</h1>
-        <button @click="reload" class="px-4 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800">Reload</button>
+        <div class="flex gap-2 w-full sm:w-auto">
+          <input
+            v-model="search"
+            type="text"
+            placeholder="Search boats..."
+            class="px-4 py-2 border rounded w-full sm:w-64"
+          />
+          <button @click="reload" class="px-4 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800">Reload</button>
+        </div>
       </header>
 
+      <!-- Grid of Participants -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        <div v-for="p in participants" :key="p.uid" class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
+        <div v-for="p in filteredParticipants" :key="p.uid" class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
           <img :src="p.image_path || 'static/images/default.jpg'" alt="Boat Image" class="w-full h-48 object-cover" loading="lazy" />
           <div class="p-4">
             <h2 class="text-xl font-semibold">{{ p.boat }}</h2>
@@ -46,8 +56,10 @@
         </div>
       </div>
 
+      <!-- Status messages -->
       <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">Loading more boats...</div>
-      <div v-if="allLoaded" class="text-center py-6 text-green-600 text-sm">All boats loaded.</div>
+      <div v-if="allLoaded && filteredParticipants.length === 0" class="text-center py-6 text-red-600 text-sm">No boats match your search.</div>
+      <div v-else-if="allLoaded" class="text-center py-6 text-green-600 text-sm">All boats loaded.</div>
     </div>
   </div>
 
@@ -62,8 +74,17 @@
           loading: false,
           allLoaded: false,
           tournaments: {},
-          tournamentLogo: ''
+          tournamentLogo: '',
+          search: ''
         };
+      },
+      computed: {
+        filteredParticipants() {
+          const q = this.search.toLowerCase();
+          return this.participants.filter(p =>
+            p.boat.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
+          );
+        }
       },
       methods: {
         async loadMore() {

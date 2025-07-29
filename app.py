@@ -1,5 +1,3 @@
- 
- 
 from flask import Flask, jsonify, request
 from flask import send_from_directory
 from dateutil import parser as date_parser
@@ -15,7 +13,9 @@ from datetime import datetime, timedelta
 from threading import Thread
 import random
 import re
+import time
 
+from concurrent.futures import ThreadPoolExecutor
 
 CACHE_FILE = 'cache.json'
 
@@ -93,7 +93,14 @@ def cache_boat_image(boat_name, image_url):
                     f.write(response.content)
         except Exception as e:
             print(f"⚠️ Error downloading image for {boat_name}: {e}")
-    return file_path
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return ""
+
+    if os.path.exists(file_path):
+        return file_path
+    else:
+        return ""
 
 def fetch_page_html(url, wait_selector=None, timeout=30000):
     """Load a page with Playwright and return the final HTML."""
@@ -209,10 +216,6 @@ def run_in_thread(target, name):
             print(f"❌ Error in {name} thread: {e}")
     Thread(target=wrapper).start()
 
-from concurrent.futures import ThreadPoolExecutor
-
-from concurrent.futures import ThreadPoolExecutor
-
 def scrape_participants(force=False):
     cache = load_cache()
     if not force and is_cache_fresh(cache, "participants", 1440):
@@ -250,33 +253,6 @@ def scrape_participants(force=False):
         seen_boats = set()
         download_tasks = []
 
-        def cache_boat_image(boat_name, image_url):
-            folder = 'static/images/boats'
-            os.makedirs(folder, exist_ok=True)
-            safe_name = normalize_boat_name(boat_name)
-            file_path = os.path.join(folder, f"{safe_name}.jpg")
-
-            if not os.path.exists(file_path):
-                try:
-                    if not image_url:
-                        print(f"⚠️ No image URL for {boat_name}")
-                        return ""
-                    response = requests.get(image_url, timeout=10)
-                    if response.status_code == 200:
-                        with open(file_path, 'wb') as f:
-                            f.write(response.content)
-                        return file_path
-                    else:
-                        print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
-                        return ""
-                except Exception as e:
-                    print(f"⚠️ Exception downloading image for {boat_name}: {e}")
-                    return ""
-            return file_path
-
-        def download_and_store_image(boat_name, url):
-            return cache_boat_image(boat_name, url)
-
         for article in soup.select("article.post.format-image"):
             name_tag = article.select_one("h2.post-title")
             type_tag = article.select_one("ul.post-meta li")
@@ -294,44 +270,41 @@ def scrape_participants(force=False):
             seen_boats.add(boat_name.lower())
 
             existing = existing_participants.get(uid)
-            existing_image = existing["image_path"] if existing else ""
+            existing_image = existing.get("image_path", "") if existing else ""
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-            image_path = ""
-
-            # Use existing image if it still exists
-            if existing_image and os.path.exists(existing_image):
-                image_path = existing_image
-            elif image_url:
-                download_tasks.append((uid, boat_name, image_url))
-                image_path = os.path.join('static/images/boats', f"{uid}.jpg")
-            else:
-                print(f"🚫 No image URL found for: {boat_name}")
-                image_path = ""
 
             updated_participants[uid] = {
                 "uid": uid,
                 "boat": boat_name,
                 "type": boat_type,
-                "image_path": image_path
+                "image_path": ""
             }
+
+            if existing_image and os.path.exists(existing_image):
+                updated_participants[uid]["image_path"] = existing_image
+            elif image_url:
+                download_tasks.append((uid, boat_name, image_url))
+            else:
+                print(f"🚫 No image URL found for: {boat_name}")
 
         # Download all missing images in parallel
         if download_tasks:
             print(f"📸 Downloading {len(download_tasks)} new boat images in parallel...")
             with ThreadPoolExecutor(max_workers=6) as executor:
                 futures = {
-                    executor.submit(cache_boat_image, bname, url): (uid, bname)
+                    executor.submit(cache_boat_image, bname, url): uid
                     for uid, bname, url in download_tasks
                 }
                 for future in futures:
-                    uid, bname = futures[future]
+                    uid = futures[future]
                     try:
                         result_path = future.result()
-                        if not result_path or not os.path.exists(result_path):
-                            print(f"❌ Image for {bname} failed to download.")
+                        if result_path:
+                            updated_participants[uid]["image_path"] = result_path
+                        else:
                             updated_participants[uid]["image_path"] = ""
                     except Exception as e:
-                        print(f"❌ Error downloading image for {bname}: {e}")
+                        print(f"❌ Error downloading image for {uid}: {e}")
                         updated_participants[uid]["image_path"] = ""
 
         updated_list = list(updated_participants.values())
@@ -387,11 +360,11 @@ def scrape_events(force=False, skip_timestamp_check=False):
         try:
             with open("participants_master.json", "r") as f:
                 participants = json.load(f)
-            uid_lookup = {p["boat"].split(" ")[0].lower(): p["uid"] for p in participants}
+            participants_dict = {p["uid"]: p for p in participants}
         except Exception as e:
             print(f"❌ Failed to load participants: {e}")
             participants = []
-            uid_lookup = {}
+            participants_dict = {}
 
         # Load previous events
         existing = []
@@ -463,6 +436,8 @@ def scrape_events(force=False, skip_timestamp_check=False):
                 continue
 
             uid = normalize_boat_name(boat_name)
+            if uid in participants_dict:
+                boat_name = participants_dict[uid]["boat"]
 
             new_events.append({
                 "timestamp": timestamp_iso,
@@ -515,6 +490,9 @@ def homepage():
 def participants_page():
     return send_from_directory('templates', 'participants.html')
 
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('static', filename)
 
 
 @app.route('/scrape/participants')
@@ -693,24 +671,6 @@ def generate_demo():
     except Exception as e:
         print(f"❌ Error generating demo data: {e}")
         return jsonify({"status": "error", "message": str(e)})
-
-from dateutil import parser as date_parser
-
-from dateutil import parser as date_parser
-
-from datetime import datetime
-from flask import jsonify
-
-from flask import jsonify
-from datetime import datetime
-import json
-import os
-
-from flask import jsonify
-from dateutil import parser as date_parser
-from datetime import datetime
-
-from dateutil import parser as date_parser
 
 @app.route("/hooked")
 def get_hooked_up_events():

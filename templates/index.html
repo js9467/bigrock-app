@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="/static/css/base.css" />
   <style>
     body { touch-action: manipulation; }
-
     .spinner {
       border: 4px solid rgba(0, 0, 0, 0.1);
       border-left-color: #f6c553;
@@ -18,26 +17,14 @@
       height: 36px;
       animation: spin 1s linear infinite;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .fade-in {
+      animation: fadein 0.5s ease-in;
     }
-
-    .fade-enter-active {
-      transition: opacity 0.5s ease;
-    }
-
-    .fade-enter-from {
-      opacity: 0;
-    }
-
-    .highlight-new {
-      animation: flash 2s ease-in-out;
-    }
-
-    @keyframes flash {
-      0% { background-color: #fef9c3; }
-      100% { background-color: transparent; }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
@@ -50,14 +37,8 @@
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
       <div class="flex items-center gap-3">
-        <a href="/participants"
-           class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          Participants
-        </a>
-        <a href="/settings-page"
-           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          ⚙
-        </a>
+        <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
     </header>
 
@@ -73,7 +54,7 @@
         <div
           v-for="event in hooked"
           :key="event.timestamp + event.uid"
-          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
           <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
           <div>
@@ -83,40 +64,35 @@
         </div>
       </div>
 
-      <!-- Main Events Column -->
+      <!-- Events Column -->
       <div class="w-2/3 overflow-y-auto">
         <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
           Event Feed
           <button @click="fetchAll" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
         </div>
+
         <div v-if="loading && events.length === 0" class="flex items-center gap-3 p-4 text-gray-600">
           <div class="spinner"></div>
           <span>Fetching event data...</span>
         </div>
         <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
 
-        <transition-group name="fade" tag="div">
-          <div
-            v-for="(event, index) in visibleEvents"
-            :key="event.timestamp + event.uid"
-            :class="[
-              'p-4 border-b flex items-center gap-4 hover:bg-gray-50 transition-all duration-500',
-              isFollowed(event.uid) ? 'bg-yellow-100' : '',
-              newEventUids.has(event.timestamp + event.uid) ? 'highlight-new' : ''
-            ]"
-          >
-            <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
-            <div>
-              <div class="text-lg font-semibold">{{ event.boat }}</div>
-              <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
-              <div class="text-sm">{{ event.details }}</div>
-            </div>
+        <div
+          v-for="(event, index) in displayedEvents"
+          :key="event.timestamp + event.uid"
+          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+        >
+          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <div>
+            <div class="text-lg font-semibold">{{ event.boat }}</div>
+            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+            <div class="text-sm">{{ event.details }}</div>
           </div>
-        </transition-group>
+        </div>
 
-        <div v-if="events.length > maxVisible" class="p-4 text-center">
-          <button @click="expand = !expand" class="text-blue-700 font-medium hover:underline">
-            {{ expand ? 'Show Less' : 'Show More' }}
+        <div v-if="events.length > visibleCount" class="p-4 flex justify-center">
+          <button @click="showAll = !showAll" class="text-sm px-4 py-2 bg-blue-100 rounded hover:bg-blue-200">
+            {{ showAll ? 'Show Less' : 'Show More' }}
           </button>
         </div>
       </div>
@@ -135,15 +111,14 @@
           tournamentLogo: '',
           loading: true,
           ready: false,
-          expand: false,
-          maxVisible: 20,
-          newEventUids: new Set(),
+          showAll: false,
+          visibleCount: 20,
           followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
         }
       },
       computed: {
-        visibleEvents() {
-          return this.expand ? this.events : this.events.slice(0, this.maxVisible)
+        displayedEvents() {
+          return this.showAll ? this.events : this.events.slice(0, this.visibleCount)
         }
       },
       mounted() {
@@ -159,31 +134,19 @@
           const hookedPromise = fetch('/hooked').then(res => res.json())
           const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
 
+          // Load event/hooked data quickly
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
-              const newUids = new Set()
-              for (const e of eventsData.events || []) {
-                newUids.add(e.timestamp + e.uid)
-              }
-
-              // Track newly added events
-              const oldUids = new Set(this.events.map(e => e.timestamp + e.uid))
-              const incoming = eventsData.events || []
-              const newOnes = incoming.filter(e => !oldUids.has(e.timestamp + e.uid))
-
-              newOnes.forEach(e => {
-                const key = e.timestamp + e.uid
-                this.newEventUids.add(key)
-                setTimeout(() => this.newEventUids.delete(key), 2000)
-              })
-
-              this.events = incoming
+              this.events = eventsData.events || []
               this.hooked = hookedData.events || []
+              this.loading = false
             })
             .catch(err => {
               console.error("❌ Event/Hooked fetch error:", err)
+              this.loading = false
             })
 
+          // Load participant image data (doesn't block rendering)
           participantsPromise
             .then(participantsData => {
               const images = {}
@@ -192,12 +155,10 @@
               }
               this.boatImages = images
               this.ready = true
-              this.loading = false
             })
             .catch(err => {
               console.error("❌ Participants fetch error:", err)
               this.ready = true
-              this.loading = false
             })
         },
         getBoatImage(uid) {

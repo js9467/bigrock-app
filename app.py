@@ -17,11 +17,11 @@ EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
-def get_cache_path(file_type):
-    tournament = get_current_tournament()
-    safe = tournament.lower().replace(" ", "_")
-    os.makedirs(f"cache/{safe}", exist_ok=True)
-    return f"cache/{safe}/{file_type}.json"
+def get_cache_path(tournament, filename):
+    folder = os.path.join("cache", normalize_boat_name(tournament))
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, filename)
+
 
 def load_cache():
     if os.path.exists(CACHE_FILE):

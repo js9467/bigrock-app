@@ -459,23 +459,35 @@ def participants_data():
 
     participants = []
 
-    if not os.path.exists(participants_file):
-        print(f"📡 Cache missing for {tournament} — triggering scrape_participants()")
-        participants = scrape_participants(force=True)
-    else:
-        try:
-            with open(participants_file) as f:
-                participants = json.load(f)
-        except Exception as e:
-            print(f"⚠️ Failed to load participants, scraping instead: {e}")
+    try:
+        if not os.path.exists(participants_file):
+            raise FileNotFoundError("🚫 No participants cache found")
+
+        with open(participants_file) as f:
+            participants = json.load(f)
+
+        # Check if image paths are missing or broken
+        missing_images = 0
+        for p in participants:
+            path = p.get("image_path", "")
+            local_path = path[1:] if path.startswith("/") else path
+            if not path or not os.path.exists(local_path):
+                missing_images += 1
+
+        if missing_images > 0:
+            print(f"🚨 Detected {missing_images} missing or broken images — rescraping...")
             participants = scrape_participants(force=True)
 
-    print(f"✅ Returning {len(participants)} participants")
+    except Exception as e:
+        print(f"⚠️ Error loading participants, rescraping: {e}")
+        participants = scrape_participants(force=True)
+
     return jsonify({
         "status": "ok",
         "participants": participants,
         "count": len(participants)
     })
+
 
 
 

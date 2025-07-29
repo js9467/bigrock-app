@@ -82,26 +82,21 @@
       methods: {
         fetchAll() {
           Promise.all([
-            fetch('/scrape/participants').then(res => res.json()),
+            fetch('/participants_data?limit=1000&offset=0').then(res => res.json()),
             fetch('/scrape/events').then(res => res.json()),
             fetch('/hooked').then(res => res.json())
           ]).then(([participantsData, eventsData, hookedData]) => {
             const images = {}
             for (const p of participantsData.participants) {
-              const uid = this.normalizeUid(p.uid)
-              images[uid] = p.image_path
+              images[p.uid] = p.image_path
             }
             this.boatImages = images
             this.events = eventsData.events || []
             this.hooked = hookedData.events || []
           })
         },
-        normalizeUid(name) {
-          return name.toLowerCase().replace(/['/]/g, "").replace(/\s+/g, "_")
-        },
         getBoatImage(uid) {
-          const normalized = this.normalizeUid(uid)
-          return this.boatImages[normalized] || ''
+          return this.boatImages[uid] || ''
         },
         formatTime(ts) {
           try {

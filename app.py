@@ -30,6 +30,7 @@ def save_cache(cache):
         json.dump(cache, f, indent=2)
 app = Flask(__name__)
 
+EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 

@@ -745,6 +745,17 @@ def get_hooked_up_events():
 
     unresolved = []
     for e in events:
+    if e["event"] in ["Released", "Boated", "Pulled Hook", "Wrong Species"]:
+        print("✅ RESOLUTION:", e["uid"], e["timestamp"])
+
+for e in events:
+    if e["event"] == "Hooked Up":
+        try:
+            uid, target_ts_str = e["hookup_id"].rsplit("_", 1)
+            print("🔎 Checking:", uid, target_ts_str)
+        except Exception as ex:
+            print("⚠️ Parse failed:", e.get("hookup_id"))
+for e in events:
         if e["event"] != "Hooked Up":
             continue
 

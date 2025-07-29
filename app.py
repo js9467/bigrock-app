@@ -566,22 +566,29 @@ def api_settings():
         settings_data = request.get_json()
         if not settings_data:
             return jsonify({'status': 'error', 'message': 'Invalid JSON'}), 400
+
         old_settings = load_settings()
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings_data, f, indent=4)
         old_tournament = old_settings.get("tournament")
         new_tournament = settings_data.get("tournament")
         new_mode = settings_data.get("data_source")
+
+        # Save new settings
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings_data, f, indent=4)
+
+        # If tournament changed in live mode, force rescrape of that tournament only
         if new_tournament != old_tournament and new_mode == "live":
-            for f in ["events.json", "participants_master.json"]:
-                if os.path.exists(f):
-                    os.remove(f)
-                    print(f"🧹 Cleared {f} due to tournament change in live mode.")
-            run_in_thread(lambda: scrape_events(force=True), "events")
+            print(f"🔄 Tournament changed: {old_tournament} → {new_tournament}")
+            run_in_thread(lambda: scrape_events(force=True, tournament=new_tournament), "events")
             run_in_thread(lambda: scrape_participants(force=True), "participants")
+
+        # If demo mode enabled, generate demo data for selected tournament
         save_demo_data_if_needed(settings_data, old_settings)
+
         return jsonify({'status': 'success'})
+
     return jsonify(load_settings())
+
 
 @app.route('/settings-page/')
 def settings_page():

@@ -401,8 +401,7 @@ def scrape_events(force=False, tournament=None):
                 "event": event_type,
                 "boat": boat,
                 "uid": uid,
-                "details": desc,
-                "image_path": participants.get(uid, {}).get("image_path", "/static/images/boats/default.jpg")
+                "details": desc
             })
 
         events.sort(key=lambda e: e["timestamp"])

@@ -691,6 +691,8 @@ def generate_demo():
 
 from dateutil import parser as date_parser
 
+from dateutil import parser as date_parser
+
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()
@@ -699,18 +701,37 @@ def get_hooked_up_events():
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
-        print(f"🧪 Loaded {len(events)} demo events for {tournament}")
     else:
         if not os.path.exists("events.json"):
             return jsonify({"status": "ok", "events": [], "count": 0})
         with open("events.json", "r") as f:
             events = json.load(f)
-        print(f"🧪 Loaded {len(events)} events from events.json")
+
+    # Build set of all known resolution timestamps
+    resolution_events = {"Boated", "Released", "Pulled Hook", "Wrong Species"}
+    resolved_timestamps = set()
+
+    for e in events:
+        if e["event"] in resolution_events:
+            ts = e["timestamp"]
+            resolved_timestamps.add(f"{e['uid']}_{ts}")
+
+    # Now find all unresolved hook-ups
+    hooked = []
+    for e in events:
+        if e["event"] != "Hooked Up":
+            continue
+        hook_id = e.get("hookup_id")
+        if hook_id and hook_id not in resolved_timestamps:
+            hooked.append(e)
+
+    # Sort newest first
+    hooked = sorted(hooked, key=lambda e: e["timestamp"], reverse=True)
 
     return jsonify({
         "status": "ok",
-        "count": len(events),
-        "events": events[:5]  # just preview 5 events
+        "count": len(hooked),
+        "events": hooked
     })
 
 

@@ -415,7 +415,7 @@ def scrape_events(force=False, skip_timestamp_check=False):
         new_events = []
 
         for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-            time_tag = article.select_one("p.pull-right")
+            time_tag = article.select_one("p.pull-right")//
             name_tag = article.select_one("h4.montserrat")
             desc_tag = article.select_one("p > strong")
 
@@ -716,72 +716,55 @@ def get_hooked_feed():
         tournament = get_current_tournament()
         data_source = get_data_source()
 
-        if data_source == "demo":
-            print(f"🐟 [HOOKED] Demo mode feed for {tournament}")
-            if not os.path.exists(DEMO_DATA_FILE):
-                return jsonify({"hooked": []})
+        if data_source != "demo":
+            return jsonify({"hooked": []})  # skip live/historical for now
 
-            with open(DEMO_DATA_FILE, 'r') as f:
-                demo_data = json.load(f)
+        print(f"🐟 [HOOKED] Demo mode feed for {tournament}")
+        if not os.path.exists(DEMO_DATA_FILE):
+            return jsonify({"hooked": []})
 
-            all_events = demo_data.get(tournament, {}).get("events", [])
+        with open(DEMO_DATA_FILE, 'r') as f:
+            demo_data = json.load(f)
 
-            # Separate hooked and resolution events
-            hooked_events = [e for e in all_events if e["event"] == "Hooked Up"]
-            resolution_events = [
-                e for e in all_events
-                if e["event"] in ["Released", "Boated"] or
-                "pulled hook" in e["details"].lower() or
-                "wrong species" in e["details"].lower()
-            ]
+        all_events = demo_data.get(tournament, {}).get("events", [])
 
-            # Build a set of resolution times (time of day only)
-            resolved_times = set()
-            for e in resolution_events:
-                try:
-                    t = date_parser.parse(e["timestamp"]).time()
-                    resolved_times.add(t)
-                except:
-                    continue
+        # Separate hooked and resolution events
+        hooked_events = [e for e in all_events if e["event"] == "Hooked Up"]
+        resolution_events = [
+            e for e in all_events
+            if e["event"] in ["Released", "Boated"] or
+            "pulled hook" in e["details"].lower() or
+            "wrong species" in e["details"].lower()
+        ]
 
-            # Return only unresolved hooked events
-            unresolved = []
-            for e in hooked_events:
-                try:
-                    ts_str = e.get("hookup_id", "").split("_")[-1]
-                    t = date_parser.parse(ts_str).time()
-                    if t not in resolved_times:
-                        unresolved.append(e)
-                except Exception as ex:
-                    print(f"⚠️ Failed to process {e.get('hookup_id')}: {ex}")
-                    continue
+        # Build a set of resolution times (time-of-day only)
+        resolved_times = set()
+        for e in resolution_events:
+            try:
+                t = date_parser.parse(e["timestamp"]).time()
+                resolved_times.add(t)
+            except:
+                continue
 
-            print(f"✅ [HOOKED] Returning {len(unresolved)} unresolved demo events")
-            return jsonify({"hooked": unresolved})
+        # Return only unresolved events
+        unresolved = []
+        for e in hooked_events:
+            try:
+                # Extract time portion from hookup_id (e.g., "boatname_2025-06-14T10:13:00")
+                ts_str = e.get("hookup_id", "").split("_")[-1]
+                t = date_parser.parse(ts_str).time()
+                if t not in resolved_times:
+                    unresolved.append(e)
+            except Exception as ex:
+                print(f"⚠️ Failed to process {e.get('hookup_id')}: {ex}")
+                continue
 
-        else:
-            # Live/historical mode logic
-            events = load_events()
-            unresolved = []
-            resolved = set()
-
-            for e in events:
-                if e["event"] in ["Released", "Boated"] or "pulled hook" in e["details"].lower() or "wrong species" in e["details"].lower():
-                    resolved.add(e["uid"] + e["timestamp"])
-
-            for e in events:
-                if e["event"] == "Hooked Up":
-                    if e["uid"] + e["timestamp"] not in resolved:
-                        unresolved.append(e)
-
-            return jsonify({"hooked": unresolved})
+        print(f"✅ [HOOKED] Returning {len(unresolved)} unresolved demo events")
+        return jsonify({"hooked": unresolved})
 
     except Exception as ex:
         print(f"⚠️ Error loading hooked up feed: {ex}")
         return jsonify({"status": "error", "message": str(ex)})
-
-
-
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

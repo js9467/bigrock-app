@@ -15,24 +15,12 @@
     .modal-bg {
       background-color: rgba(0, 0, 0, 0.5);
     }
-    .toast {
-      position: fixed;
-      bottom: 1rem;
-      right: 1rem;
-      background: #333;
-      color: white;
-      padding: 1rem 1.25rem;
-      border-radius: 0.5rem;
-      opacity: 0.9;
-      z-index: 1000;
-      transition: opacity 0.3s ease-in-out;
-    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 text-lg">
 <div id="app">
 
-  <!-- Header -->
+  <!-- Header (matches index.html style) -->
   <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
     <div class="flex items-center space-x-4">
       <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
@@ -44,56 +32,20 @@
   <div class="p-6 max-w-2xl mx-auto space-y-8">
     <h1 class="text-3xl font-bold mb-4">⚙️ Settings</h1>
 
-    <!-- Tournament + Mode -->
-    <div class="space-y-4">
-      <div>
-        <label class="font-semibold">Tournament</label>
-        <select v-model="tournament" @change="saveSettings" class="w-full p-2 border rounded mt-1">
-          <option v-for="(value, name) in allTournaments" :value="name" v-if="value">{{ name }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="font-semibold">Mode</label>
-        <select v-model="mode" @change="saveSettings" class="w-full p-2 border rounded mt-1">
-          <option value="live">Live</option>
-          <option value="demo">Demo</option>
-        </select>
-      </div>
-    </div>
-
     <!-- Wi-Fi Section -->
     <div>
       <div class="flex justify-between items-center mb-2">
         <label class="font-semibold">Wi-Fi</label>
         <button @click="showWifiModal = true" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Scan</button>
       </div>
+
       <div v-if="connectedWifi">
         <div class="flex justify-between items-center border p-3 rounded">
-          <span>{{ connectedWifi.ssid }} <span class="ml-2">{{ signalIcon(connectedWifi.signal) }}</span></span>
+          <span>{{ connectedWifi.ssid }} ({{ connectedWifi.signal }}%)</span>
           <button class="text-red-600 font-semibold" @click="disconnectWifi">Disconnect</button>
         </div>
       </div>
       <div v-else class="text-sm text-gray-500">Not connected</div>
-    </div>
-
-    <!-- Bluetooth Section -->
-    <div>
-      <div class="flex justify-between items-center mb-2">
-        <label class="font-semibold">Bluetooth</label>
-        <button @click="scanBluetooth" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Scan</button>
-      </div>
-      <ul class="space-y-2">
-        <li v-for="device in bluetoothDevices" :key="device.mac" class="flex justify-between items-center border p-3 rounded">
-          <div>
-            <span class="font-semibold">{{ device.name }}</span>
-            <span class="ml-2 text-sm" :class="device.connected ? 'text-green-600' : 'text-gray-500'">
-              ({{ device.connected ? 'Connected' : 'Disconnected' }})
-            </span>
-          </div>
-          <button v-if="!device.connected" class="text-green-600 font-semibold" @click="connectBluetooth(device.mac)">Connect</button>
-          <button v-else class="text-red-600 font-semibold" @click="disconnectBluetooth(device.mac)">Disconnect</button>
-        </li>
-      </ul>
     </div>
   </div>
 
@@ -103,7 +55,7 @@
       <h2 class="text-xl font-bold mb-4">Available Networks</h2>
       <ul class="space-y-2 max-h-96 overflow-y-auto">
         <li v-for="wifi in availableNetworks" :key="wifi.ssid" class="flex justify-between items-center border p-3 rounded">
-          <span>{{ wifi.ssid }} <span class="ml-2">{{ signalIcon(wifi.signal) }}</span></span>
+          <span>{{ wifi.ssid }} ({{ wifi.signal }}%)</span>
           <button class="text-green-600 font-semibold" @click="promptPassword(wifi.ssid)">Connect</button>
         </li>
       </ul>
@@ -117,16 +69,14 @@
   <div v-if="passwordPrompt" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
     <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-4">
       <h2 class="text-lg font-bold mb-4">Enter password for {{ pendingSSID }}</h2>
-      <input v-model="password" type="password" placeholder="Password" class="w-full border p-2 rounded mb-4">
+      <input v-model="password" type="password" placeholder="Password"
+             class="w-full border p-2 rounded mb-4">
       <div class="text-right">
         <button @click="connectWifi" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Connect</button>
         <button @click="cancelPassword" class="ml-2 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
       </div>
     </div>
   </div>
-
-  <!-- Toast -->
-  <div v-if="toastMessage" class="toast">{{ toastMessage }}</div>
 </div>
 
 <script>
@@ -135,18 +85,13 @@ createApp({
   data() {
     return {
       tournamentLogo: '',
-      tournament: '',
-      mode: '',
-      allTournaments: {},
       wifiList: [],
       connectedWifi: null,
       showWifiModal: false,
       passwordPrompt: false,
       pendingSSID: '',
       password: '',
-      knownPasswords: JSON.parse(localStorage.getItem("wifiPasswords") || "{}"),
-      bluetoothDevices: [],
-      toastMessage: ''
+      knownPasswords: JSON.parse(localStorage.getItem("wifiPasswords") || "{}")
     };
   },
   computed: {
@@ -161,72 +106,28 @@ createApp({
     }
   },
   mounted() {
-    this.loadSettings();
     this.scanWifi();
-    this.scanBluetooth();
     this.loadTournamentLogo();
   },
   methods: {
-    showToast(msg) {
-      this.toastMessage = msg;
-      setTimeout(() => this.toastMessage = '', 3000);
-    },
-    signalIcon(signal) {
-      if (signal >= 75) return '📶📶📶📶';
-      if (signal >= 50) return '📶📶📶';
-      if (signal >= 25) return '📶📶';
-      if (signal > 0)  return '📶';
-      return '❌';
-    },
-    loadSettings() {
-      axios.get('/api/settings').then(res => {
-        this.tournament = res.data.tournament;
-        this.mode = res.data.mode;
-        return fetch('https://js9467.github.io/Brtourney/settings.json')
-          .then(r => r.json())
-          .then(all => {
-            this.allTournaments = all;
-          });
-      });
-    },
-    saveSettings() {
-      axios.post('/api/settings', {
-        tournament: this.tournament,
-        mode: this.mode
-      }).then(() => {
-        this.showToast("✅ Settings saved");
-      });
-    },
-    loadTournamentLogo() {
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(settings => {
-          const tournament = settings.tournament;
-          return fetch('https://js9467.github.io/Brtourney/settings.json')
-            .then(res => res.json())
-            .then(all => {
-              this.tournamentLogo = all[tournament]?.logo || '';
-            });
-        });
-    },
     scanWifi() {
       axios.get('/wifi/scan').then(res => {
         this.wifiList = res.data.networks || [];
         this.connectedWifi = this.wifiList.find(n => n.connected) || null;
 
-        const known = this.availableNetworks.find(n => this.knownPasswords[n.ssid]);
-        if (!this.connectedWifi && known) {
-          this.pendingSSID = known.ssid;
-          this.password = this.knownPasswords[known.ssid];
-          this.connectWifi(true);
+        // Auto-connect if possible
+        if (!this.connectedWifi) {
+          const known = this.availableNetworks.find(n => this.knownPasswords[n.ssid]);
+          if (known) {
+            this.pendingSSID = known.ssid;
+            this.password = this.knownPasswords[known.ssid];
+            this.connectWifi(true);
+          }
         }
       });
     },
     disconnectWifi() {
-      axios.post('/wifi/disconnect').then(() => {
-        this.showToast("📴 Disconnected from Wi-Fi");
-        this.scanWifi();
-      });
+      axios.post('/wifi/disconnect').then(() => this.scanWifi());
     },
     promptPassword(ssid) {
       this.pendingSSID = ssid;
@@ -249,31 +150,21 @@ createApp({
         this.passwordPrompt = false;
         this.pendingSSID = '';
         this.password = '';
-        this.showToast("✅ Connected to Wi-Fi");
         this.scanWifi();
         this.showWifiModal = false;
-      }).catch(() => {
-        this.showToast("❌ Failed to connect to Wi-Fi");
       });
     },
-    scanBluetooth() {
-      axios.get('/bluetooth/scan').then(res => {
-        this.bluetoothDevices = res.data.devices || [];
-      });
-    },
-    connectBluetooth(mac) {
-      axios.post('/bluetooth/connect', { mac }).then(() => {
-        this.showToast("✅ Bluetooth connected");
-        this.scanBluetooth();
-      }).catch(() => {
-        this.showToast("❌ Failed to connect Bluetooth");
-      });
-    },
-    disconnectBluetooth(mac) {
-      axios.post('/bluetooth/disconnect', { mac }).then(() => {
-        this.showToast("📴 Bluetooth disconnected");
-        this.scanBluetooth();
-      });
+    loadTournamentLogo() {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+            });
+        });
     }
   }
 }).mount('#app');

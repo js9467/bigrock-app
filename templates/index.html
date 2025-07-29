@@ -17,13 +17,18 @@
       height: 36px;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .fade-in {
+      animation: fadein 0.5s ease-in;
+    }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-
   <div id="app">
     <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
@@ -32,14 +37,8 @@
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
       <div class="flex items-center gap-3">
-        <a href="/participants"
-           class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          Participants
-        </a>
-        <a href="/settings-page"
-           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          ⚙
-        </a>
+        <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
     </header>
 
@@ -55,9 +54,9 @@
         <div
           v-for="event in hooked"
           :key="event.timestamp + event.uid"
-          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
@@ -65,28 +64,36 @@
         </div>
       </div>
 
-      <!-- Main Events Column -->
+      <!-- Events Column -->
       <div class="w-2/3 overflow-y-auto">
         <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
           Event Feed
           <button @click="fetchAll" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
         </div>
+
         <div v-if="loading && events.length === 0" class="flex items-center gap-3 p-4 text-gray-600">
           <div class="spinner"></div>
           <span>Fetching event data...</span>
         </div>
         <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+
         <div
-          v-for="event in events"
+          v-for="(event, index) in displayedEvents"
           :key="event.timestamp + event.uid"
-          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
             <div class="text-sm">{{ event.details }}</div>
           </div>
+        </div>
+
+        <div v-if="events.length > visibleCount" class="p-4 flex justify-center">
+          <button @click="showAll = !showAll" class="text-sm px-4 py-2 bg-blue-100 rounded hover:bg-blue-200">
+            {{ showAll ? 'Show Less' : 'Show More' }}
+          </button>
         </div>
       </div>
     </div>
@@ -103,7 +110,15 @@
           boatImages: {},
           tournamentLogo: '',
           loading: true,
+          ready: false,
+          showAll: false,
+          visibleCount: 20,
           followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
+        }
+      },
+      computed: {
+        displayedEvents() {
+          return this.showAll ? this.events : this.events.slice(0, this.visibleCount)
         }
       },
       mounted() {
@@ -113,23 +128,25 @@
       methods: {
         fetchAll() {
           this.loading = true
+          this.ready = false
 
-          // Fetch events and hooked immediately
           const eventsPromise = fetch('/scrape/events').then(res => res.json())
           const hookedPromise = fetch('/hooked').then(res => res.json())
-
-          // Fetch participants for images (may lag slightly)
           const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
 
+          // Load event/hooked data quickly
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
               this.events = eventsData.events || []
               this.hooked = hookedData.events || []
+              this.loading = false
             })
             .catch(err => {
               console.error("❌ Event/Hooked fetch error:", err)
+              this.loading = false
             })
 
+          // Load participant image data (doesn't block rendering)
           participantsPromise
             .then(participantsData => {
               const images = {}
@@ -137,11 +154,11 @@
                 images[p.uid] = p.image_path
               }
               this.boatImages = images
-              this.loading = false
+              this.ready = true
             })
             .catch(err => {
               console.error("❌ Participants fetch error:", err)
-              this.loading = false
+              this.ready = true
             })
         },
         getBoatImage(uid) {

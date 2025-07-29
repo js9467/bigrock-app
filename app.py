@@ -694,7 +694,6 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    # Load from demo or real
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -704,7 +703,6 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    # Build a set of resolution timestamps (i.e. the second part of hookup_id)
     resolution_times = set()
     for event in events:
         if event["event"] in ["Boated", "Released"]:
@@ -712,13 +710,15 @@ def get_hooked_up_events():
         elif "pulled hook" in event["details"].lower() or "wrong species" in event["details"].lower():
             resolution_times.add(event["timestamp"])
 
-    # Now find Hooked Up events that aren't resolved
     unresolved = []
     for event in events:
         if event["event"] != "Hooked Up":
             continue
         hookup_id = event.get("hookup_id", "")
-        _, ts = hookup_id.rsplit("_", 1)
+        try:
+            _, ts = hookup_id.rsplit("_", 1)
+        except:
+            continue
         if ts not in resolution_times:
             unresolved.append(event)
 
@@ -727,6 +727,7 @@ def get_hooked_up_events():
         "count": len(unresolved),
         "events": unresolved
     })
+
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

@@ -499,8 +499,20 @@ def get_events():
     tournament = settings.get("tournament", "Big Rock")
     tournament = get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
+    participants_file = get_cache_path(tournament, "participants.json")
 
+    # ✅ Ensure participants cache exists before scraping events
+    if not os.path.exists(participants_file):
+        print("⏳ No participants yet — scraping them first...")
+        scrape_participants(force=True)
 
+        # Optional: wait up to 5s (10 × 0.5s) for file creation
+        for _ in range(10):
+            if os.path.exists(participants_file):
+                break
+            time.sleep(0.5)
+
+    # Demo mode logic
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         all_events = data.get("events", [])
@@ -517,7 +529,8 @@ def get_events():
         })
 
     force = request.args.get("force", "false").lower() == "true"
-    events = scrape_events(force=force)
+    events = scrape_events(force=force, tournament=tournament)
+
     if not events and os.path.exists(events_file):
         with open(events_file, "r") as f:
             events = json.load(f)
@@ -528,6 +541,7 @@ def get_events():
         "count": len(events),
         "events": events[:10]
     })
+
 
 
 @app.route("/scrape/all")

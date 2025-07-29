@@ -315,140 +315,89 @@ def scrape_participants(force=False):
         return []
 
 
-def scrape_events(force=False, skip_timestamp_check=False):
+def scrape_events(force=False, tournament=None):
     cache = load_cache()
     settings = load_settings()
-    tournament = get_current_tournament()
-    events_file = get_cache_path("events.json")
-    participants_file = get_cache_path("participants.json")
+    tournament = tournament or get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
 
-    if not force and is_cache_fresh(cache, f"{tournament}_events", 2):
-        print("✅ Event cache is fresh — skipping scrape.")
+    if not force and is_cache_fresh(cache, f"events_{tournament}", 2):
         if os.path.exists(events_file):
-            with open(events_file, "r") as f:
+            with open(events_file) as f:
                 return json.load(f)
         return []
 
     try:
-        # Load tournament settings and events URL
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
-        remote_settings = requests.get(settings_url, timeout=30).json()
-        matching_key = next((k for k in remote_settings if k.lower() == tournament.lower()), None)
-        if not matching_key:
-            raise Exception(f"Tournament '{tournament}' not found in settings.json")
-        events_url = remote_settings[matching_key].get("events")
-        if not events_url:
-            raise Exception(f"No events URL found for {matching_key}")
-
-        print(f"➡️ Events URL: {events_url}")
-
-        # Load participants from per-tournament cache
-        participants_dict = {}
-        if os.path.exists(participants_file):
-            with open(participants_file, "r") as f:
-                participants = json.load(f)
-                participants_dict = {p["uid"]: p for p in participants}
-        else:
-            print("⚠️ Participants cache missing — regenerating...")
-            scrape_participants(force=True)
-            if os.path.exists(participants_file):
-                with open(participants_file, "r") as f:
-                    participants = json.load(f)
-                    participants_dict = {p["uid"]: p for p in participants}
-            else:
-                raise Exception("Failed to regenerate participants cache.")
-
-        # Load existing events
-        existing = []
-        last_known_ts = None
-        if os.path.exists(events_file):
-            with open(events_file, "r") as f:
-                existing = json.load(f)
-                try:
-                    last_known_ts = max(
-                        date_parser.parse(e["timestamp"]) for e in existing if e.get("timestamp")
-                    )
-                except Exception as e:
-                    print(f"⚠️ Failed to determine last known timestamp: {e}")
+        remote = requests.get(settings_url).json()
+        key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
+        events_url = remote[key]["events"]
 
         html = fetch_page_html(events_url, "article.m-b-20, article.entry, div.activity, li.event, div.feed-item")
-        with open("debug_events.html", "w", encoding="utf-8") as f:
-            f.write(html or "<!-- No HTML returned -->")
-
         soup = BeautifulSoup(html, 'html.parser')
-        new_events = []
+        events = []
+        seen = set()
+
+        participants_file = get_cache_path(tournament, "participants.json")
+        participants = {}
+        if os.path.exists(participants_file):
+            with open(participants_file) as f:
+                participants = {p["uid"]: p for p in json.load(f)}
 
         for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
             time_tag = article.select_one("p.pull-right")
             name_tag = article.select_one("h4.montserrat")
             desc_tag = article.select_one("p > strong")
-
             if not time_tag or not name_tag or not desc_tag:
                 continue
 
-            raw = time_tag.get_text(strip=True)
-            timestamp_str = raw.replace("@", "").strip()
-
+            raw = time_tag.get_text(strip=True).replace("@", "").strip()
             try:
-                dt = date_parser.parse(timestamp_str)
-                timestamp = dt.replace(year=datetime.now().year)
-                if (
-                    last_known_ts and
-                    timestamp <= last_known_ts and
-                    not skip_timestamp_check and
-                    settings.get("data_source") != "demo"
-                ):
-                    continue
-                timestamp_iso = timestamp.isoformat()
-            except Exception as e:
-                print(f"⚠️ Failed to parse '{timestamp_str}': {e}")
+                ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
+            except:
                 continue
 
-            boat_name = name_tag.get_text(strip=True)
-            description = desc_tag.get_text(strip=True)
+            boat = name_tag.get_text(strip=True)
+            desc = desc_tag.get_text(strip=True)
+            uid = normalize_boat_name(boat)
 
-            # Determine event type
-            if "released" in description.lower():
+            # Use participant boat name if found
+            if uid in participants:
+                boat = participants[uid]["boat"]
+
+            if "released" in desc.lower():
                 event_type = "Released"
-            elif "boated" in description.lower():
+            elif "boated" in desc.lower():
                 event_type = "Boated"
-            elif "pulled hook" in description.lower():
+            elif "pulled hook" in desc.lower():
                 event_type = "Pulled Hook"
-            elif "wrong species" in description.lower():
+            elif "wrong species" in desc.lower():
                 event_type = "Wrong Species"
             else:
                 event_type = "Other"
 
-            # Skip named releases
-            if event_type == "Released" and re.search(r"\b\w+\s+\w+\s+released\b", description.lower()):
+            # Deduplication check
+            key = f"{uid}_{event_type}_{ts}"
+            if key in seen:
                 continue
+            seen.add(key)
 
-            uid = normalize_boat_name(boat_name)
-            if uid in participants_dict:
-                boat_name = participants_dict[uid]["boat"]  # Restore original formatting
-            else:
-                print(f"⚠️ Boat {boat_name} (uid: {uid}) not found in participants cache")
-
-            new_events.append({
-                "timestamp": timestamp_iso,
+            events.append({
+                "timestamp": ts,
                 "event": event_type,
-                "boat": boat_name,
+                "boat": boat,
                 "uid": uid,
-                "details": description,
-                "image_path": participants_dict.get(uid, {}).get("image_path", "/static/images/boats/default.jpg")
+                "details": desc,
+                "image_path": participants.get(uid, {}).get("image_path", "/static/images/boats/default.jpg")
             })
 
-        all_events = existing + new_events
-        all_events.sort(key=lambda e: e["timestamp"])
-
+        events.sort(key=lambda e: e["timestamp"])
         with open(events_file, "w") as f:
-            json.dump(all_events, f, indent=2)
+            json.dump(events, f, indent=2)
 
-        cache[f"{tournament}_events"] = {"last_scraped": datetime.now().isoformat()}
+        cache[f"events_{tournament}"] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
-
-        print(f"✅ Appended {len(new_events)} new events (total now {len(all_events)})")
-        return all_events
+        return events
 
     except Exception as e:
         print(f"❌ Error in scrape_events: {e}")

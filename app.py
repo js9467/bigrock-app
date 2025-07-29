@@ -726,14 +726,17 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    # Collect rounded resolution times (to the second)
+    now = datetime.now()
     resolution_times = set()
+
     for e in events:
         if e["event"] in ["Released", "Boated"] or \
            "pulled hook" in e.get("details", "").lower() or \
            "wrong species" in e.get("details", "").lower():
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                if settings.get("data_source") == "demo" and ts.time() > now.time():
+                    continue
                 resolution_times.add(ts)
             except Exception:
                 continue

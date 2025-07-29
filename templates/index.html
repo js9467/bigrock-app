@@ -6,60 +6,70 @@
   <title>Events Feed</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/base.css">
   <style>
     body { touch-action: manipulation; }
-    .spinner {
-      border: 4px solid rgba(0, 0, 0, 0.1);
-      border-left-color: #f6c553;
-      border-radius: 50%;
-      width: 36px;
-      height: 36px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
+
   <div id="app">
-    <header class="bg-blue-900 text-white flex items-center justify-between px-4 py-3 shadow-md">
+    <!-- Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <a href="/settings" class="border border-white text-white px-3 py-1 rounded hover:bg-white hover:text-blue-900 transition">Settings</a>
+      <div class="flex items-center gap-3">
+        <a href="/participants"
+           class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          Participants
+        </a>
+        <a href="/settings-page"
+           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          ⚙
+        </a>
+      </div>
     </header>
 
-    <div class="flex">
-      <!-- Hooked Up Feed -->
-      <div class="w-1/2 border-r border-gray-300 p-4">
-        <h2 class="text-xl font-semibold mb-2">Hooked Up</h2>
-        <div v-if="loading" class="flex justify-center items-center h-32"><div class="spinner"></div></div>
-        <div v-else-if="hooked.length === 0" class="text-gray-500">No current hookups</div>
-        <div v-else class="space-y-2">
-          <div v-for="event in hooked" :key="event.timestamp + event.uid" class="p-3 bg-yellow-100 rounded flex items-center space-x-4">
-            <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError">
-            <div>
-              <div class="font-semibold">{{ event.boat }}</div>
-              <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }}</div>
-            </div>
+    <div class="flex h-screen overflow-hidden">
+      <!-- Hooked Up Column -->
+      <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
+        <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
+        <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
+        <div
+          v-for="event in hooked"
+          :key="event.timestamp + event.uid"
+          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+        >
+          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <div>
+            <div class="text-lg font-semibold">{{ event.boat }}</div>
+            <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Event Feed -->
-      <div class="w-1/2 p-4">
-        <h2 class="text-xl font-semibold mb-2">Event Feed</h2>
-        <div v-if="loading" class="flex justify-center items-center h-32"><div class="spinner"></div></div>
-        <div v-else-if="events.length === 0" class="text-gray-500">No events to show.</div>
-        <div v-else class="space-y-2">
-          <div v-for="event in events" :key="event.timestamp + event.uid" class="p-3 bg-white rounded shadow flex items-center space-x-4">
-            <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError">
-            <div>
-              <div class="font-semibold">{{ event.boat }}</div>
-              <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }} - {{ event.event }}</div>
-              <div class="text-sm text-gray-600">{{ event.details }}</div>
-            </div>
+      <!-- Main Events Column -->
+      <div class="w-2/3 overflow-y-auto">
+        <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
+          Event Feed
+          <button @click="fetchAll" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
+        </div>
+
+        <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
+        <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+
+        <div
+          v-for="event in events"
+          :key="event.timestamp + event.uid"
+          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+        >
+          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <div>
+            <div class="text-lg font-semibold">{{ event.boat }}</div>
+            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+            <div class="text-sm">{{ event.details }}</div>
           </div>
         </div>
       </div>
@@ -68,92 +78,82 @@
 
   <script>
     const { createApp } = Vue
+
     createApp({
       data() {
         return {
           events: [],
           hooked: [],
           boatImages: {},
-          loading: true,
           tournamentLogo: '',
-          currentSettings: {},
-          ready: false
+          loading: false,
+          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
         }
+      },
+      mounted() {
+        this.loadParticipants()
+        this.fetchAll()
+        this.loadTournamentLogo()
+
+        // ⏱ Auto-refresh every 30 seconds
+        setInterval(this.fetchAll, 30000)
       },
       methods: {
         fetchAll() {
           this.loading = true
-
           Promise.all([
             fetch('/scrape/events').then(res => res.json()),
-            fetch('/hooked').then(res => res.json()),
-            fetch('/participants_data?limit=1000&offset=0').then(res => res.json()),
-            fetch('/api/settings').then(res => res.json())
-          ]).then(([eventsData, hookedData, participants, settings]) => {
-            this.events = eventsData
-            this.hooked = hookedData
-            this.tournamentLogo = settings.logo
-            this.currentSettings = {
-              tournament: settings.tournament,
-              mode: settings.mode
-            }
-
-            const map = {}
-            for (const p of participants) {
-              map[p.uid] = p.image_path
-            }
-            this.boatImages = map
-            this.ready = true
-
-            this.$nextTick(() => {
-              this.events = this.events.map(e => ({ ...e }))
-              this.hooked = this.hooked.map(e => ({ ...e }))
-              this.loading = false
-
-              // Delay to ensure participants/images fully load, then refresh settings
-              setTimeout(() => this.applySettingsPatch(), 1500)
-            })
+            fetch('/hooked').then(res => res.json())
+          ]).then(([eventsData, hookedData]) => {
+            this.events = eventsData.events || []
+            this.hooked = hookedData.events || []
+            this.loading = false
+          }).catch(err => {
+            console.error("❌ Fetch error:", err)
+            this.loading = false
           })
         },
-        applySettingsPatch() {
-          fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tournament: this.currentSettings.tournament,
-              mode: this.currentSettings.mode
+        loadParticipants() {
+          fetch('/participants_data?limit=1000&offset=0')
+            .then(res => res.json())
+            .then(participantsData => {
+              const images = {}
+              for (const p of participantsData.participants) {
+                images[p.uid] = p.image_path
+              }
+              this.boatImages = images
             })
-          }).then(() => {
-            console.log('✅ Settings POST triggered. Reloading...')
-            this.fetchAll()
-          })
         },
         getBoatImage(uid) {
-          return this.boatImages[uid] || '/static/images/boats/default.jpg'
+          return this.boatImages[uid] || ''
         },
-        formatTime(isoString) {
-          const date = new Date(isoString)
-          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        formatTime(ts) {
+          try {
+            const dt = new Date(ts)
+            return dt.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            })
+          } catch {
+            return ts
+          }
         },
-        hideOnError(event) {
-          event.target.style.display = 'none'
-        }
-      },
-      mounted() {
-        const waitForReady = () => {
-          fetch('/status')
+        isFollowed(uid) {
+          return this.followed.includes(uid)
+        },
+        loadTournamentLogo() {
+          fetch('/api/settings')
             .then(res => res.json())
-            .then(status => {
-              if (status.participants_cache_fresh && status.events_cache_fresh) {
-                console.log('✅ Backend scrape ready — loading feed...')
-                this.fetchAll()
-              } else {
-                console.log('⏳ Waiting for backend to finish scraping...')
-                setTimeout(waitForReady, 2000)
-              }
+            .then(settings => {
+              const tournament = settings.tournament
+              return fetch('https://js9467.github.io/Brtourney/settings.json')
+                .then(res => res.json())
+                .then(all => {
+                  this.tournamentLogo = all[tournament]?.logo || ''
+                })
             })
         }
-        waitForReady()
       }
     }).mount('#app')
   </script>

@@ -56,10 +56,13 @@
         </div>
       </div>
 
-      <!-- Status messages -->
-      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">Loading more boats...</div>
-      <div v-if="allLoaded && filteredParticipants.length === 0" class="text-center py-6 text-red-600 text-sm">No boats match your search.</div>
-      <div v-else-if="allLoaded" class="text-center py-6 text-green-600 text-sm">All boats loaded.</div>
+      <!-- Status Messages -->
+      <div v-if="!loading && filteredParticipants.length === 0" class="text-center py-6 text-red-600 text-sm">
+        No boats match your search.
+      </div>
+      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
+        Loading boats...
+      </div>
     </div>
   </div>
 
@@ -69,13 +72,10 @@
         return {
           participants: [],
           followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-          limit: 20,
-          offset: 0,
-          loading: false,
-          allLoaded: false,
           tournaments: {},
           tournamentLogo: '',
-          search: ''
+          search: '',
+          loading: false
         };
       },
       computed: {
@@ -87,32 +87,17 @@
         }
       },
       methods: {
-        async loadMore() {
-          if (this.loading || this.allLoaded) return;
+        async reload() {
+          this.search = '';
           this.loading = true;
           try {
-            const res = await fetch(`/participants_data?limit=${this.limit}&offset=${this.offset}`);
+            const res = await fetch('/participants_data?limit=1000&offset=0');
             const data = await res.json();
-            if (data.participants.length > 0) {
-              this.participants.push(...data.participants);
-              this.offset += this.limit;
-            } else {
-              this.allLoaded = true;
-            }
+            this.participants = data.participants || [];
           } catch (err) {
-            console.error('Failed to load participants:', err);
+            console.error('Failed to reload participants:', err);
           }
           this.loading = false;
-        },
-        handleScroll() {
-          const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
-          if (nearBottom) this.loadMore();
-        },
-        reload() {
-          this.participants = [];
-          this.offset = 0;
-          this.allLoaded = false;
-          this.loadMore();
         },
         toggleFollow(uid) {
           if (this.followed.includes(uid)) {
@@ -127,8 +112,15 @@
         }
       },
       async mounted() {
-        this.loadMore();
-        window.addEventListener('scroll', this.handleScroll);
+        this.loading = true;
+        try {
+          const res = await fetch('/participants_data?limit=1000&offset=0');
+          const data = await res.json();
+          this.participants = data.participants || [];
+        } catch (err) {
+          console.error('Failed to load participants:', err);
+        }
+        this.loading = false;
 
         try {
           const settingsRes = await fetch('/api/settings');
@@ -141,9 +133,6 @@
         } catch (e) {
           console.error('Failed to load tournament logo:', e);
         }
-      },
-      unmounted() {
-        window.removeEventListener('scroll', this.handleScroll);
       }
     });
     app.mount('#app');

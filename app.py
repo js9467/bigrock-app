@@ -717,7 +717,7 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    # Load events
+    # Load event list
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -729,38 +729,36 @@ def get_hooked_up_events():
 
     now = datetime.now()
 
-    # Get all real resolution events (by uid)
-    resolutions = []
+    # Build lookup of resolution timestamps by UID
+    resolution_lookup = set()
     for e in events:
-        if e["event"] in ["Boated", "Released"] or \
+        if e["event"] in ["Released", "Boated"] or \
            "pulled hook" in e.get("details", "").lower() or \
            "wrong species" in e.get("details", "").lower():
             try:
-                ts = date_parser.parse(e["timestamp"])
+                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
                 if settings.get("data_source") == "demo" and ts.time() > now.time():
                     continue
-                resolutions.append((e["uid"], ts))
+                resolution_lookup.add((e["uid"], ts.isoformat()))
             except Exception:
                 continue
 
-    # Build unresolved list
     unresolved = []
     for e in events:
         if e["event"] != "Hooked Up":
             continue
 
+        hookup_id = e.get("hookup_id")
+        if not hookup_id:
+            continue
+
         try:
-            hooked_ts = date_parser.parse(e["timestamp"])
+            uid, resolution_str = hookup_id.rsplit("_", 1)
+            resolution_ts = date_parser.parse(resolution_str).replace(microsecond=0).isoformat()
         except Exception:
             continue
 
-        resolved = False
-        for uid, res_ts in resolutions:
-            if uid == e["uid"] and res_ts >= hooked_ts:
-                resolved = True
-                break
-
-        if not resolved:
+        if (uid, resolution_ts) not in resolution_lookup:
             unresolved.append(e)
 
     return jsonify({

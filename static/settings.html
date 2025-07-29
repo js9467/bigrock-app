@@ -195,7 +195,6 @@ createApp({
         mode: this.mode
       }).then(() => {
         this.showToast("✅ Settings saved");
-        setTimeout(() => window.location.href = "/", 1000); // 🔁 Redirect after short delay
       });
     },
     loadTournamentLogo() {

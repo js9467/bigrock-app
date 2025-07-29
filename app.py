@@ -273,7 +273,14 @@ def scrape_participants(force=False):
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
             image_path = existing_participants.get(uid, {}).get("image_path", "")
 
-            if not image_path or not os.path.exists(image_path[1:] if image_path.startswith('/') else image_path):
+            # Always download on first scrape or if image is missing
+force_download = uid not in existing_participants or not image_path or not os.path.exists(image_path[1:] if image_path.startswith('/') else image_path)
+if force_download:
+    if image_url:
+        download_tasks.append((uid, boat_name, image_url))
+    else:
+        image_path = "/static/images/boats/default.jpg"
+
                 if image_url:
                     download_tasks.append((uid, boat_name, image_url))
                 else:

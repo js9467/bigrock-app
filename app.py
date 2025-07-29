@@ -50,6 +50,10 @@ def load_demo_data(tournament):
     return {'events': [], 'leaderboard': []}
 
 
+def get_data_source():
+    settings = load_settings()
+    return settings.get("mode", "live")
+
 def is_cache_fresh(cache, key, max_age_minutes):
     try:
         last_scraped = cache.get(key, {}).get("last_scraped")

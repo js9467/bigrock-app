@@ -21,103 +21,141 @@
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-<div id="app">
-  <!-- Header -->
-  <header class="bg-blue-900 text-white flex items-center justify-between px-6 py-3 shadow-md">
-    <div class="flex items-center space-x-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-    </div>
-    <a href="/settings" class="text-sm text-white border border-white px-3 py-1 rounded hover:bg-blue-800">Settings</a>
-  </header>
+  <div id="app">
+    <header class="bg-blue-900 text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
+      <a href="/settings" class="border border-white text-white px-3 py-1 rounded hover:bg-white hover:text-blue-900 transition">Settings</a>
+    </header>
 
-  <!-- Main Section -->
-  <div v-if="!ready" class="flex items-center justify-center h-[80vh]">
-    <div class="spinner"></div>
-    <span class="ml-4 text-gray-600">Fetching event data...</span>
-  </div>
+    <div class="flex">
+      <!-- Hooked Up Feed -->
+      <div class="w-1/2 border-r border-gray-300 p-4">
+        <h2 class="text-xl font-semibold mb-2">Hooked Up</h2>
+        <div v-if="loading" class="flex justify-center items-center h-32"><div class="spinner"></div></div>
+        <div v-else-if="hooked.length === 0" class="text-gray-500">No current hookups</div>
+        <div v-else class="space-y-2">
+          <div v-for="event in hooked" :key="event.timestamp + event.uid" class="p-3 bg-yellow-100 rounded flex items-center space-x-4">
+            <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError">
+            <div>
+              <div class="font-semibold">{{ event.boat }}</div>
+              <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <div v-else class="grid grid-cols-3 gap-4 p-4">
-    <!-- Hooked Up Section -->
-    <div class="col-span-1">
-      <h2 class="text-xl font-semibold mb-2">Hooked Up</h2>
-      <div class="space-y-3">
-        <div v-for="event in hooked" :key="event.timestamp + event.uid" class="bg-yellow-100 p-3 rounded shadow flex items-center space-x-3">
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded border" />
-          <div>
-            <div class="font-bold text-lg">{{ event.boat }}</div>
-            <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }}</div>
+      <!-- Event Feed -->
+      <div class="w-1/2 p-4">
+        <h2 class="text-xl font-semibold mb-2">Event Feed</h2>
+        <div v-if="loading" class="flex justify-center items-center h-32"><div class="spinner"></div></div>
+        <div v-else-if="events.length === 0" class="text-gray-500">No events to show.</div>
+        <div v-else class="space-y-2">
+          <div v-for="event in events" :key="event.timestamp + event.uid" class="p-3 bg-white rounded shadow flex items-center space-x-4">
+            <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError">
+            <div>
+              <div class="font-semibold">{{ event.boat }}</div>
+              <div class="text-sm text-gray-700">{{ formatTime(event.timestamp) }} - {{ event.event }}</div>
+              <div class="text-sm text-gray-600">{{ event.details }}</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Events Section -->
-    <div class="col-span-2">
-      <h2 class="text-xl font-semibold mb-2">Recent Events</h2>
-      <div :key="feedKey" class="space-y-3">
-        <div v-for="event in events" :key="event.timestamp + event.uid" class="bg-white p-3 rounded shadow flex items-center space-x-3">
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded border" />
-          <div>
-            <div class="font-bold text-lg">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">{{ formatTime(event.timestamp) }} - {{ event.event }}</div>
-            <div class="text-sm text-gray-700">{{ event.details }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
-</div>
 
-<!-- Vue Script -->
-<script>
-const { createApp } = Vue;
+  <script>
+    const { createApp } = Vue
+    createApp({
+      data() {
+        return {
+          events: [],
+          hooked: [],
+          boatImages: {},
+          loading: true,
+          tournamentLogo: '',
+          currentSettings: {},
+          ready: false
+        }
+      },
+      methods: {
+        fetchAll() {
+          this.loading = true
 
-createApp({
-  data() {
-    return {
-      events: [],
-      hooked: [],
-      boatImages: {},
-      tournamentLogo: null,
-      ready: false,
-      feedKey: 0,
-    };
-  },
-  methods: {
-    async fetchAll() {
-      const settings = await fetch("/api/settings").then(r => r.json());
-      this.tournamentLogo = settings.logo;
+          Promise.all([
+            fetch('/scrape/events').then(res => res.json()),
+            fetch('/hooked').then(res => res.json()),
+            fetch('/participants_data?limit=1000&offset=0').then(res => res.json()),
+            fetch('/api/settings').then(res => res.json())
+          ]).then(([eventsData, hookedData, participants, settings]) => {
+            this.events = eventsData
+            this.hooked = hookedData
+            this.tournamentLogo = settings.logo
+            this.currentSettings = {
+              tournament: settings.tournament,
+              mode: settings.mode
+            }
 
-      const eventsData = await fetch("/scrape/events").then(r => r.json());
-      this.events = eventsData.events || [];
-      this.hooked = eventsData.hooked || [];
+            const map = {}
+            for (const p of participants) {
+              map[p.uid] = p.image_path
+            }
+            this.boatImages = map
+            this.ready = true
 
-      const participantsRes = await fetch("/participants_data?limit=1000&offset=0");
-      const participants = await participantsRes.json();
-      const map = {};
-      participants.forEach(p => {
-        map[p.uid] = p.image_path || "/static/images/default.jpg";
-      });
+            this.$nextTick(() => {
+              this.events = this.events.map(e => ({ ...e }))
+              this.hooked = this.hooked.map(e => ({ ...e }))
+              this.loading = false
 
-      this.boatImages = map;
-      this.ready = true;
-
-      // ✅ Force Vue to re-render feed after images are available
-      this.feedKey += 1;
-    },
-    getBoatImage(uid) {
-      return this.boatImages[uid] || "/static/images/default.jpg";
-    },
-    formatTime(iso) {
-      const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-  },
-  mounted() {
-    this.fetchAll();
-  }
-}).mount('#app');
-</script>
+              // Delay to ensure participants/images fully load, then refresh settings
+              setTimeout(() => this.applySettingsPatch(), 1500)
+            })
+          })
+        },
+        applySettingsPatch() {
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tournament: this.currentSettings.tournament,
+              mode: this.currentSettings.mode
+            })
+          }).then(() => {
+            console.log('✅ Settings POST triggered. Reloading...')
+            this.fetchAll()
+          })
+        },
+        getBoatImage(uid) {
+          return this.boatImages[uid] || '/static/images/boats/default.jpg'
+        },
+        formatTime(isoString) {
+          const date = new Date(isoString)
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        hideOnError(event) {
+          event.target.style.display = 'none'
+        }
+      },
+      mounted() {
+        const waitForReady = () => {
+          fetch('/status')
+            .then(res => res.json())
+            .then(status => {
+              if (status.participants_cache_fresh && status.events_cache_fresh) {
+                console.log('✅ Backend scrape ready — loading feed...')
+                this.fetchAll()
+              } else {
+                console.log('⏳ Waiting for backend to finish scraping...')
+                setTimeout(waitForReady, 2000)
+              }
+            })
+        }
+        waitForReady()
+      }
+    }).mount('#app')
+  </script>
 </body>
 </html>

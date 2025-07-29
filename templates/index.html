@@ -36,7 +36,7 @@
       <!-- Hooked Up Column -->
       <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
         <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
-        <div v-if="loading" class="loading">⏳ Loading participants and events...</div>
+        <div v-if="loading" class="loading">⏳ Loading Hooked Up Events...</div>
         <div v-else-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
         <div
           v-for="event in hooked"

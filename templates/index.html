@@ -9,6 +9,17 @@
   <link rel="stylesheet" href="/static/css/base.css" />
   <style>
     body { touch-action: manipulation; }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left-color: #f6c553;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
@@ -36,7 +47,10 @@
       <!-- Hooked Up Column -->
       <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
         <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
-        <div v-if="loading" class="loading">⏳ Loading Hooked Up Events...</div>
+        <div v-if="loading" class="flex items-center gap-3 p-4 text-gray-600">
+          <div class="spinner"></div>
+          <span>Loading Hooked Up Events...</span>
+        </div>
         <div v-else-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
         <div
           v-for="event in hooked"
@@ -57,7 +71,10 @@
           Event Feed
           <button @click="fetchAll" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
         </div>
-        <div v-if="loading" class="loading">⏳ Fetching event data...</div>
+        <div v-if="loading && events.length === 0" class="flex items-center gap-3 p-4 text-gray-600">
+          <div class="spinner"></div>
+          <span>Fetching event data...</span>
+        </div>
         <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
         <div
           v-for="event in events"
@@ -85,7 +102,7 @@
           hooked: [],
           boatImages: {},
           tournamentLogo: '',
-          loading: false,
+          loading: true,
           followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
         }
       },
@@ -96,23 +113,36 @@
       methods: {
         fetchAll() {
           this.loading = true
-          Promise.all([
-            fetch('/participants_data?limit=1000&offset=0').then(res => res.json()),
-            fetch('/scrape/events').then(res => res.json()),
-            fetch('/hooked').then(res => res.json())
-          ]).then(([participantsData, eventsData, hookedData]) => {
-            const images = {}
-            for (const p of participantsData.participants) {
-              images[p.uid] = p.image_path
-            }
-            this.boatImages = images
-            this.events = eventsData.events || []
-            this.hooked = hookedData.events || []
-            this.loading = false
-          }).catch(err => {
-            console.error("❌ Fetch error:", err)
-            this.loading = false
-          })
+
+          // Fetch events and hooked immediately
+          const eventsPromise = fetch('/scrape/events').then(res => res.json())
+          const hookedPromise = fetch('/hooked').then(res => res.json())
+
+          // Fetch participants for images (may lag slightly)
+          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
+
+          Promise.all([eventsPromise, hookedPromise])
+            .then(([eventsData, hookedData]) => {
+              this.events = eventsData.events || []
+              this.hooked = hookedData.events || []
+            })
+            .catch(err => {
+              console.error("❌ Event/Hooked fetch error:", err)
+            })
+
+          participantsPromise
+            .then(participantsData => {
+              const images = {}
+              for (const p of participantsData.participants) {
+                images[p.uid] = p.image_path
+              }
+              this.boatImages = images
+              this.loading = false
+            })
+            .catch(err => {
+              console.error("❌ Participants fetch error:", err)
+              this.loading = false
+            })
         },
         getBoatImage(uid) {
           return this.boatImages[uid] || ''

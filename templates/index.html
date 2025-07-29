@@ -73,7 +73,7 @@
     </div>
   </div>
 
-  <script>
+    <script>
     const { createApp } = Vue
 
     createApp({
@@ -89,6 +89,7 @@
       mounted() {
         this.fetchAll()
         this.loadTournamentLogo()
+        this.ensureParticipantsCoverEvents()
       },
       methods: {
         fetchAll() {
@@ -135,9 +136,39 @@
                   this.tournamentLogo = all[tournament]?.logo || ''
                 })
             })
+        },
+        async ensureParticipantsCoverEvents() {
+          try {
+            const settings = await fetch('/api/settings').then(res => res.json())
+            const tournament = settings?.tournament
+            if (!tournament) return
+
+            const [participantsRes, eventsRes] = await Promise.all([
+              fetch('/participants_data?limit=1000').then(r => r.json()),
+              fetch('/events').then(r => r.json())
+            ])
+            const known = new Set(participantsRes.participants.map(p => p.uid))
+            const missing = (eventsRes.events || []).filter(e => e.uid && !known.has(e.uid))
+
+            if (missing.length > 0) {
+              console.log(`⛏️ Missing ${missing.length} boats — scraping participants...`)
+              const scrapeRes = await fetch(`/scrape/participants?t=${encodeURIComponent(tournament)}`)
+              if (scrapeRes.ok) {
+                console.log("✅ Participants updated.")
+                this.fetchAll()
+              } else {
+                console.warn("⚠️ Participant scrape failed.")
+              }
+            } else {
+              console.log("✅ Participant list complete.")
+            }
+          } catch (err) {
+            console.error("🚨 Error checking for missing boats:", err)
+          }
         }
       }
     }).mount('#app')
   </script>
+
 </body>
 </html>

@@ -46,7 +46,7 @@
       <!-- Hooked Up Column -->
       <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
         <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
-        <div v-if="loading" class="flex items-center gap-3 p-4 text-gray-600">
+        <div v-if="loading && !ready" class="flex items-center gap-3 p-4 text-gray-600">
           <div class="spinner"></div>
           <span>Loading Hooked Up Events...</span>
         </div>
@@ -56,7 +56,7 @@
           :key="event.timestamp + event.uid"
           :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
@@ -78,11 +78,11 @@
         <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
 
         <div
-          v-for="(event, index) in displayedEvents"
+          v-for="event in displayedEvents"
           :key="event.timestamp + event.uid"
           :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" @error="hideOnError" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
@@ -122,8 +122,25 @@
         }
       },
       mounted() {
-        this.fetchAll()
         this.loadTournamentLogo()
+        this.fetchAll()
+
+        // ✅ Auto-trigger initial scrape just like settings "Save"
+        fetch('/api/settings')
+          .then(res => res.json())
+          .then(settings => {
+            return fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(settings)
+            })
+          })
+          .then(() => {
+            console.log('🔁 Auto-triggered scrape from initial load')
+            setTimeout(() => {
+              this.fetchAll()
+            }, 5000)
+          })
       },
       methods: {
         fetchAll() {
@@ -132,9 +149,8 @@
 
           const eventsPromise = fetch('/scrape/events').then(res => res.json())
           const hookedPromise = fetch('/hooked').then(res => res.json())
-          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
 
-          // Load event/hooked data quickly
+          // Load events/hooked feed fast
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
               this.events = eventsData.events || []
@@ -146,14 +162,15 @@
               this.loading = false
             })
 
-          // Load participant image data (doesn't block rendering)
-          participantsPromise
-            .then(participantsData => {
-              const images = {}
-              for (const p of participantsData.participants) {
-                images[p.uid] = p.image_path
+          // Load participant images in background
+          fetch('/participants_data?limit=1000&offset=0')
+            .then(res => res.json())
+            .then(data => {
+              const map = {}
+              for (const p of data.participants) {
+                map[p.uid] = p.image_path
               }
-              this.boatImages = images
+              this.boatImages = map
               this.ready = true
             })
             .catch(err => {
@@ -162,7 +179,7 @@
             })
         },
         getBoatImage(uid) {
-          return this.boatImages[uid] || ''
+          return this.boatImages[uid] || '/static/images/boats/default.jpg'
         },
         formatTime(ts) {
           try {
@@ -190,6 +207,9 @@
                   this.tournamentLogo = all[tournament]?.logo || ''
                 })
             })
+        },
+        hideOnError(event) {
+          event.target.style.display = 'none'
         }
       }
     }).mount('#app')

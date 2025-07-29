@@ -548,7 +548,7 @@ def get_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    if settings.get("data_source") == "demo":
+if settings.get("data_source") == "demo":
     data = load_demo_data(tournament)
     all_events = data.get("events", [])
 

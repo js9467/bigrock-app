@@ -30,7 +30,7 @@ def get_cache_path(tournament, filename):
 
 def get_current_tournament():
     try:
-        with open(SETTINGS_FILE, 'r') as f:
+        with open(SETTINGS_FILE, ' 'r') as f:
             settings = json.load(f)
             return settings.get('tournament', 'Big Rock')
     except:
@@ -110,10 +110,13 @@ def cache_boat_image(boat_name, image_url):
             os.remove(file_path)
         return "/static/images/boats/default.jpg"
 
+# --- SCRAPING FUNCTIONS ---
+
 def scrape_participants(force=False, tournament=None):
     cache = load_cache()
     tournament = tournament or get_current_tournament()
-    if not force and is_cache_fresh(cache, f"participants_{tournament}", 1440):
+    cache_key = f"participants_{normalize_boat_name(tournament)}"
+    if not force and is_cache_fresh(cache, cache_key, 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
         return []
 
@@ -178,7 +181,7 @@ def scrape_participants(force=False, tournament=None):
 
         with open(participants_file, "w") as f:
             json.dump(participants, f, indent=2)
-        cache[f"participants_{tournament}"] = {"last_scraped": datetime.now().isoformat()}
+        cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return participants
     except Exception as e:
@@ -187,10 +190,11 @@ def scrape_participants(force=False, tournament=None):
 
 def scrape_events(force=False, tournament=None):
     cache = load_cache()
-    settings = load_settings()
     tournament = tournament or get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
-    if not force and is_cache_fresh(cache, f"events_{tournament}", 2):
+    cache_key = f"events_{normalize_boat_name(tournament)}"
+
+    if not force and is_cache_fresh(cache, cache_key, 2):
         if os.path.exists(events_file):
             with open(events_file) as f:
                 return json.load(f)
@@ -249,10 +253,100 @@ def scrape_events(force=False, tournament=None):
         events.sort(key=lambda e: e["timestamp"])
         with open(events_file, "w") as f:
             json.dump(events, f, indent=2)
-        cache[f"events_{tournament}"] = {"last_scraped": datetime.now().isoformat()}
+        cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return events
     except Exception as e:
         print(f"❌ Error in scrape_events: {e}")
         return []
+
+# --- ROUTES ---
+
+@app.route("/scrape/participants")
+def scrape_participants_route():
+    participants = scrape_participants(force=True)
+    return jsonify({"participants": participants, "count": len(participants)})
+
+@app.route("/scrape/events")
+def scrape_events_route():
+    events = scrape_events(force=True)
+    return jsonify({"events": events, "count": len(events)})
+
+@app.route("/participants_data")
+def get_participants_data():
+    tournament = get_current_tournament()
+    participants_file = get_cache_path(tournament, "participants.json")
+    if os.path.exists(participants_file):
+        with open(participants_file) as f:
+            data = json.load(f)
+        return jsonify({"participants": data, "count": len(data)})
+    return jsonify({"participants": [], "count": 0})
+
+@app.route("/hooked")
+def get_hooked_up_events():
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
+    if not os.path.exists(events_file):
+        return jsonify({"events": [], "count": 0})
+
+    with open(events_file, "r") as f:
+        events = json.load(f)
+
+    now = datetime.now()
+    resolution_lookup = set()
+    for e in events:
+        if e["event"] in ["Released", "Boated"] or \
+           "pulled hook" in e.get("details", "").lower() or \
+           "wrong species" in e.get("details", "").lower():
+            try:
+                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                resolution_lookup.add((e["uid"], ts.isoformat()))
+            except:
+                continue
+
+    unresolved = []
+    for e in events:
+        if e["event"] != "Hooked Up":
+            continue
+        try:
+            uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
+            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+        except:
+            unresolved.append(e)
+            continue
+        if (uid, target_ts) not in resolution_lookup:
+            unresolved.append(e)
+
+    return jsonify({"events": unresolved, "count": len(unresolved)})
+
+@app.route("/api/settings", methods=["GET", "POST"])
+def api_settings():
+    if request.method == "POST":
+        data = request.get_json()
+        if not data:
+            return jsonify({"status": "error", "message": "Invalid JSON"}), 400
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+        old_key = normalize_boat_name(data.get("tournament", "big_rock"))
+        for fname in ["events.json", "participants.json"]:
+            fpath = os.path.join("cache", old_key, fname)
+            if os.path.exists(fpath):
+                os.remove(fpath)
+                print(f"🧹 Removed {fpath}")
+        return jsonify({"status": "success"})
+    return jsonify(load_settings())
+
+@app.route('/')
+def homepage():
+    return send_from_directory('templates', 'index.html')
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
+
+# --- STARTUP ---
+
+if __name__ == '__main__':
+    print("🚀 Starting Flask app on http://0.0.0.0:5000")
+    app.run(host='0.0.0.0', port=5000, debug=True)
 

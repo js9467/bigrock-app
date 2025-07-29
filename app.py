@@ -17,6 +17,12 @@ EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
+def get_cache_path(file_type):
+    tournament = get_current_tournament()
+    safe = tournament.lower().replace(" ", "_")
+    os.makedirs(f"cache/{safe}", exist_ok=True)
+    return f"cache/{safe}/{file_type}.json"
+
 def load_cache():
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE, 'r') as f:
@@ -203,27 +209,34 @@ def run_in_thread(target, name):
 
 def scrape_participants(force=False):
     cache = load_cache()
-    if not force and is_cache_fresh(cache, "participants", 1440):
+    tournament = get_current_tournament()
+    participants_file = get_cache_path("participants.json")
+
+    if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
+        if os.path.exists(participants_file):
+            with open(participants_file, "r") as f:
+                return json.load(f)
         return []
 
     try:
-        tournament = get_current_tournament()
+        # Load tournament-specific participant URL from central settings
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
         settings = requests.get(settings_url, timeout=30).json()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
         if not matching_key:
             raise Exception(f"Tournament '{tournament}' not found in settings.json")
-        tournament_settings = settings[matching_key]
-        participants_url = tournament_settings.get("participants")
+
+        participants_url = settings[matching_key].get("participants")
         if not participants_url:
             raise Exception(f"No participants URL found for {matching_key}")
 
         print(f"📡 Scraping participants from: {participants_url}")
 
+        # Load existing participants for this tournament (if any)
         existing_participants = {}
-        if os.path.exists("participants_master.json"):
-            with open("participants_master.json", "r") as f:
+        if os.path.exists(participants_file):
+            with open(participants_file, "r") as f:
                 for p in json.load(f):
                     existing_participants[p["uid"]] = p
 
@@ -255,7 +268,6 @@ def scrape_participants(force=False):
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
             image_path = existing_participants.get(uid, {}).get("image_path", "")
 
-            # Only download if no valid image exists
             if not image_path or not os.path.exists(image_path[1:] if image_path.startswith('/') else image_path):
                 if image_url:
                     download_tasks.append((uid, boat_name, image_url))
@@ -288,13 +300,13 @@ def scrape_participants(force=False):
 
         updated_list = list(updated_participants.values())
         if updated_list != list(existing_participants.values()):
-            with open("participants_master.json", "w") as f:
+            with open(participants_file, "w") as f:
                 json.dump(updated_list, f, indent=2)
             print(f"✅ Updated and saved {len(updated_list)} participants")
         else:
             print(f"✅ No changes detected — {len(updated_list)} participants up-to-date")
 
-        cache["participants"] = {"last_scraped": datetime.now().isoformat()}
+        cache[f"{tournament}_participants"] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return updated_list
 
@@ -302,48 +314,55 @@ def scrape_participants(force=False):
         print(f"⚠️ Error scraping participants: {e}")
         return []
 
+
 def scrape_events(force=False, skip_timestamp_check=False):
     cache = load_cache()
     settings = load_settings()
+    tournament = get_current_tournament()
+    events_file = get_cache_path("events.json")
+    participants_file = get_cache_path("participants.json")
 
-    if not force and is_cache_fresh(cache, "events", 2):
+    if not force and is_cache_fresh(cache, f"{tournament}_events", 2):
         print("✅ Event cache is fresh — skipping scrape.")
-        if os.path.exists("events.json"):
-            with open("events.json", "r") as f:
+        if os.path.exists(events_file):
+            with open(events_file, "r") as f:
                 return json.load(f)
         return []
 
     try:
-        tournament = get_current_tournament()
+        # Load tournament settings and events URL
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
         remote_settings = requests.get(settings_url, timeout=30).json()
         matching_key = next((k for k in remote_settings if k.lower() == tournament.lower()), None)
         if not matching_key:
             raise Exception(f"Tournament '{tournament}' not found in settings.json")
-        tournament_settings = remote_settings[matching_key]
-        events_url = tournament_settings.get("events")
+        events_url = remote_settings[matching_key].get("events")
         if not events_url:
             raise Exception(f"No events URL found for {matching_key}")
 
         print(f"➡️ Events URL: {events_url}")
 
-        # Load participants for UID mapping
+        # Load participants from per-tournament cache
         participants_dict = {}
-        if os.path.exists("participants_master.json"):
-            with open("participants_master.json", "r") as f:
+        if os.path.exists(participants_file):
+            with open(participants_file, "r") as f:
                 participants = json.load(f)
                 participants_dict = {p["uid"]: p for p in participants}
         else:
-            print("⚠️ participants_master.json missing — regenerating...")
+            print("⚠️ Participants cache missing — regenerating...")
             scrape_participants(force=True)
-            with open("participants_master.json", "r") as f:
-                participants = json.load(f)
-                participants_dict = {p["uid"]: p for p in participants}
+            if os.path.exists(participants_file):
+                with open(participants_file, "r") as f:
+                    participants = json.load(f)
+                    participants_dict = {p["uid"]: p for p in participants}
+            else:
+                raise Exception("Failed to regenerate participants cache.")
 
+        # Load existing events
         existing = []
         last_known_ts = None
-        if os.path.exists("events.json"):
-            with open("events.json", "r") as f:
+        if os.path.exists(events_file):
+            with open(events_file, "r") as f:
                 existing = json.load(f)
                 try:
                     last_known_ts = max(
@@ -404,12 +423,11 @@ def scrape_events(force=False, skip_timestamp_check=False):
             if event_type == "Released" and re.search(r"\b\w+\s+\w+\s+released\b", description.lower()):
                 continue
 
-            # Map to participant UID and original boat name
             uid = normalize_boat_name(boat_name)
             if uid in participants_dict:
-                boat_name = participants_dict[uid]["boat"]  # Use original boat name
+                boat_name = participants_dict[uid]["boat"]  # Restore original formatting
             else:
-                print(f"⚠️ Boat {boat_name} (uid: {uid}) not found in participants_master.json")
+                print(f"⚠️ Boat {boat_name} (uid: {uid}) not found in participants cache")
 
             new_events.append({
                 "timestamp": timestamp_iso,
@@ -420,14 +438,13 @@ def scrape_events(force=False, skip_timestamp_check=False):
                 "image_path": participants_dict.get(uid, {}).get("image_path", "/static/images/boats/default.jpg")
             })
 
-        # Combine, sort, and save events
         all_events = existing + new_events
         all_events.sort(key=lambda e: e["timestamp"])
 
-        with open("events.json", "w") as f:
+        with open(events_file, "w") as f:
             json.dump(all_events, f, indent=2)
 
-        cache["events"] = {"last_scraped": datetime.now().isoformat()}
+        cache[f"{tournament}_events"] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
 
         print(f"✅ Appended {len(new_events)} new events (total now {len(all_events)})")
@@ -436,6 +453,7 @@ def scrape_events(force=False, skip_timestamp_check=False):
     except Exception as e:
         print(f"❌ Error in scrape_events: {e}")
         return []
+
 
 def scrape_leaderboard(force=False):
     print("⚠️ scrape_leaderboard not implemented yet.")
@@ -490,6 +508,7 @@ def get_participants_data():
 def get_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
+    events_file = get_cache_path("events.json")
 
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
@@ -508,15 +527,17 @@ def get_events():
 
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force)
-    if not events and os.path.exists("events.json"):
-        with open("events.json", "r") as f:
+    if not events and os.path.exists(events_file):
+        with open(events_file, "r") as f:
             events = json.load(f)
+
     events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
     return jsonify({
         "status": "ok" if events else "error",
         "count": len(events),
         "events": events[:10]
     })
+
 
 @app.route("/scrape/all")
 def scrape_all():
@@ -585,13 +606,15 @@ def generate_demo():
 def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
+    events_file = get_cache_path("events.json")
+
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
     else:
-        if not os.path.exists("events.json"):
+        if not os.path.exists(events_file):
             return jsonify({"status": "ok", "events": [], "count": 0})
-        with open("events.json", "r") as f:
+        with open(events_file, "r") as f:
             events = json.load(f)
 
     now = datetime.now()

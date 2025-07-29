@@ -101,11 +101,11 @@
             this.ready = true
 
             // Trigger refresh to ensure image bindings update
-            setTimeout(() => {
-              this.events = this.events.map(e => ({ ...e }))
-              this.hooked = this.hooked.map(e => ({ ...e }))
-              this.loading = false
-            }, 50)
+            this.$nextTick(() => {
+  this.events = this.events.map(e => ({ ...e }))
+  this.hooked = this.hooked.map(e => ({ ...e }))
+  this.loading = false
+})
           })
         },
         getBoatImage(uid) {

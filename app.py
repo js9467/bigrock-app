@@ -460,10 +460,6 @@ def participants_data():
     })
 
 
-    except Exception as e:
-        print(f"⚠️ Error in /participants_data: {e}")
-        return jsonify({"status": "error", "message": str(e)})
-
 
 @app.route("/scrape/events")
 def get_events():

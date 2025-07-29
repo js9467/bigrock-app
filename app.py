@@ -548,29 +548,32 @@ def get_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-if settings.get("data_source") == "demo":
-    data = load_demo_data(tournament)
-    all_events = data.get("events", [])
+    # 🟡 DEMO MODE
+    if settings.get("data_source") == "demo":
+        data = load_demo_data(tournament)
+        all_events = data.get("events", [])
 
-    now = datetime.now()
-    filtered = []
+        now = datetime.now()
+        filtered = []
 
-    for e in all_events:
-        try:
-            ts = date_parser.parse(e["timestamp"])
-            if ts.time() <= now.time():
-                filtered.append(e)
-        except Exception as ex:
-            print(f"⚠️ Failed to parse timestamp in demo mode: {e.get('timestamp')}")
-            continue
+        for e in all_events:
+            try:
+                ts = date_parser.parse(e["timestamp"])
+                if ts.time() <= now.time():  # Only show events up to the current time of day
+                    filtered.append(e)
+            except Exception as ex:
+                print(f"⚠️ Failed to parse timestamp in demo mode: {e.get('timestamp')}")
+                continue
 
-    return jsonify({
-        "status": "ok",
-        "count": len(filtered),
-        "events": filtered[:10]
-    })
+        filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
 
+        return jsonify({
+            "status": "ok",
+            "count": len(filtered),
+            "events": filtered[:10]
+        })
 
+    # 🟢 LIVE MODE
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force)
 
@@ -578,13 +581,14 @@ if settings.get("data_source") == "demo":
         with open("events.json", "r") as f:
             events = json.load(f)
 
-    events = sorted(events, key=lambda e: e["timestamp"], reverse=True)  # 🔁 NEWEST FIRST
+    events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
 
     return jsonify({
         "status": "ok" if events else "error",
         "count": len(events),
-        "events": events
+        "events": events[:10]
     })
+
 
 
 

@@ -172,6 +172,10 @@
               }
               this.boatImages = map
               this.ready = true
+
+              // ✅ Force Vue to re-render events with now-known images
+              this.events = [...this.events]
+              this.hooked = [...this.hooked]
             })
             .catch(err => {
               console.error("❌ Participants fetch error:", err)

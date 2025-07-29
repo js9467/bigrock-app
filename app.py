@@ -274,24 +274,26 @@ def scrape_participants(force=False):
             image_path = existing_participants.get(uid, {}).get("image_path", "")
 
             # Always download on first scrape or if image is missing
-force_download = uid not in existing_participants or not image_path or not os.path.exists(image_path[1:] if image_path.startswith('/') else image_path)
-if force_download:
-    if image_url:
+    force_download = (
+        uid not in existing_participants or
+        not image_path or
+        not os.path.exists(image_path[1:] if image_path.startswith('/') else image_path)
+    )
+
+    if force_download:
+        if image_url:
         download_tasks.append((uid, boat_name, image_url))
+        image_path = ""  # Will be updated after download
     else:
         image_path = "/static/images/boats/default.jpg"
 
-                if image_url:
-                    download_tasks.append((uid, boat_name, image_url))
-                else:
-                    image_path = "/static/images/boats/default.jpg"
+    updated_participants[uid] = {
+        "uid": uid,
+        "boat": boat_name,
+        "type": boat_type,
+        "image_path": image_path
+    }
 
-            updated_participants[uid] = {
-                "uid": uid,
-                "boat": boat_name,
-                "type": boat_type,
-                "image_path": image_path
-            }
 
         # Download images in parallel
         if download_tasks:

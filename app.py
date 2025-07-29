@@ -395,7 +395,6 @@ def scrape_events(force=False, skip_timestamp_check=False):
     print(f"📦 Parsed {len(parsed_events)} raw events")
 
     # Inject demo Hooked Up events if needed
-    from . import get_mode  # ✅ Make sure get_mode is defined or imported
     if get_mode() == "demo":
         parsed_events = inject_hooked_up_events(parsed_events, tournament)
 

@@ -603,58 +603,35 @@ def generate_demo():
 
 @app.route("/hooked")
 def get_hooked_up_events():
-    settings = load_settings()
-    tournament = settings.get("tournament", "Big Rock")
-    events_file = get_cache_path("events.json")
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
 
-    if settings.get("data_source") == "demo":
-        data = load_demo_data(tournament)
-        events = data.get("events", [])
-    else:
-        if not os.path.exists(events_file):
-            return jsonify({"status": "ok", "events": [], "count": 0})
-        with open(events_file, "r") as f:
+    try:
+        with open(events_file) as f:
             events = json.load(f)
+    except:
+        events = []
 
-    now = datetime.now()
-    resolution_lookup = set()
-    for e in events:
-        if e["event"] in ["Released", "Boated"] or \
-           "pulled hook" in e.get("details", "").lower() or \
-           "wrong species" in e.get("details", "").lower():
-            try:
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if settings.get("data_source") == "demo" and ts.time() > now.time():
-                    continue
-                resolution_lookup.add((e["uid"], ts.isoformat()))
-            except:
-                continue
+    now = datetime.now().time()
+    resolved_types = ["Boated", "Released", "Pulled Hook", "Wrong Species"]
+    resolved_ids = {
+        f"{e['uid']}_{e['timestamp']}" for e in events
+        if e["event"] in resolved_types
+    }
 
-    unresolved = []
-    for e in events:
-        if e["event"] != "Hooked Up":
-            continue
-        try:
-            hookup_ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-            if settings.get("data_source") == "demo" and hookup_ts.time() > now.time():
-                continue
-        except Exception as ex:
-            print(f"⚠️ Failed to parse hookup timestamp: {ex}")
-            continue
-        try:
-            uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
-            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-        except:
-            unresolved.append(e)
-            continue
-        if (uid, target_ts) not in resolution_lookup:
-            unresolved.append(e)
+    hooked = [
+        e for e in events
+        if e["event"] == "Hooked Up"
+        and f"{e['uid']}_{e.get('hookup_id', e['timestamp'])}" not in resolved_ids
+        and datetime.fromisoformat(e["timestamp"]).time() <= now
+    ]
 
     return jsonify({
         "status": "ok",
-        "count": len(unresolved),
-        "events": unresolved
+        "count": len(hooked),
+        "events": hooked
     })
+
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

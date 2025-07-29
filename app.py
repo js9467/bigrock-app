@@ -30,7 +30,7 @@ def get_cache_path(tournament, filename):
 
 def get_current_tournament():
     try:
-        with open(SETTINGS_FILE, ' 'r') as f:
+        with open(SETTINGS_FILE, 'r') as f:
             settings = json.load(f)
             return settings.get('tournament', 'Big Rock')
     except:

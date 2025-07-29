@@ -703,6 +703,7 @@ def get_hooked_up_events():
         with open("events.json", "r") as f:
             events = json.load(f)
 
+    # Build a set of timestamps for resolution events
     resolution_times = set()
     for event in events:
         if event["event"] in ["Boated", "Released"]:
@@ -710,15 +711,22 @@ def get_hooked_up_events():
         elif "pulled hook" in event["details"].lower() or "wrong species" in event["details"].lower():
             resolution_times.add(event["timestamp"])
 
+    # Return all Hooked Up events not resolved
     unresolved = []
     for event in events:
         if event["event"] != "Hooked Up":
             continue
+
         hookup_id = event.get("hookup_id", "")
+        if "_" not in hookup_id:
+            continue
+
         try:
             _, ts = hookup_id.rsplit("_", 1)
-        except:
+        except Exception as e:
+            print(f"⚠️ Invalid hookup_id format: {hookup_id}")
             continue
+
         if ts not in resolution_times:
             unresolved.append(event)
 

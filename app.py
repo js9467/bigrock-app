@@ -717,7 +717,7 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
 
-    # Load event list
+    # Load events
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
@@ -729,7 +729,7 @@ def get_hooked_up_events():
 
     now = datetime.now()
 
-    # Build lookup of resolution timestamps by UID
+    # Build lookup set of resolution events (uid, timestamp)
     resolution_lookup = set()
     for e in events:
         if e["event"] in ["Released", "Boated"] or \
@@ -740,37 +740,29 @@ def get_hooked_up_events():
                 if settings.get("data_source") == "demo" and ts.time() > now.time():
                     continue
                 resolution_lookup.add((e["uid"], ts.isoformat()))
-            except Exception:
-                continue
+                print(f"✅ RESOLUTION: {e['uid']} @ {ts.isoformat()}")
+            except Exception as ex:
+                print(f"⚠️ Error parsing resolution timestamp: {e.get('timestamp')}")
 
     unresolved = []
     for e in events:
-    if e["event"] in ["Released", "Boated", "Pulled Hook", "Wrong Species"]:
-        print("✅ RESOLUTION:", e["uid"], e["timestamp"])
-
-for e in events:
-    if e["event"] == "Hooked Up":
-        try:
-            uid, target_ts_str = e["hookup_id"].rsplit("_", 1)
-            print("🔎 Checking:", uid, target_ts_str)
-        except Exception as ex:
-            print("⚠️ Parse failed:", e.get("hookup_id"))
-for e in events:
         if e["event"] != "Hooked Up":
             continue
 
-        hookup_id = e.get("hookup_id")
-        if not hookup_id:
-            continue
-
         try:
-            uid, resolution_str = hookup_id.rsplit("_", 1)
-            resolution_ts = date_parser.parse(resolution_str).replace(microsecond=0).isoformat()
-        except Exception:
+            uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
+            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+            print(f"🔎 Checking hookup: {uid} @ {target_ts}")
+        except Exception as ex:
+            print(f"⚠️ Bad hookup_id: {e.get('hookup_id')}")
+            unresolved.append(e)
             continue
 
-        if (uid, resolution_ts) not in resolution_lookup:
+        if (uid, target_ts) not in resolution_lookup:
+            print(f"❌ UNRESOLVED: {uid} @ {target_ts}")
             unresolved.append(e)
+        else:
+            print(f"✅ MATCHED: {uid} @ {target_ts}")
 
     return jsonify({
         "status": "ok",

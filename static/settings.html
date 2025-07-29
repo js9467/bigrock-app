@@ -93,6 +93,26 @@
         <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
         <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Bluetooth</button>
       </div>
+
+      <!-- Cache Status -->
+      <div v-if="cacheStatus" class="pt-6">
+        <h2 class="text-xl font-semibold mb-2">Cache Status</h2>
+        <div class="bg-gray-50 p-4 rounded border border-gray-300 text-sm space-y-1">
+          <p><strong>Mode:</strong> {{ cacheStatus.mode }}</p>
+          <p>
+            <strong>Participants last scraped:</strong>
+            {{ cacheStatus.participants_last_scraped || "Never" }}
+            <span v-if="cacheStatus.participants_cache_fresh" class="text-green-600 ml-2">✅ Fresh</span>
+            <span v-else class="text-red-600 ml-2">⚠️ Stale</span>
+          </p>
+          <p>
+            <strong>Events last scraped:</strong>
+            {{ cacheStatus.events_last_scraped || "Never" }}
+            <span v-if="cacheStatus.events_cache_fresh" class="text-green-600 ml-2">✅ Fresh</span>
+            <span v-else class="text-red-600 ml-2">⚠️ Stale</span>
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -119,7 +139,8 @@
           showPassword: false,
           bluetoothDevices: [],
           wifiPopup: false,
-          bluetoothPopup: false
+          bluetoothPopup: false,
+          cacheStatus: null
         };
       },
       computed: {
@@ -197,6 +218,11 @@
             const firstValid = Object.keys(res.data).find(k => res.data[k]);
             if (firstValid) this.settings.tournament = firstValid;
           }
+        });
+        axios.get('/status').then(res => {
+          this.cacheStatus = res.data;
+        }).catch(err => {
+          console.error("Failed to load cache status:", err);
         });
         this.scanWifi();
         this.scanBluetooth();

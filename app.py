@@ -882,6 +882,14 @@ def list_sounds():
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500
 
+@app.route('/api/version')
+def api_version():
+    try:
+        with open("version.txt") as f:
+            return jsonify({"version": f.read().strip()})
+    except:
+        return jsonify({"version": "Unknown"})
+
 
 
 if __name__ == '__main__':

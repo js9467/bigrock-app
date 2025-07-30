@@ -91,8 +91,9 @@
     </div>
   </div>
 
+  <!-- Vue Script -->
   <script>
-    const { createApp } = Vue
+    const { createApp } = Vue;
 
     createApp({
       data() {
@@ -102,77 +103,117 @@
           boatImages: {},
           tournamentLogo: '',
           loading: true,
-          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
-        }
+          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+          settings: {},
+          seenEventKeys: new Set()
+        };
       },
       mounted() {
-        this.fetchAll()
-        this.loadTournamentLogo()
-        setInterval(this.fetchAll, 30000)  // 🔁 Refresh every 30 seconds
+        this.fetchAll();
+        this.loadTournamentLogo();
+        this.loadSettings();
+        setInterval(this.fetchAll, 30000); // 🔁 Auto refresh
       },
       methods: {
         fetchAll() {
-          this.loading = true
+          this.loading = true;
 
-          const eventsPromise = fetch('/scrape/events').then(res => res.json())
-          const hookedPromise = fetch('/hooked').then(res => res.json())
-          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
+          const eventsPromise = fetch('/scrape/events').then(res => res.json());
+          const hookedPromise = fetch('/hooked').then(res => res.json());
+          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json());
 
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
-              this.events = eventsData.events || []
-              this.hooked = hookedData.events || []
+              const newEvents = eventsData.events || [];
+              const newHooked = hookedData.events || [];
+
+              this.events = newEvents;
+              this.hooked = newHooked;
+
+              this.checkEventSounds(newEvents);
             })
             .catch(err => {
-              console.error("❌ Event/Hooked fetch error:", err)
-            })
+              console.error("❌ Event/Hooked fetch error:", err);
+            });
 
           participantsPromise
             .then(participantsData => {
-              const images = {}
+              const images = {};
               for (const p of participantsData.participants) {
-                images[p.uid] = p.image_path
+                images[p.uid] = p.image_path;
               }
-              this.boatImages = images
-              this.loading = false
+              this.boatImages = images;
+              this.loading = false;
             })
             .catch(err => {
-              console.error("❌ Participants fetch error:", err)
-              this.loading = false
-            })
+              console.error("❌ Participants fetch error:", err);
+              this.loading = false;
+            });
+        },
+        checkEventSounds(events) {
+          for (const event of events) {
+            const key = `${event.uid}_${event.timestamp}`;
+            if (this.seenEventKeys.has(key)) continue;
+            this.seenEventKeys.add(key);
+
+            const isFollowed = this.followed.includes(event.uid);
+            const details = (event.details || '').toLowerCase();
+
+            if (this.settings.sounds_enabled) {
+              if (isFollowed && this.settings.hooked_sound) {
+                this.playSound(this.settings.hooked_sound);
+              } else if (details.includes('boated') && this.settings.boated_sound) {
+                this.playSound(this.settings.boated_sound);
+              }
+            }
+          }
+        },
+        playSound(file) {
+          if (!file) return;
+          const audio = new Audio(`/static/sounds/${file}`);
+          audio.volume = (this.settings.event_volume || 80) / 100;
+          audio.play().catch(err => console.warn("Sound play error:", err));
         },
         getBoatImage(uid) {
-          return this.boatImages[uid] || ''
+          return this.boatImages[uid] || '';
         },
         formatTime(ts) {
           try {
-            const dt = new Date(ts)
+            const dt = new Date(ts);
             return dt.toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
               hour12: true
-            })
+            });
           } catch {
-            return ts
+            return ts;
           }
         },
         isFollowed(uid) {
-          return this.followed.includes(uid)
+          return this.followed.includes(uid);
         },
         loadTournamentLogo() {
           fetch('/api/settings')
             .then(res => res.json())
             .then(settings => {
-              const tournament = settings.tournament
+              const tournament = settings.tournament;
               return fetch('https://js9467.github.io/Brtourney/settings.json')
                 .then(res => res.json())
                 .then(all => {
-                  this.tournamentLogo = all[tournament]?.logo || ''
-                })
+                  this.tournamentLogo = all[tournament]?.logo || '';
+                });
+            });
+        },
+        loadSettings() {
+          fetch('/api/settings')
+            .then(res => res.json())
+            .then(data => {
+              this.settings = data;
             })
+            .catch(err => console.error("❌ Failed to load settings:", err));
         }
       }
-    }).mount('#app')
+    }).mount('#app');
   </script>
 </body>
 </html>

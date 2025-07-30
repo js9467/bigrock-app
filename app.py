@@ -811,13 +811,13 @@ def launch_keyboard():
         env['DISPLAY'] = ':0'
         env['XAUTHORITY'] = '/home/pi/.Xauthority'
 
-        # Just pass the layout name — no flags
-        subprocess.Popen(['matchbox-keyboard', 'extended'], env=env)
+        # Log output to file so we can read it via SSH
+        with open('/tmp/matchbox.log', 'w') as f:
+            subprocess.Popen(['matchbox-keyboard', 'extended'], env=env, stdout=f, stderr=f)
 
         return jsonify({"status": "launched"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 

@@ -9,91 +9,88 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
-  @keyframes marquee {
-    0% { transform: translateX(100%); }
-    100% { transform: translateX(-100%); }
-  }
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
 
-  .message-strip-wrapper {
-    position: relative;
-    overflow: hidden;
-    height: 2.5rem;
-    background-color: #002855; /* Matches brand-blue */
-  }
+.message-strip-wrapper {
+  position: relative;
+  overflow: hidden;
+  height: 2.25rem;
+  background-color: #002855;
+}
 
-  .message-strip {
-    display: inline-block;
-    white-space: nowrap;
-    font-size: 1.25rem; /* Larger text */
-    font-weight: 700;
-    color: white;
-    animation: marquee 20s linear infinite;
-    will-change: transform;
-    padding-left: 100%;
-  }
+.message-strip {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+  animation: marquee 40s linear infinite; /* ✅ slower speed */
+  will-change: transform;
+  padding-left: 100%;
+}
 
-  .message-strip a {
-    color: #facc15; /* Yellow for "click here" */
-    text-decoration: underline;
-    font-weight: bold;
-    padding: 0 0.5rem;
-  }
+.message-strip a {
+  color: #facc15; /* Bright yellow */
+  text-decoration: underline;
+  font-weight: bold;
+  padding: 0 0.5rem;
+}
 
-  /* Pause scrolling on hover to allow clicks */
-  .message-strip-wrapper:hover .message-strip {
-    animation-play-state: paused;
-    cursor: pointer;
-  }
+.message-strip-wrapper:hover .message-strip {
+  animation-play-state: paused;
+  cursor: pointer;
+}
 </style>
+
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
   <!-- Header -->
-  <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
-    <div class="flex items-center justify-between gap-4 flex-wrap w-full">
-      <!-- Left: Logo + VHF playing -->
-      <div class="flex items-center gap-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-        <span v-else class="text-white text-base">Loading Logo...</span>
-        <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
-      </div>
+  <header class="bg-brand-blue text-white px-4 py-3 shadow-md">
+  <div class="flex items-center justify-between gap-4 flex-wrap w-full">
+    <!-- Left: Logo + VHF status -->
+    <div class="flex items-center gap-4">
+      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+      <span v-else class="text-white text-base">Loading Logo...</span>
+      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
+    </div>
 
-      <!-- Ticker Section -->
-<div v-if="messageQueue.length > 0" class="message-strip-wrapper w-full">
-  <div class="message-strip" v-html="combinedMessages"></div>
-</div>
-
-
-      <!-- Right: Buttons -->
-      <div class="flex gap-4 items-start">
-        <div class="flex flex-col items-center">
-          <button @click="toggleRadio"
-                  class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-            {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-          </button>
-          <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
-            <span class="text-lg">🔊</span>
-            <input type="range"
-       min="0"
-       max="100"
-       v-model="settings.radio_volume"
-       @input="applyRadioVolume"
-       @change="saveRadioVolume"
-       class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
-
-            <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
-          </div>
+    <!-- Right: Buttons -->
+    <div class="flex gap-4 items-start flex-wrap justify-end ml-auto">
+      <div class="flex flex-col items-center">
+        <button @click="toggleRadio"
+                class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+        </button>
+        <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
+          <span class="text-lg">🔊</span>
+          <input type="range" min="0" max="100" v-model="settings.radio_volume"
+                 @input="applyRadioVolume" @change="saveRadioVolume"
+                 class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
+          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
         </div>
-        <a href="/participants" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-        <a href="/leaderboard" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
-        <a href="/catch-summary" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Catch Summary</a>
-        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
+      <a href="/participants" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+      <a href="/leaderboard" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
+      <a href="/catch-summary" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Catch Summary</a>
+      <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
     </div>
-    <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
-      v{{ version }}
-    </div>
-  </header>
+  </div>
+
+  <!-- Ticker -->
+  <div v-if="messageQueue.length > 0" class="message-strip-wrapper w-full mt-2">
+    <div class="message-strip" v-html="combinedMessages"></div>
+  </div>
+
+  <!-- Version -->
+  <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
+    v{{ version }}
+  </div>
+</header>
+
 
   <div class="flex h-screen overflow-hidden">
     <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">

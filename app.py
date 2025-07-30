@@ -735,20 +735,31 @@ def bluetooth_connect():
 @app.route('/wifi/scan')
 def wifi_scan():
     try:
-        scan_result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'], text=True)
+        # Force a Wi-Fi rescan
+        subprocess.run(['sudo', 'nmcli', 'dev', 'wifi', 'rescan'], check=True)
+
+        # Retrieve available Wi-Fi networks
+        scan_result = subprocess.check_output(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'],
+            text=True
+        )
+
         seen = {}
         connected_ssid = None
 
         for line in scan_result.strip().split('\n'):
             parts = line.strip().split(':')
             if len(parts) >= 3:
-                ssid, signal, in_use = parts
+                ssid, signal_str, in_use = parts
                 if not ssid:
                     continue
-                signal = int(signal)
+                try:
+                    signal = int(signal_str)
+                except ValueError:
+                    signal = 0
                 is_connected = in_use.strip() == '*'
 
-                # Update if not seen or this one has stronger signal or is connected
+                # Only keep the strongest signal or the connected instance
                 if ssid not in seen or is_connected or signal > seen[ssid]['signal']:
                     seen[ssid] = {
                         'ssid': ssid,
@@ -759,10 +770,15 @@ def wifi_scan():
                     connected_ssid = ssid
 
         networks = list(seen.values())
+        networks.sort(key=lambda x: -x['signal'])  # Optional: sort by signal strength
         return jsonify({'networks': networks, 'connected': connected_ssid})
+
+    except subprocess.CalledProcessError as e:
+        print(f"❌ nmcli scan error: {e}")
+        return jsonify({'networks': [], 'connected': None, 'error': str(e)}), 500
     except Exception as e:
         print(f"❌ Wi-Fi scan error: {e}")
-        return jsonify({'networks': [], 'connected': None})
+        return jsonify({'networks': [], 'connected': None, 'error': str(e)}), 500
 
 
 @app.route('/wifi/connect', methods=['POST'])
@@ -802,19 +818,27 @@ def wifi_connect():
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():
     try:
-        # Find the active Wi-Fi connection name
         result = subprocess.check_output(['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'con', 'show', '--active'], text=True)
         lines = result.strip().split('\n')
+
         for line in lines:
-            name, ctype, device = line.strip().split(':')
+            parts = line.strip().split(':')
+            if len(parts) < 3:
+                continue
+            name, ctype, device = parts
             if ctype == 'wifi':
                 print(f"🚫 Disconnecting Wi-Fi connection: {name}")
                 subprocess.check_call(['nmcli', 'con', 'down', name])
                 return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
+                
         return jsonify({'status': 'error', 'message': 'No active Wi-Fi connection found'}), 400
     except subprocess.CalledProcessError as e:
         print(f"❌ Wi-Fi disconnect error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/launch_keyboard', methods=['POST'])
 def launch_keyboard():

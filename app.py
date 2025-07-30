@@ -807,10 +807,16 @@ def wifi_disconnect():
 @app.route('/launch_keyboard', methods=['POST'])
 def launch_keyboard():
     try:
-        subprocess.Popen(['matchbox-keyboard'])
-        return jsonify({'status': 'ok'})
+        env = os.environ.copy()
+        env['DISPLAY'] = ':0'
+        env['XAUTHORITY'] = '/home/pi/.Xauthority'
+        subprocess.Popen(['matchbox-keyboard'], env=env)
+        return jsonify({"status": "launched"})
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return jsonify({"error": str(e)}), 500
+
+
+
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
     try:

@@ -63,7 +63,7 @@
       </div>
 
       <div>
-        <label class="block font-semibold mb-1">Event Volume</label>
+        <label class="block font-semibold mb-1">Follwed Activity Volume</label>
         <input type="range" min="0" max="100" v-model="settings.event_volume" @change="saveSettings" class="w-full">
         <div class="text-center">{{ settings.event_volume }}%</div>
       </div>
@@ -187,12 +187,15 @@
           setTimeout(() => this.toast.message = '', 3000);
         },
         saveSettings() {
-          axios.post('/api/settings', this.settings).then(() => {
-            this.showToast('✅ Settings saved.', 'success');
-          }).catch(err => {
-            this.showToast('❌ Failed to save settings.', 'error');
-          });
-        },
+  localStorage.setItem('followed_sound', this.settings.hooked_sound);
+  localStorage.setItem('event_volume', this.settings.event_volume);
+  axios.post('/api/settings', this.settings).then(() => {
+    this.showToast('✅ Settings saved.', 'success');
+  }).catch(err => {
+    this.showToast('❌ Failed to save settings.', 'error');
+  });
+},
+
         previewSound(file) {
           if (!file) return;
           const audio = new Audio(`/static/sounds/${file}`);
@@ -241,22 +244,31 @@
         }
       },
       mounted() {
-        axios.get('/api/settings').then(res => {
-          this.settings = { ...this.settings, ...res.data };
-          const stored = localStorage.getItem('followed_sound');
-          if (stored) this.settings.hooked_sound = stored;
-          axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-            this.tournaments = res.data;
-            this.updateTournamentLogo();
-          });
-        });
-        axios.get('/sounds').then(res => {
-          this.availableSounds = res.data.files || [];
-        }).catch(() => {
-          this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
-        });
-        this.fetchWifi();
-      }
+  axios.get('/api/settings').then(res => {
+    this.settings = { ...this.settings, ...res.data };
+
+    // Restore hooked sound and volume from localStorage if present
+    const storedSound = localStorage.getItem('followed_sound');
+    if (storedSound) this.settings.hooked_sound = storedSound;
+
+    const storedVol = localStorage.getItem('event_volume');
+    if (storedVol) this.settings.event_volume = parseInt(storedVol);
+
+    axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
+      this.tournaments = res.data;
+      this.updateTournamentLogo();
+    });
+  });
+
+  axios.get('/sounds').then(res => {
+    this.availableSounds = res.data.files || [];
+  }).catch(() => {
+    this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+  });
+
+  this.fetchWifi();
+}
+
     }).mount('#app');
   </script>
 </body>

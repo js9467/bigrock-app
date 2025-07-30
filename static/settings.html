@@ -243,17 +243,16 @@
       mounted() {
         axios.get('/api/settings').then(res => {
           this.settings = { ...this.settings, ...res.data };
-        });
-        axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-          this.tournaments = res.data;
-          this.updateTournamentLogo();
+          axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
+            this.tournaments = res.data;
+            this.updateTournamentLogo();
+          });
         });
         axios.get('/sounds').then(res => {
-  this.availableSounds = res.data.files || [];
-}).catch(() => {
-  this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
-});
-
+          this.availableSounds = res.data.files || [];
+        }).catch(() => {
+          this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+        });
         this.fetchWifi();
       }
     }).mount('#app');

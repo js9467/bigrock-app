@@ -249,7 +249,7 @@ const app = createApp({
                 tryPlay(fallback, 'Fallback')
                   .then(() => {
                     this.radioPlaying = true;
-                    this.error = "Primary stream failed. Using fallback.";
+                    this.error = "Your tournament VHF feed is currently unavialble. You are hearing sample audio.";
                     this.enqueueMessage(this.error);
                     localStorage.setItem('radioPlaying', 'true');
                   })

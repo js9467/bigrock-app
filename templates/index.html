@@ -9,31 +9,37 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
-    body { touch-action: manipulation; }
-    .message-strip {
-      position: fixed;
-      top: 0.5rem;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: #f59e0b;
-      color: white;
-      padding: 0.5rem 1.25rem;
-      border-radius: 0.5rem;
-      z-index: 9999;
-      max-width: 90%;
-      font-weight: 600;
-      font-size: 0.95rem;
-      animation: fadein 0.5s ease-in-out;
-    }
-    .message-strip a {
-      color: #fff;
-      text-decoration: underline;
-    }
-    @keyframes fadein {
-      from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-  </style>
+  body { touch-action: manipulation; }
+  .message-strip {
+    position: fixed;
+    top: 0.5rem;
+    left: 15%;
+    width: 70%;
+    background-color: #f59e0b;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    z-index: 9999;
+    font-weight: 600;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: fadein 0.5s ease-in-out;
+  }
+  .message-strip::-webkit-scrollbar {
+    display: none;
+  }
+  .message-strip a {
+    color: #fff;
+    text-decoration: underline;
+  }
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
 

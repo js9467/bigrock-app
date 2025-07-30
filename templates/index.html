@@ -2,213 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Events Feed</title>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css">
+  <title>12 Tournament Feed Manager</title>
   <style>
-    body { touch-action: manipulation; }
-    .toast {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      z-index: 9999;
-      padding: 0.75rem 1rem;
-      border-radius: 0.375rem;
-      font-weight: 600;
-      color: white;
-    }
-    .toast-success { background-color: #16a34a; }
-    .toast-error { background-color: #dc2626; }
-    .vhf-indicator {
-      display: inline-block;
-      margin-left: 8px;
-      width: 10px;
-      height: 10px;
-      background-color: #16a34a;
-      border-radius: 50%;
-      animation: blink 1s infinite;
-    }
-    @keyframes blink {
-      0%, 50%, 100% { opacity: 1; }
-      25%, 75% { opacity: 0; }
-    }
+    body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; }
+    h1, h2, h3 { margin-top: 30px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input { width: 100%; padding: 6px; margin-bottom: 10px; }
+    button { padding: 10px 15px; margin-top: 10px; margin-right: 10px; }
+    .tournament-block { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
+    #fallbackLink { display: inline-block; margin-top: 10px; color: blue; text-decoration: underline; }
+    .version { font-size: 0.8em; color: gray; margin-top: 20px; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans">
-<div id="app">
-  <!-- Header -->
-  <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
-    <div class="flex items-center space-x-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-    </div>
-    <div class="flex items-center space-x-4">
-      <button @click="toggleRadio" class="bg-white text-brand-blue px-4 py-2 rounded font-bold">
-        {{ radioPlaying ? 'VHF On' : 'VHF Off' }}
-        <span v-if="radioPlaying" class="vhf-indicator"></span>
-      </button>
-      <a href="/leaderboard.html" class="bg-brand-gold text-white px-4 py-2 rounded font-bold">Leaderboard</a>
-      <a href="/settings.html" class="bg-gray-300 text-brand-blue px-4 py-2 rounded font-bold">Settings</a>
-    </div>
-  </header>
+<body>
+  <h1>Tournament Feed Manager</h1>
+  <div id="tournamentList"></div>
 
-  <!-- Main Feed -->
-  <main class="p-4 space-y-4">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <!-- Hooked Up Feed -->
-      <div class="col-span-1">
-        <h2 class="text-lg font-bold mb-2">Hooked Up</h2>
-        <div v-if="hooked.length === 0" class="text-gray-500">No boats currently hooked up</div>
-        <div v-for="event in hooked" :key="event.id" class="bg-white p-3 rounded shadow">
-          <img v-if="boatImages[event.uid]" :src="boatImages[event.uid]" class="h-32 w-full object-cover rounded mb-2">
-          <p class="font-bold text-brand-blue">{{ event.boat }}</p>
-          <p class="text-sm text-gray-600">{{ event.time }}</p>
-        </div>
-      </div>
+  <h2>Add New Tournament</h2>
+  <form id="newTournamentForm">
+    <label>Tournament Name</label>
+    <input name="name" required />
+    <label>Participants URL</label>
+    <input name="participants" required />
+    <label>Events URL</label>
+    <input name="events" required />
+    <label>Leaderboard URL</label>
+    <input name="leaderboard" />
+    <label>Logo URL</label>
+    <input name="logo" />
+    <label>Stream URL</label>
+    <input name="stream" />
+    <button type="submit">Add Tournament</button>
+  </form>
 
-      <!-- Main Event Feed -->
-      <div class="col-span-2">
-        <h2 class="text-lg font-bold mb-2">Live Events</h2>
-        <div v-if="loading" class="text-gray-500">Loading events...</div>
-        <div v-for="event in events" :key="event.id" class="bg-white p-3 rounded shadow flex items-center justify-between">
-          <div>
-            <p class="font-bold">{{ event.boat }}</p>
-            <p class="text-sm text-gray-600">{{ event.time }} — {{ event.details }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
+  <p>
+    Having trouble submitting? <a id="fallbackLink" href="#" target="_blank">Open Issue Manually</a>
+  </p>
 
-  <div v-if="toastMessage" :class="['toast', toastType]">{{ toastMessage }}</div>
-  <audio ref="audioPlayer" preload="auto"></audio>
-</div>
+  <p class="version">UI Version: 1.0.9</p>
 
-<script>
-const { createApp } = Vue;
+  <script>
+    let currentData = {};
 
-createApp({
-  data() {
-    return {
-      events: [],
-      hooked: [],
-      boatImages: {},
-      loading: true,
-      toastMessage: '',
-      toastType: '',
-      radioPlaying: false,
-      hls: null,
-      settings: {},
-      tournamentLogo: null,
-      primaryStream: '',
-      fallbackStream: ''
-    };
-  },
-  methods: {
-    async fetchSettings() {
-      const res = await axios.get('/api/settings');
-      this.settings = res.data;
-      const tournament = this.settings.tournament;
-      const remote = await axios.get('https://js9467.github.io/Brtourney/settings.json');
-      const tournamentEntry = remote.data[tournament] || {};
-      this.primaryStream = tournamentEntry.stream || '';
-      this.fallbackStream = remote.data.fallback_stream || '';
-      this.tournamentLogo = tournamentEntry.logo || null;
-    },
-    async fetchEvents() {
-      const res = await axios.get('/events');
-      this.events = res.data;
-    },
-    async fetchHooked() {
-      const res = await axios.get('/hooked');
-      this.hooked = res.data;
-    },
-    async fetchImages() {
-      const res = await axios.get('/participants');
-      res.data.forEach(p => {
-        this.boatImages[p.uid] = p.image_path;
-      });
-    },
-    showToast(msg, type = 'toast-success') {
-      this.toastMessage = msg;
-      this.toastType = type;
-      setTimeout(() => this.toastMessage = '', 3000);
-    },
-    toggleRadio() {
-      const player = this.$refs.audioPlayer;
-      const playStream = (url, isFallback = false) => {
-        if (this.hls) {
-          this.hls.destroy();
-          this.hls = null;
-        }
+    function slugify(str) {
+      return str.toLowerCase()
+                .replace(/\s+/g, "_")
+                .replace(/[^\w_]/g, "");
+    }
 
-        if (Hls.isSupported()) {
-          this.hls = new Hls();
-          this.hls.loadSource(url);
-          this.hls.attachMedia(player);
-          this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            player.volume = this.settings.radio_volume || 0.3;
-            player.play()
-              .then(() => {
-                this.radioPlaying = true;
-                this.showToast('📡 VHF Stream Playing');
-              })
-              .catch(err => {
-                console.error('🔊 HLS play failed:', err);
-                if (!isFallback && this.fallbackStream) {
-                  playStream(this.fallbackStream, true);
-                } else {
-                  this.showToast('🔇 Stream unavailable', 'toast-error');
-                }
-              });
-          });
-        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-          player.src = url;
-          player.volume = this.settings.radio_volume || 0.3;
-          player.play().then(() => {
-            this.radioPlaying = true;
-            this.showToast('📡 VHF Stream Playing');
-          }).catch(err => {
-            console.error('🔊 Native HLS play failed:', err);
-            if (!isFallback && this.fallbackStream) {
-              playStream(this.fallbackStream, true);
-            } else {
-              this.showToast('🔇 Stream unavailable', 'toast-error');
-            }
-          });
-        } else {
-          this.showToast('❌ Audio format not supported', 'toast-error');
+    async function loadSettings() {
+      try {
+        const res = await fetch('settings.json');
+        currentData = await res.json();
+        const container = document.getElementById("tournamentList");
+        container.innerHTML = "<h2>Edit Existing Tournaments</h2>";
+
+        Object.entries(currentData).forEach(([name, urls]) => {
+          if (!urls || typeof urls !== 'object') return;
+
+          const safeName = encodeURIComponent(name);
+          const blockId = `block_${safeName}`;
+
+          container.innerHTML += `
+            <div class="tournament-block" id="${blockId}">
+              <h3>${name}</h3>
+              <label>UID</label>
+              <input name="uid_${safeName}" value="${urls.uid || ''}" />
+              <label>Participants URL</label>
+              <input name="participants_${safeName}" value="${urls.participants || ''}" />
+              <label>Events URL</label>
+              <input name="events_${safeName}" value="${urls.events || ''}" />
+              <label>Leaderboard URL</label>
+              <input name="leaderboard_${safeName}" value="${urls.leaderboard || ''}" />
+              <label>Logo URL</label>
+              <input name="logo_${safeName}" value="${urls.logo || ''}" />
+              <label>Stream URL</label>
+              <input name="stream_${safeName}" value="${urls.stream || ''}" />
+              <button type="button" onclick="updateSingleTournament('${name}', '${safeName}')">Update</button>
+              <button type="button" onclick="deleteTournament('${name}')">Delete</button>
+            </div>
+          `;
+        });
+      } catch (err) {
+        alert("❌ Failed to load settings.json. Make sure it exists and is valid.");
+        console.error("🔍 Full error details:", err);
+      }
+    }
+
+    function updateSingleTournament(name, safeName) {
+      const uidInput = document.querySelector(`input[name="uid_${safeName}"]`);
+      const participantsInput = document.querySelector(`input[name="participants_${safeName}"]`);
+      const eventsInput = document.querySelector(`input[name="events_${safeName}"]`);
+      const leaderboardInput = document.querySelector(`input[name="leaderboard_${safeName}"]`);
+      const logoInput = document.querySelector(`input[name="logo_${safeName}"]`);
+      const streamInput = document.querySelector(`input[name="stream_${safeName}"]`);
+
+      if (!participantsInput || !eventsInput || !uidInput) {
+        alert(`❌ Missing fields for ${name}`);
+        return;
+      }
+
+      const update = {
+        [name]: {
+          uid: uidInput.value.trim(),
+          participants: participantsInput.value.trim(),
+          events: eventsInput.value.trim(),
+          leaderboard: leaderboardInput.value.trim(),
+          logo: logoInput.value.trim(),
+          stream: streamInput.value.trim()
         }
       };
 
-      if (this.radioPlaying) {
-        if (this.hls) {
-          this.hls.destroy();
-          this.hls = null;
+      submitIssue(update);
+    }
+
+    function deleteTournament(name) {
+      if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+      const update = {
+        [name]: null
+      };
+
+      submitIssue(update);
+    }
+
+    document.getElementById("newTournamentForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const form = e.target;
+      const name = form.name.value.trim();
+      const participants = form.participants.value.trim();
+      const events = form.events.value.trim();
+      const leaderboard = form.leaderboard.value.trim();
+      const logo = form.logo.value.trim();
+      const stream = form.stream.value.trim();
+
+      if (!name || !participants || !events) return;
+
+      const uid = slugify(name) + "_" + new Date().getFullYear();
+
+      const update = {
+        [name]: {
+          uid,
+          participants,
+          events,
+          leaderboard,
+          logo,
+          stream
         }
-        player.pause();
-        player.src = '';
-        this.radioPlaying = false;
-        this.showToast('🛑 VHF Stream Stopped', 'toast-info');
-      } else {
-        player.src = '';
-        playStream(this.primaryStream || this.fallbackStream);
+      };
+
+      submitIssue(update);
+    });
+
+    function submitIssue(updateData) {
+      try {
+        const body = JSON.stringify(updateData, null, 2);
+        const title = `Tournament: Update ${new Date().toISOString()}`;
+        const url = `https://github.com/js9467/Brtourney/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+
+        document.getElementById("fallbackLink").href = url;
+
+        const win = window.open(url, "_blank");
+        if (!win || win.closed || typeof win.closed === "undefined") {
+          alert("⚠️ Popup blocked. Use the fallback link below.");
+        }
+
+        console.log("📎 Issue URL:", url);
+      } catch (err) {
+        alert("❌ Failed to generate issue link.");
+        console.error(err);
       }
     }
-  },
-  async mounted() {
-    await this.fetchSettings();
-    await this.fetchImages();
-    await this.fetchEvents();
-    await this.fetchHooked();
-    setInterval(this.fetchEvents, 30000);
-    setInterval(this.fetchHooked, 30000);
-  }
-}).mount("#app");
-</script>
+
+    loadSettings();
+  </script>
 </body>
 </html>

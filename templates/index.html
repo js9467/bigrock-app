@@ -22,15 +22,11 @@
     .message-error { color: #f87171; }
     .message-warning { color: #facc15; }
     .message-info { color: #93c5fd; }
-    .message-strip a {
-      color: #f6c553;
-      text-decoration: underline;
-    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
- <!-- Header -->
+  <!-- Header -->
   <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
     <div class="flex items-center justify-between gap-4 flex-wrap w-full">
       <!-- Left: Logo + VHF playing -->
@@ -41,8 +37,8 @@
       </div>
 
       <!-- Center: Ticker area -->
-      <div v-if="messageQueue.length > 0" class="relative flex-1 overflow-hidden h-6 message-strip">
-        <div :class="['absolute whitespace-nowrap text-sm font-semibold', messageQueue.length > 1 ? 'animate-marquee' : '']" v-html="combinedMessages"></div>
+      <div v-if="messageQueue.length > 0" class="relative flex-1 overflow-hidden h-6">
+        <div :class="['absolute whitespace-nowrap text-sm font-semibold text-white', messageQueue.length > 1 ? 'animate-marquee' : '']" v-html="combinedMessages"></div>
       </div>
 
       <!-- Right: Buttons -->
@@ -69,33 +65,7 @@
       v{{ version }}
     </div>
   </header>
- <!-- Demo Mode Banner -->
-  <div v-if="settings.data_source === 'demo'" class="bg-yellow-100 text-yellow-900 text-base font-semibold px-4 py-2 flex items-center justify-between shadow-sm">
-    <div>🧪 You are in demo mode. Events are simulated.</div>
-    <button @click="injectTestEvent"
-            class="ml-4 px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition text-sm">
-      Inject Boated Event
-    </button>
-  </div>
 
-  <!-- Vue mounted hook for kiosk-safe event delegation -->
-  <script>
-    const originalMounted = app.config.globalProperties.mounted;
-    app.config.globalProperties.mounted = function () {
-      if (typeof originalMounted === 'function') originalMounted.call(this);
-      this.$nextTick(() => {
-        document.addEventListener('click', (e) => {
-          if (e.target.classList.contains('inject-link')) {
-            e.preventDefault();
-            this.injectTestEvent();
-          }
-        });
-      });
-    };
-  </script>
-</div>
-
-  
   <div class="flex h-screen overflow-hidden">
     <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
       <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>

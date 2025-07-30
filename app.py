@@ -122,7 +122,8 @@ def fetch_page_html(url, wait_selector=None, timeout=120000):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page()
+            page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36")
+
             page.goto(url, wait_until="load", timeout=120000)
             if wait_selector:
                 try:

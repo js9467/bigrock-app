@@ -216,16 +216,21 @@ const app = createApp({
       return this.boatImages[uid] || '';
     },
     loadParticipants() {
-      fetch('/participants_data?limit=1000&offset=0')
-        .then(res => res.json())
-        .then(data => {
-          const images = {};
-          for (const p of data.participants) {
-            images[p.uid] = p.image_path;
-          }
-          this.boatImages = images;
-        });
-    },
+  fetch('/participants_data?limit=1000&offset=0')
+    .then(res => res.json())
+    .then(data => {
+      const images = {};
+      for (const p of data.participants) {
+        images[p.uid] = p.image_path;
+      }
+
+      // Inject Palmer Lou demo image from non-deletable path
+      images["palmer_lou"] = "/static/images/palmer_lou.jpg";
+
+      this.boatImages = images;
+    });
+}
+,
     loadTournamentLogo() {
       fetch('/api/settings')
         .then(res => res.json())

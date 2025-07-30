@@ -775,19 +775,35 @@ def wifi_connect():
     try:
         data = request.get_json()
         ssid = data.get('ssid')
-        password = data.get('password')
+        password = data.get('password', '')
         if not ssid:
             return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
+
+        print(f"🔄 Rescanning Wi-Fi networks before connecting to '{ssid}'...")
+        subprocess.call(['nmcli', 'dev', 'wifi', 'rescan'])
+        time.sleep(2)
+
+        # Check if SSID is visible
+        available = subprocess.check_output(['nmcli', '-t', '-f', 'SSID', 'dev', 'wifi'], text=True).splitlines()
+        print(f"📡 Visible networks: {available}")
+        ssid_visible = ssid in available
+
+        # Build connection command
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
-            cmd.extend(['password', password])
-        print(f"🔌 Connecting to {ssid}")
+            cmd += ['password', password]
+        if not ssid_visible:
+            print("⚠️ SSID not found in scan; assuming hidden")
+            cmd += ['hidden', 'yes']
+
+        print(f"🔌 Connecting using: {' '.join(cmd)}")
         result = subprocess.check_output(cmd, text=True)
         print(f"✅ Wi-Fi connected: {result}")
         return jsonify({'status': 'ok', 'message': result})
+
     except subprocess.CalledProcessError as e:
-        print(f"❌ Wi-Fi connect error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print(f"❌ nmcli error: {e}")
+        return jsonify({'status': 'error', 'message': e.output.strip() if hasattr(e, 'output') else str(e)}), 500
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500

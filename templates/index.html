@@ -165,7 +165,60 @@ const app = createApp({
     window.addEventListener('offline', this.setupMessages);
   },
   methods: {
-    fetchSettings() {
+    toggleRadio() {
+  const player = document.getElementById('radio-player');
+  if (!player) return;
+
+  if (this.radioPlaying) {
+    player.pause();
+    this.radioPlaying = false;
+    localStorage.setItem('radioPlaying', 'false');
+  } else {
+    // Use per-tournament stream if available
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(settings => {
+        const tournament = settings.tournament;
+        return fetch('https://js9467.github.io/Brtourney/settings.json')
+          .then(res => res.json())
+          .then(all => {
+            const stream = all[tournament]?.stream || all[tournament]?.fallback_stream;
+            if (stream) {
+              if (Hls.isSupported()) {
+                if (this.hls) this.hls.destroy();
+                this.hls = new Hls();
+                this.hls.loadSource(stream);
+                this.hls.attachMedia(player);
+                this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                  player.volume = this.settings.radio_volume / 100;
+                  player.play().catch(err => {
+                    console.error('🔇 Failed to play stream:', err);
+                    this.error = "Stream failed to play.";
+                    this.enqueueMessage(this.error);
+                  });
+                });
+              } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+                player.src = stream;
+                player.addEventListener('loadedmetadata', () => {
+                  player.volume = this.settings.radio_volume / 100;
+                  player.play().catch(err => {
+                    console.error('🔇 Stream error:', err);
+                    this.error = "Stream failed to play.";
+                    this.enqueueMessage(this.error);
+                  });
+                });
+              }
+              this.radioPlaying = true;
+              localStorage.setItem('radioPlaying', 'true');
+            } else {
+              this.error = "No stream available for this tournament.";
+              this.enqueueMessage(this.error);
+            }
+          });
+      });
+  }
+},
+fetchSettings() {
       return fetch('/api/settings')
         .then(res => res.json())
         .then(data => { this.settings = { ...this.settings, ...data }; });

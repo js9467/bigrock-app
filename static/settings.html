@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings</title>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/base.css">
   <style>
     body {
       touch-action: manipulation;
@@ -15,115 +16,111 @@
       position: fixed;
       top: 1rem;
       right: 1rem;
-      z-index: 50;
+      z-index: 9999;
       padding: 0.75rem 1rem;
       border-radius: 0.375rem;
       font-weight: 600;
       color: white;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     }
-    .toast-success { background-color: #16a34a; }
-    .toast-warning { background-color: #facc15; color: black; }
-    .toast-error { background-color: #dc2626; }
+    .toast-success {
+      background-color: #16a34a;
+    }
+    .toast-error {
+      background-color: #dc2626;
+    }
+    .toast-info {
+      background-color: #2563eb;
+    }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans">
+<body class="bg-gray-100 text-gray-900 font-sans overflow-y-auto">
   <div id="app">
     <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md">
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition bg-blue-900">← Back</a>
+      <div class="flex items-center gap-3">
+        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Home</a>
+      </div>
     </header>
 
-    <!-- Main content -->
-    <div class="max-w-5xl mx-auto px-6 py-6 space-y-8">
-      <h1 class="text-3xl font-bold text-yellow-600 mb-2">⚙️ Settings</h1>
+    <div class="p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
+      <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
 
-      <!-- Tournament selection -->
       <div>
         <label class="block font-semibold mb-1">Tournament</label>
-        <select v-model="settings.tournament" class="w-full p-2 rounded border border-gray-400">
-          <option disabled value="">-- Select Tournament --</option>
-          <option v-for="(val, name) in validTournaments" :value="name" :key="name">{{ name }}</option>
-        </select>
+        <div v-if="Object.keys(validTournaments).length">
+          <select v-model="settings.tournament" @change="saveSettings" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+            <option disabled value="">-- Select Tournament --</option>
+            <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
+          </select>
+        </div>
+        <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
       </div>
 
-      <!-- Data Source -->
       <div class="flex items-center space-x-4">
         <span class="font-semibold">Data Source:</span>
-        <label><input type="radio" value="live" v-model="settings.data_source" class="mr-1"> Live</label>
-        <label><input type="radio" value="demo" v-model="settings.data_source" class="mr-1"> Demo</label>
+        <label class="inline-flex items-center"><input type="radio" value="live" v-model="settings.data_source" @change="saveSettings" class="mr-1"> Live</label>
+        <label class="inline-flex items-center"><input type="radio" value="demo" v-model="settings.data_source" @change="saveSettings" class="mr-1"> Demo</label>
       </div>
 
-      <!-- Volume -->
       <div>
         <label class="block font-semibold mb-1">Event Volume</label>
-        <input type="range" min="0" max="100" v-model="settings.event_volume" class="w-full">
+        <input type="range" min="0" max="100" v-model="settings.event_volume" @change="saveSettings" class="w-full">
         <div class="text-center">{{ settings.event_volume }}%</div>
       </div>
 
-      <!-- Sound Dropdowns -->
+      <div>
+        <label class="block font-semibold mb-1">VHF Volume</label>
+        <input type="range" min="0" max="100" v-model="settings.vhf_volume" @change="saveSettings" class="w-full">
+        <div class="text-center">{{ settings.vhf_volume }}%</div>
+      </div>
+
       <div>
         <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-        <select v-model="settings.sound_followed_activity" @change="playPreview(settings.sound_followed_activity)" class="w-full p-2 border rounded">
-          <option v-for="sound in availableSounds" :value="sound">{{ sound }}</option>
+        <select v-model="settings.hooked_sound" @change="previewSound(settings.hooked_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+          <option disabled value="">-- Select Sound --</option>
+          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
         </select>
       </div>
 
       <div>
-        <label class="block font-semibold mb-1">Sound for Any Boated Fish</label>
-        <select v-model="settings.sound_boated_any" @change="playPreview(settings.sound_boated_any)" class="w-full p-2 border rounded">
-          <option v-for="sound in availableSounds" :value="sound">{{ sound }}</option>
+        <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
+        <select v-model="settings.boated_sound" @change="previewSound(settings.boated_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+          <option disabled value="">-- Select Sound --</option>
+          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
         </select>
       </div>
 
-      <!-- Play Event Sounds toggle -->
       <div class="flex items-center space-x-2">
-        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled">
+        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" @change="saveSettings">
         <label for="sounds" class="font-semibold">Play Event Sounds</label>
       </div>
 
-      <!-- Wi-Fi -->
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
         <div class="text-sm text-gray-700 mb-2">Currently Connected: <span class="font-semibold">{{ connectedSSID }}</span></div>
         <button @click="openWifiPopup" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
       </div>
 
-      <!-- Bluetooth -->
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
-        <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Bluetooth</button>
-      </div>
-
-      <!-- Cache Status -->
-      <div v-if="cacheStatus" class="pt-6">
-        <h2 class="text-xl font-semibold mb-2">Cache Status</h2>
-        <div class="bg-gray-50 p-4 rounded border border-gray-300 text-sm space-y-1">
-          <p><strong>Mode:</strong> {{ cacheStatus.mode }}</p>
-          <p><strong>Participants last scraped:</strong> {{ cacheStatus.participants_last_scraped || "Never" }}
-            <span v-if="cacheStatus.participants_cache_fresh" class="text-green-600 ml-2">✅ Fresh</span>
-            <span v-else class="text-red-600 ml-2">⚠️ Stale</span>
-          </p>
-          <p><strong>Events last scraped:</strong> {{ cacheStatus.events_last_scraped || "Never" }}
-            <span v-if="cacheStatus.events_cache_fresh" class="text-green-600 ml-2">✅ Fresh</span>
-            <span v-else class="text-red-600 ml-2">⚠️ Stale</span>
-          </p>
-        </div>
+        <button @click="openBluetoothPopup" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Bluetooth</button>
       </div>
     </div>
 
     <!-- Toast -->
-    <div v-if="toast.message" :class="['toast', toast.type === 'success' ? 'toast-success' : toast.type === 'error' ? 'toast-error' : 'toast-warning']">
+    <div v-if="toast.message" :class="['toast', toast.type === 'success' ? 'toast-success' : toast.type === 'error' ? 'toast-error' : 'toast-info']">
       {{ toast.message }}
     </div>
+
+    <!-- Wi-Fi/Bluetooth modals and Vue logic are loaded in script below -->
   </div>
 
   <script>
-    const { createApp } = Vue
+    const { createApp } = Vue;
     createApp({
       data() {
         return {
@@ -131,18 +128,18 @@
             tournament: '',
             data_source: 'live',
             event_volume: 80,
+            vhf_volume: 70,
             sounds_enabled: true,
-            sound_followed_activity: '',
-            sound_boated_any: ''
+            hooked_sound: '',
+            boated_sound: ''
           },
           tournaments: {},
-          availableSounds: [],
-          toast: { message: '', type: 'success' },
           wifiNetworks: [],
-          bluetoothPopup: false,
-          wifiPopup: false,
-          cacheStatus: null
-        }
+          bluetoothDevices: [],
+          toast: { message: '', type: '' },
+          availableSounds: [],
+          tournamentLogo: ''
+        };
       },
       computed: {
         validTournaments() {
@@ -151,69 +148,51 @@
         connectedSSID() {
           const connected = this.wifiNetworks.find(n => n.connected);
           return connected ? connected.ssid : 'Not connected';
-        },
-        tournamentLogo() {
-          const t = this.settings.tournament;
-          return this.tournaments[t]?.logo || '';
         }
       },
       methods: {
-        showToast(msg, type = 'success') {
-          this.toast.message = msg
-          this.toast.type = type
-          setTimeout(() => this.toast.message = '', 2500)
+        showToast(message, type = 'info') {
+          this.toast = { message, type };
+          setTimeout(() => this.toast.message = '', 3000);
         },
         saveSettings() {
           axios.post('/api/settings', this.settings).then(() => {
-            this.showToast('✅ Settings saved', 'success')
+            this.showToast('✅ Settings saved.', 'success');
           }).catch(err => {
-            this.showToast('❌ Failed to save', 'error')
-          })
+            this.showToast('❌ Failed to save settings.', 'error');
+          });
         },
-        playPreview(soundName) {
-          if (!soundName) return
-          const audio = new Audio(`/static/sounds/${soundName}.mp3`)
-          audio.volume = this.settings.event_volume / 100
-          audio.play().then(() => {
-            this.showToast(`🔊 Playing ${soundName}`, 'warning')
-          }).catch(() => {
-            this.showToast('❌ Failed to play sound', 'error')
-          })
+        previewSound(file) {
+          if (!file) return;
+          const audio = new Audio(`/static/sounds/${file}`);
+          audio.volume = (this.settings.event_volume || 80) / 100;
+          audio.play().catch(() => {});
         },
-        scanWifi() {
+        openWifiPopup() {
           axios.get('/wifi/scan').then(res => {
             this.wifiNetworks = res.data.networks;
           });
         },
-        openWifiPopup() {
-          this.wifiPopup = true;
-          this.scanWifi();
+        openBluetoothPopup() {
+          axios.get('/bluetooth/scan').then(res => {
+            this.bluetoothDevices = res.data.devices;
+          });
         }
       },
       mounted() {
         axios.get('/api/settings').then(res => {
-          this.settings = { ...this.settings, ...res.data }
+          this.settings = { ...this.settings, ...res.data };
         });
         axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-          this.tournaments = res.data
+          this.tournaments = res.data;
         });
-        axios.get('/status').then(res => {
-          this.cacheStatus = res.data
+        axios.get('/static/sounds').then(res => {
+          this.availableSounds = res.data.files || [];
         });
-        axios.get('/sounds').then(res => {
-          this.availableSounds = res.data.map(s => s.replace('.mp3', ''))
-        })
-        this.scanWifi();
-      },
-      watch: {
-        settings: {
-          handler() {
-            this.saveSettings()
-          },
-          deep: true
-        }
+        this.openWifiPopup();
+        this.openBluetoothPopup();
       }
-    }).mount('#app')
+    }).mount('#app');
   </script>
 </body>
 </html>

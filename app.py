@@ -810,11 +810,14 @@ def launch_keyboard():
         env = os.environ.copy()
         env['DISPLAY'] = ':0'
         env['XAUTHORITY'] = '/home/pi/.Xauthority'
-        subprocess.Popen(['matchbox-keyboard'], env=env)
+        subprocess.Popen([
+            'matchbox-keyboard',
+            '--layout', 'extended',
+            '--geometry', '1024x240+0+360'  # Full width, bottom docked
+        ], env=env)
         return jsonify({"status": "launched"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 
@@ -826,6 +829,7 @@ def hide_keyboard():
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 

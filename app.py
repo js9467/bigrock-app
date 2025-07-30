@@ -118,12 +118,12 @@ def cache_boat_image(boat_name, image_url):
             os.remove(file_path)  # Clean up failed download
         return "/static/images/boats/default.jpg"  # Fallback to default image
 
-def fetch_page_html(url, wait_selector=None, timeout=30000):
+def fetch_page_html(url, wait_selector=None, timeout=120000):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_page()
-            page.goto(url, wait_until="load", timeout=60000)
+            page.goto(url, wait_until="load", timeout=120000)
             if wait_selector:
                 try:
                     page.wait_for_selector(wait_selector, timeout=timeout)

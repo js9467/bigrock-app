@@ -17,23 +17,28 @@ body { touch-action: manipulation; }
   top: 0;
   left: 0;
   width: 100%;
-  height: 1.75rem;
-  background-color: #002855; /* match .bg-brand-blue */
+  height: 1.4rem;
+  background-color: #002855;
   color: white;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   white-space: nowrap;
   overflow: hidden;
   z-index: 9999;
   display: flex;
   align-items: center;
-  padding-left: 100%; /* start from outside right */
+  padding-left: 100%;
+  line-height: 1.4rem;
 }
 
-.message-strip .ticker {
+.ticker {
   display: inline-block;
   padding-left: 2rem;
-  animation: ticker-scroll 30s linear infinite;
+  animation: ticker-scroll 12s linear infinite;
+}
+
+.message-strip:hover .ticker {
+  animation-play-state: paused;
 }
 
 .message-strip a {
@@ -41,11 +46,17 @@ body { touch-action: manipulation; }
   text-decoration: underline;
 }
 
+.message-error { color: #f87171; }
+.message-warning { color: #facc15; }
+.message-info { color: #93c5fd; }
+
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }
 </style>
+
+
 
 
   

@@ -820,10 +820,11 @@ def launch_keyboard():
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
     try:
-        subprocess.run(['pkill', 'matchbox-keyboard'])
-        return jsonify({'status': 'ok'})
+        subprocess.call(['pkill', '-f', 'matchbox-keyboard'])
+        return jsonify({"status": "hidden"})
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == '__main__':

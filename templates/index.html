@@ -87,31 +87,67 @@
           boatImages: {},
           tournamentLogo: '',
           loading: false,
-          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
+          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+          lastEventTimestamps: new Set(),
+          settings: {
+            followed_sound: 'followed-activity',
+            boated_sound: 'hooked-up',
+            event_volume: 80,
+            sounds_enabled: true
+          }
         }
       },
       mounted() {
         this.loadParticipants()
-        this.fetchAll()
         this.loadTournamentLogo()
-
-        // ⏱ Auto-refresh every 30 seconds
-        setInterval(this.fetchAll, 30000)
+        this.fetchSettings().then(() => {
+          this.fetchAll()
+          setInterval(this.fetchAll, 30000)
+        })
       },
       methods: {
+        fetchSettings() {
+          return fetch('/api/settings')
+            .then(res => res.json())
+            .then(data => {
+              this.settings = { ...this.settings, ...data }
+            })
+        },
         fetchAll() {
           this.loading = true
           Promise.all([
             fetch('/scrape/events').then(res => res.json()),
             fetch('/hooked').then(res => res.json())
           ]).then(([eventsData, hookedData]) => {
-            this.events = eventsData.events || []
-            this.hooked = hookedData.events || []
+            const newEvents = eventsData.events || []
+            const newHooked = hookedData.events || []
+            this.handleNewEvents(newEvents)
+            this.events = newEvents
+            this.hooked = newHooked
             this.loading = false
           }).catch(err => {
             console.error("❌ Fetch error:", err)
             this.loading = false
           })
+        },
+        handleNewEvents(events) {
+          for (const event of events) {
+            const key = event.timestamp + event.uid
+            if (!this.lastEventTimestamps.has(key)) {
+              this.lastEventTimestamps.add(key)
+              if (this.settings.sounds_enabled) {
+                const isFollowed = this.isFollowed(event.uid)
+                const isBoated = event.details.toLowerCase().includes('boated')
+                if (isBoated) this.playSound(this.settings.boated_sound)
+                else if (isFollowed) this.playSound(this.settings.followed_sound)
+              }
+            }
+          }
+        },
+        playSound(name) {
+          const audio = new Audio(`/static/sounds/${name}.mp3`)
+          audio.volume = this.settings.event_volume / 100
+          audio.play().catch(e => console.warn("🔇 Sound failed to play:", e))
         },
         loadParticipants() {
           fetch('/participants_data?limit=1000&offset=0')

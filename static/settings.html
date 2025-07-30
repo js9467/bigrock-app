@@ -195,6 +195,7 @@
         saveSettings() {
   localStorage.setItem('followed_sound', this.settings.hooked_sound);
   localStorage.setItem('event_volume', this.settings.event_volume);
+  localStorage.setItem('boated_sound', this.settings.boated_sound);
   axios.post('/api/settings', this.settings).then(() => {
     this.showToast('✅ Settings saved.', 'success');
   }).catch(err => {
@@ -259,6 +260,10 @@
 
     const storedVol = localStorage.getItem('event_volume');
     if (storedVol) this.settings.event_volume = parseInt(storedVol);
+    
+    const storedBoated = localStorage.getItem('boated_sound');
+    if (storedBoated) this.settings.boated_sound = storedBoated;
+
 
     axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
       this.tournaments = res.data;

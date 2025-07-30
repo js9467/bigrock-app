@@ -17,8 +17,14 @@
       height: 36px;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .fade-in {
+      animation: fadein 0.5s ease-in;
+    }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
@@ -31,14 +37,8 @@
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
       <div class="flex items-center gap-3">
-        <a href="/participants"
-           class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          Participants
-        </a>
-        <a href="/settings-page"
-           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          ⚙
-        </a>
+        <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
     </header>
 
@@ -54,9 +54,9 @@
         <div
           v-for="event in hooked"
           :key="event.timestamp + event.uid"
-          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
@@ -64,36 +64,43 @@
         </div>
       </div>
 
-      <!-- Main Events Column -->
+      <!-- Events Column -->
       <div class="w-2/3 overflow-y-auto">
         <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
           Event Feed
           <button @click="fetchAll" class="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600">Reload</button>
         </div>
+
         <div v-if="loading && events.length === 0" class="flex items-center gap-3 p-4 text-gray-600">
           <div class="spinner"></div>
           <span>Fetching event data...</span>
         </div>
         <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+
         <div
-          v-for="event in events"
+          v-for="(event, index) in displayedEvents"
           :key="event.timestamp + event.uid"
-          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
+          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50 fade-in', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
         >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+          <img v-if="ready" :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
           <div>
             <div class="text-lg font-semibold">{{ event.boat }}</div>
             <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
             <div class="text-sm">{{ event.details }}</div>
           </div>
         </div>
+
+        <div v-if="events.length > visibleCount" class="p-4 flex justify-center">
+          <button @click="showAll = !showAll" class="text-sm px-4 py-2 bg-blue-100 rounded hover:bg-blue-200">
+            {{ showAll ? 'Show Less' : 'Show More' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Vue Script -->
   <script>
-    const { createApp } = Vue;
+    const { createApp } = Vue
 
     createApp({
       data() {
@@ -103,117 +110,89 @@
           boatImages: {},
           tournamentLogo: '',
           loading: true,
-          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-          settings: {},
-          seenEventKeys: new Set()
-        };
+          ready: false,
+          showAll: false,
+          visibleCount: 20,
+          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]')
+        }
+      },
+      computed: {
+        displayedEvents() {
+          return this.showAll ? this.events : this.events.slice(0, this.visibleCount)
+        }
       },
       mounted() {
-        this.fetchAll();
-        this.loadTournamentLogo();
-        this.loadSettings();
-        setInterval(this.fetchAll, 30000); // 🔁 Auto refresh
+        this.fetchAll()
+        this.loadTournamentLogo()
       },
       methods: {
         fetchAll() {
-          this.loading = true;
+          this.loading = true
+          this.ready = false
 
-          const eventsPromise = fetch('/scrape/events').then(res => res.json());
-          const hookedPromise = fetch('/hooked').then(res => res.json());
-          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json());
+          const eventsPromise = fetch('/scrape/events').then(res => res.json())
+          const hookedPromise = fetch('/hooked').then(res => res.json())
+          const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
 
+          // Load event/hooked data quickly
           Promise.all([eventsPromise, hookedPromise])
             .then(([eventsData, hookedData]) => {
-              const newEvents = eventsData.events || [];
-              const newHooked = hookedData.events || [];
-
-              this.events = newEvents;
-              this.hooked = newHooked;
-
-              this.checkEventSounds(newEvents);
+              this.events = eventsData.events || []
+              this.hooked = hookedData.events || []
+              this.loading = false
             })
             .catch(err => {
-              console.error("❌ Event/Hooked fetch error:", err);
-            });
+              console.error("❌ Event/Hooked fetch error:", err)
+              this.loading = false
+            })
 
+          // Load participant image data (doesn't block rendering)
           participantsPromise
             .then(participantsData => {
-              const images = {};
+              const images = {}
               for (const p of participantsData.participants) {
-                images[p.uid] = p.image_path;
+                images[p.uid] = p.image_path
               }
-              this.boatImages = images;
-              this.loading = false;
+              this.boatImages = images
+              this.ready = true
             })
             .catch(err => {
-              console.error("❌ Participants fetch error:", err);
-              this.loading = false;
-            });
-        },
-        checkEventSounds(events) {
-          for (const event of events) {
-            const key = `${event.uid}_${event.timestamp}`;
-            if (this.seenEventKeys.has(key)) continue;
-            this.seenEventKeys.add(key);
-
-            const isFollowed = this.followed.includes(event.uid);
-            const details = (event.details || '').toLowerCase();
-
-            if (this.settings.sounds_enabled) {
-              if (isFollowed && this.settings.hooked_sound) {
-                this.playSound(this.settings.hooked_sound);
-              } else if (details.includes('boated') && this.settings.boated_sound) {
-                this.playSound(this.settings.boated_sound);
-              }
-            }
-          }
-        },
-        playSound(file) {
-          if (!file) return;
-          const audio = new Audio(`/static/sounds/${file}`);
-          audio.volume = (this.settings.event_volume || 80) / 100;
-          audio.play().catch(err => console.warn("Sound play error:", err));
+              console.error("❌ Participants fetch error:", err)
+              this.ready = true
+            })
         },
         getBoatImage(uid) {
-          return this.boatImages[uid] || '';
+          return this.boatImages[uid] || ''
         },
         formatTime(ts) {
           try {
-            const dt = new Date(ts);
+            const dt = new Date(ts)
             return dt.toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
               hour12: true
-            });
+            })
           } catch {
-            return ts;
+            return ts
           }
         },
         isFollowed(uid) {
-          return this.followed.includes(uid);
+          return this.followed.includes(uid)
         },
         loadTournamentLogo() {
           fetch('/api/settings')
             .then(res => res.json())
             .then(settings => {
-              const tournament = settings.tournament;
+              const tournament = settings.tournament
               return fetch('https://js9467.github.io/Brtourney/settings.json')
                 .then(res => res.json())
                 .then(all => {
-                  this.tournamentLogo = all[tournament]?.logo || '';
-                });
-            });
-        },
-        loadSettings() {
-          fetch('/api/settings')
-            .then(res => res.json())
-            .then(data => {
-              this.settings = data;
+                  this.tournamentLogo = all[tournament]?.logo || ''
+                })
             })
-            .catch(err => console.error("❌ Failed to load settings:", err));
         }
       }
-    }).mount('#app');
+    }).mount('#app')
   </script>
 </body>
 </html>

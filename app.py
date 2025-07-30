@@ -741,34 +741,30 @@ def bluetooth_disconnect():
 @app.route('/wifi/scan')
 def wifi_scan():
     try:
-        subprocess.run(['sudo', 'nmcli', 'dev', 'wifi', 'rescan'], check=True)
-        output = subprocess.check_output(
-            ['sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'],
-            text=True
-        )
-        network_map = {}
-        for line in output.strip().split('\n'):
-            if not line:
-                continue
+        scan_result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'], text=True)
+        networks = []
+        connected_ssid = None
+
+        for line in scan_result.strip().split('\n'):
             parts = line.strip().split(':')
-            if len(parts) < 3:
-                continue
-            ssid, signal, in_use = parts
-            ssid = ssid.strip()
-            signal = int(signal) if signal.isdigit() else 0
-            connected = in_use.strip() == '*'
-            if not ssid:
-                continue
-            if ssid not in network_map or signal > network_map[ssid]['signal']:
-                network_map[ssid] = {
+            if len(parts) >= 3:
+                ssid, signal, in_use = parts
+                if not ssid:  # skip blank ssid
+                    continue
+                is_connected = in_use.strip() == '*'
+                if is_connected:
+                    connected_ssid = ssid
+                networks.append({
                     'ssid': ssid,
                     'signal': signal,
-                    'connected': connected
-                }
-        return jsonify({'networks': list(network_map.values())})
+                    'connected': is_connected
+                })
+
+        return jsonify({'networks': networks, 'connected': connected_ssid})
     except Exception as e:
-        print(f"⚠️ Error during Wi-Fi scan: {e}")
-        return jsonify({'networks': [], 'error': str(e)}), 500
+        print(f"❌ Wi-Fi scan error: {e}")
+        return jsonify({'networks': [], 'connected': None})
+
 
 @app.route('/wifi/connect', methods=['POST'])
 def wifi_connect():

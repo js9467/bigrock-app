@@ -217,8 +217,8 @@
         },
         toggleRadio() {
   const player = document.getElementById('radio-player');
-  const fallbackStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
-  const primaryStream = 'https://playertest.longtailvideo.com/adaptive/bbbfull/bbbfull.m3u8';
+  const primaryStream = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8'; // currently broken
+  const fallbackStream = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'; // long, stable test stream
 
   const fallbackMessageBase = '🎣 Tournament VHF currently unavailable. Using test stream.';
   const isDemo = this.settings.data_source === 'demo';
@@ -226,6 +226,9 @@
 
   const playStream = (url, isFallback = false) => {
     if (Hls.isSupported()) {
+      if (this.hls) {
+        this.hls.destroy();
+      }
       this.hls = new Hls();
       this.hls.loadSource(url);
       this.hls.attachMedia(player);
@@ -237,6 +240,7 @@
             this.radioPlaying = true;
             this.error = isFallback ? fallbackMessage : null;
             localStorage.setItem('radioPlaying', 'true');
+            console.log(isFallback ? '✅ Playing fallback stream' : '✅ Playing primary stream');
           })
           .catch(err => {
             console.error('🔊 Audio play failed:', err);
@@ -264,6 +268,7 @@
           }
         }
       });
+
     } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
       player.src = url;
       player.volume = this.settings.radio_volume || 0.3;
@@ -272,6 +277,7 @@
           this.radioPlaying = true;
           this.error = isFallback ? fallbackMessage : null;
           localStorage.setItem('radioPlaying', 'true');
+          console.log(isFallback ? '✅ Native fallback stream playing' : '✅ Native primary stream playing');
         })
         .catch(err => {
           console.error('🔊 Native HLS play failed:', err);
@@ -282,12 +288,14 @@
             this.radioPlaying = false;
           }
         });
+
     } else {
       this.error = fallbackMessage;
       this.radioPlaying = false;
     }
   };
 
+  // Toggle logic
   if (this.radioPlaying) {
     if (this.hls) {
       this.hls.destroy();
@@ -298,13 +306,12 @@
     this.radioPlaying = false;
     this.error = null;
     localStorage.setItem('radioPlaying', 'false');
+    console.log('⛔ VHF stopped');
   } else {
     player.src = '';
     playStream(primaryStream, false);
   }
 }
-
-      }
     }).mount('#app')
   </script>
 </body>

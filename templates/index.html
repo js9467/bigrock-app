@@ -143,19 +143,19 @@
         }
       },
       mounted() {
-  this.loadParticipants();
-  this.loadTournamentLogo();
-  this.fetchSettings().then(() => {
-    this.settings.radio_volume = parseInt(localStorage.getItem('radio_volume')) || 30;
-    this.fetchAll();
-    setInterval(this.fetchAll, 30000);
-  });
-  this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
-  const player = document.getElementById('radio-player');
-  if (player) {
-    player.volume = this.settings.radio_volume / 100;
-  }
-},
+          this.loadParticipants();
+          this.loadTournamentLogo();
+          this.fetchSettings().then(() => {
+            this.settings.radio_volume = parseInt(localStorage.getItem('radio_volume')) || 30;
+            this.fetchAll();
+            setInterval(this.fetchAll, 30000);
+          });
+          this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
+          const player = document.getElementById('radio-player');
+          if (player) {
+            player.volume = this.settings.radio_volume / 100;
+          }
+        },
 
       methods: {
         toggleRadio() {

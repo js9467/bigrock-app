@@ -21,6 +21,22 @@ EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
+def fetch_with_scraperapi(url):
+    api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
+    full_url = f"http://api.scraperapi.com?api_key={api_key}&url={url}"
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+    try:
+        response = requests.get(full_url, headers=headers, timeout=30)
+        if response.status_code == 200:
+            return response.text
+        else:
+            print(f"⚠️ ScraperAPI failed: HTTP {response.status_code}")
+    except Exception as e:
+        print(f"❌ Error fetching via ScraperAPI: {e}")
+    return ""
+
 def get_cache_path(tournament, filename):
     folder = os.path.join("cache", normalize_boat_name(tournament))
     os.makedirs(folder, exist_ok=True)
@@ -226,7 +242,6 @@ def scrape_participants(force=False):
         return []
 
     try:
-        # Load tournament-specific participant URL from central settings
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
         settings = requests.get(settings_url, timeout=30).json()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
@@ -239,14 +254,16 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
-        # Load existing participants for this tournament (if any)
         existing_participants = {}
         if os.path.exists(participants_file):
             with open(participants_file, "r") as f:
                 for p in json.load(f):
                     existing_participants[p["uid"]] = p
 
-        html = fetch_page_html(participants_url, "article.post.format-image")
+        html = fetch_with_scraperapi(participants_url)
+        if not html:
+            raise Exception("No HTML returned from ScraperAPI")
+
         with open("debug_participants.html", "w", encoding="utf-8") as f:
             f.write(html)
 
@@ -275,7 +292,6 @@ def scrape_participants(force=False):
             image_path = existing_participants.get(uid, {}).get("image_path", "")
             local_path = image_path[1:] if image_path.startswith('/') else image_path
 
-            # Always download on first scrape or if image is missing
             force_download = (
                 uid not in existing_participants or
                 not image_path or
@@ -285,7 +301,7 @@ def scrape_participants(force=False):
             if force_download:
                 if image_url:
                     download_tasks.append((uid, boat_name, image_url))
-                    image_path = ""  # Will be updated after download
+                    image_path = ""
                 else:
                     image_path = "/static/images/boats/default.jpg"
 
@@ -296,7 +312,6 @@ def scrape_participants(force=False):
                 "image_path": image_path
             }
 
-        # Download images in parallel
         if download_tasks:
             print(f"📸 Downloading {len(download_tasks)} new boat images...")
             with ThreadPoolExecutor(max_workers=6) as executor:
@@ -328,7 +343,6 @@ def scrape_participants(force=False):
     except Exception as e:
         print(f"⚠️ Error scraping participants: {e}")
         return []
-
 
 
 def scrape_events(force=False, tournament=None):

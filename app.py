@@ -810,16 +810,11 @@ def launch_keyboard():
         env = os.environ.copy()
         env['DISPLAY'] = ':0'
         env['XAUTHORITY'] = '/home/pi/.Xauthority'
-
-        # Launch extended layout (includes numbers) at bottom
-        subprocess.Popen([
-            'matchbox-keyboard',
-            '--layout', 'extended',
-            '--geometry', '1024x300+0+420'  # Adjust for your screen height
-        ], env=env)
+        subprocess.Popen(['matchbox-keyboard'], env=env)
         return jsonify({"status": "launched"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 

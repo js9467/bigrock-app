@@ -732,43 +732,23 @@ def bluetooth_connect():
     print(f"Connecting to: {data['mac']}")
     return jsonify({"status": "ok"})
 
-@app.route('/bluetooth/disconnect', methods=['POST'])
-def bluetooth_disconnect():
-    data = request.get_json()
-    print(f"Disconnecting from: {data['mac']}")
-    return jsonify({"status": "ok"})
-
-@app.route('/wifi/scan')
-def wifi_scan():
+@app.route('/wifi/disconnect', methods=['POST'])
+def wifi_disconnect():
     try:
-        scan_result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'], text=True)
-        seen = {}
-        connected_ssid = None
+        # Find the active Wi-Fi connection name
+        result = subprocess.check_output(['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'con', 'show', '--active'], text=True)
+        lines = result.strip().split('\n')
+        for line in lines:
+            name, ctype, device = line.strip().split(':')
+            if ctype == 'wifi':
+                print(f"🚫 Disconnecting Wi-Fi connection: {name}")
+                subprocess.check_call(['nmcli', 'con', 'down', name])
+                return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
+        return jsonify({'status': 'error', 'message': 'No active Wi-Fi connection found'}), 400
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Wi-Fi disconnect error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
-        for line in scan_result.strip().split('\n'):
-            parts = line.strip().split(':')
-            if len(parts) >= 3:
-                ssid, signal, in_use = parts
-                if not ssid:
-                    continue
-                signal = int(signal)
-                is_connected = in_use.strip() == '*'
-
-                # Update if not seen or this one has stronger signal or is connected
-                if ssid not in seen or is_connected or signal > seen[ssid]['signal']:
-                    seen[ssid] = {
-                        'ssid': ssid,
-                        'signal': signal,
-                        'connected': is_connected
-                    }
-                if is_connected:
-                    connected_ssid = ssid
-
-        networks = list(seen.values())
-        return jsonify({'networks': networks, 'connected': connected_ssid})
-    except Exception as e:
-        print(f"❌ Wi-Fi scan error: {e}")
-        return jsonify({'networks': [], 'connected': None})
 
 
 @app.route('/wifi/connect', methods=['POST'])

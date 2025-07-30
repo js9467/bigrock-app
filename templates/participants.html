@@ -6,6 +6,7 @@
   <title>Participants</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
   <link rel="stylesheet" href="/static/css/base.css" />
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
@@ -13,129 +14,90 @@
     <!-- Header with logo and back -->
     <header class="bg-blue-900 text-white flex items-center justify-between px-6 py-3 shadow-md">
       <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
-        <span v-else class="text-white text-base">Loading Logo...</span>
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-16">
+        <span v-else class="text-gray-300 text-lg">Loading Logo...</span>
       </div>
-      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition bg-blue-900">
+      <a href="/" class="bg-white text-blue-900 font-semibold px-4 py-2 rounded border border-white hover:bg-blue-100">
         ← Back
       </a>
     </header>
 
-    <div class="p-4 max-w-screen-xl mx-auto">
-      <!-- Heading and Controls -->
-      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <h1 class="text-4xl font-bold text-yellow-600">Tournament Participants</h1>
-        <div class="flex gap-2 w-full sm:w-auto">
-          <input
-            v-model="search"
-            type="text"
-            placeholder="Search boats..."
-            class="px-4 py-2 border rounded w-full sm:w-64"
-          />
-          <button @click="reload" class="px-4 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800">Reload</button>
-        </div>
-      </header>
+    <!-- Search box -->
+    <div class="max-w-4xl mx-auto p-4">
+      <input
+        v-model="search"
+        type="text"
+        placeholder="Search boats..."
+        class="w-full p-3 rounded border border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
 
-      <!-- Grid of Participants -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        <div v-for="p in filteredParticipants" :key="p.uid" class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
-          <img :src="p.image_path || 'static/images/default.jpg'" alt="Boat Image" class="w-full h-48 object-cover" loading="lazy" />
-          <div class="p-4">
-            <h2 class="text-xl font-semibold">{{ p.boat }}</h2>
-            <p class="text-sm text-gray-600 mb-3">{{ p.type }}</p>
-            <button
-              @click="toggleFollow(p.uid)"
-              :class="{
-                'bg-green-600 hover:bg-green-700': isFollowed(p.uid),
-                'bg-gray-300 hover:bg-gray-400': !isFollowed(p.uid)
-              }"
-              class="px-4 py-1 text-white rounded w-full">
-              {{ isFollowed(p.uid) ? 'Following' : 'Follow' }}
-            </button>
-          </div>
+    <!-- Participant grid -->
+    <div class="max-w-6xl mx-auto px-4 py-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div v-for="p in filteredParticipants" :key="p.uid"
+           class="bg-white shadow-md rounded-lg overflow-hidden hover:shadow-xl transition">
+        <img :src="p.image_path" :alt="p.boat" class="w-full h-40 object-cover" />
+        <div class="p-4 text-center">
+          <h2 class="text-lg font-bold text-gray-800">{{ p.boat }}</h2>
+          <p class="text-sm text-gray-500">{{ p.type }}</p>
         </div>
-      </div>
-
-      <!-- Status Messages -->
-      <div v-if="!loading && filteredParticipants.length === 0" class="text-center py-6 text-red-600 text-sm">
-        No boats match your search.
-      </div>
-      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
-        Loading boats...
       </div>
     </div>
   </div>
 
+  <!-- Vue app + keyboard automation -->
   <script>
-    const app = Vue.createApp({
+    const { createApp } = Vue;
+    createApp({
       data() {
         return {
           participants: [],
-          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-          tournaments: {},
-          tournamentLogo: '',
           search: '',
-          loading: false
+          tournamentLogo: ''
         };
       },
       computed: {
         filteredParticipants() {
-          const q = this.search.toLowerCase();
           return this.participants.filter(p =>
-            p.boat.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
+            p.boat.toLowerCase().includes(this.search.toLowerCase())
           );
         }
       },
       methods: {
-        async reload() {
-          this.search = '';
-          this.loading = true;
-          try {
-            const res = await fetch('/participants_data?limit=1000&offset=0');
-            const data = await res.json();
-            this.participants = data.participants || [];
-          } catch (err) {
-            console.error('Failed to reload participants:', err);
-          }
-          this.loading = false;
-        },
-        toggleFollow(uid) {
-          if (this.followed.includes(uid)) {
-            this.followed = this.followed.filter(id => id !== uid);
-          } else {
-            this.followed.push(uid);
-          }
-          localStorage.setItem('followedBoats', JSON.stringify(this.followed));
-        },
-        isFollowed(uid) {
-          return this.followed.includes(uid);
+        loadData() {
+          axios.get('/participants_data')
+            .then(res => {
+              this.participants = res.data.participants || [];
+            });
+          axios.get('/api/settings')
+            .then(res => {
+              const t = res.data?.tournament || 'Big Rock';
+              axios.get('https://js9467.github.io/Brtourney/settings.json')
+                .then(settings => {
+                  this.tournamentLogo = settings.data?.[t]?.logo || '';
+                });
+            });
         }
       },
-      async mounted() {
-        this.loading = true;
-        try {
-          const res = await fetch('/participants_data?limit=1000&offset=0');
-          const data = await res.json();
-          this.participants = data.participants || [];
-        } catch (err) {
-          console.error('Failed to load participants:', err);
-        }
-        this.loading = false;
+      mounted() {
+        this.loadData();
+      }
+    }).mount('#app');
+  </script>
 
-        try {
-          const settingsRes = await fetch('/api/settings');
-          const settings = await settingsRes.json();
-          const tournament = settings.tournament;
-
-          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
-          const allTournaments = await configRes.json();
-          this.tournamentLogo = allTournaments[tournament]?.logo || '';
-        } catch (e) {
-          console.error('Failed to load tournament logo:', e);
-        }
+  <!-- Global on-screen keyboard trigger -->
+  <script>
+    document.addEventListener('focusin', (e) => {
+      if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
+        axios.post('/launch_keyboard');
       }
     });
-    app.mount('#app');
+
+    document.addEventListener('focusout', (e) => {
+      if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
+        axios.post('/hide_keyboard');
+      }
+    });
   </script>
 </body>
 </html>

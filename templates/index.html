@@ -117,196 +117,231 @@
   </div>
 
   <script>
-    const { createApp } = Vue
+const { createApp } = Vue
 
-    createApp({
-      data() {
-        return {
-          events: [],
-          hooked: [],
-          boatImages: {},
-          tournamentLogo: '',
-          loading: false,
-          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-          lastEventTimestamps: new Set(),
-          settings: {
-            followed_sound: 'followed-activity',
-            boated_sound: 'hooked-up',
-            event_volume: 80,
-            sounds_enabled: true,
-            radio_volume: 0.3
-          },
-          radioPlaying: false,
-          hls: null,
-          error: null,
-          masterFeeds: null
-        }
+createApp({
+  data() {
+    return {
+      events: [],
+      hooked: [],
+      boatImages: {},
+      tournamentLogo: '',
+      loading: false,
+      followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+      lastEventTimestamps: new Set(),
+      settings: {
+        followed_sound: 'followed-activity',
+        boated_sound: 'hooked-up',
+        event_volume: 80,
+        radio_volume: 30,
+        sounds_enabled: true
       },
-      mounted() {
-          this.loadParticipants();
-          this.loadTournamentLogo();
-          this.fetchSettings().then(() => {
-            this.settings.radio_volume = parseInt(localStorage.getItem('radio_volume')) || 30;
-            this.fetchAll();
-            setInterval(this.fetchAll, 30000);
+      radioPlaying: false,
+      hls: null,
+      error: null
+    }
+  },
+
+  mounted() {
+    this.loadParticipants();
+    this.loadTournamentLogo();
+    this.fetchSettings().then(() => {
+      this.settings.radio_volume = parseInt(localStorage.getItem('radio_volume')) || 30;
+      this.fetchAll();
+      setInterval(this.fetchAll, 30000);
+    });
+    this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
+    const player = document.getElementById('radio-player');
+    if (player) {
+      player.volume = this.settings.radio_volume / 100;
+    }
+  },
+
+  methods: {
+    toggleRadio() {
+      const player = document.getElementById('radio-player');
+      const streamUrl = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
+      const fallbackStream = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+      const fallbackMessageBase = '🎣 Tournament VHF currently unavailable. Using test stream.';
+      const isDemo = this.settings.data_source === 'demo';
+      const fallbackMessage = isDemo ? `${fallbackMessageBase} You are in demo mode.` : fallbackMessageBase;
+
+      const play = (url, isFallback = false) => {
+        if (Hls.isSupported()) {
+          if (this.hls) this.hls.destroy();
+          this.hls = new Hls();
+          this.hls.loadSource(url);
+          this.hls.attachMedia(player);
+
+          this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            player.volume = this.settings.radio_volume / 100;
+            player.play().then(() => {
+              this.radioPlaying = true;
+              this.error = isFallback ? fallbackMessage : null;
+              localStorage.setItem('radioPlaying', 'true');
+            }).catch(err => {
+              console.error('🔊 Audio play failed:', err);
+              if (!isFallback) {
+                this.hls.destroy();
+                this.hls = null;
+                play(fallbackStream, true);
+              } else {
+                this.error = fallbackMessage;
+                this.radioPlaying = false;
+              }
+            });
           });
-          this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
-          const player = document.getElementById('radio-player');
-          if (player) {
-            player.volume = this.settings.radio_volume / 100;
-          }
-        },
 
-      methods: {
-        toggleRadio() {
-          const player = document.getElementById('radio-player')
-          const tournament = this.settings.tournament
-        saveRadioVolume() {
-          localStorage.setItem('radio_volume', this.settings.radio_volume);
-          const player = document.getElementById('radio-player');
-          if (player) {
-            player.volume = this.settings.radio_volume / 100;
-          }
-        }
-
-          fetch('https://js9467.github.io/Brtourney/settings.json')
-            .then(res => res.json())
-            .then(json => {
-              const stream = json[tournament]?.stream
-              const fallback = json.fallback_stream
-              this.playStream(player, stream, fallback)
-            })
-        },
-        playStream(player, streamUrl, fallbackUrl) {
-          if (!streamUrl && !fallbackUrl) return
-
-          const fallbackMessage = '🎣 Tournament VHF currently unavailable. Using test stream.'
-
-          const play = (url, isFallback = false) => {
-            if (Hls.isSupported()) {
-              if (this.hls) this.hls.destroy()
-              this.hls = new Hls()
-              this.hls.loadSource(url)
-              this.hls.attachMedia(player)
-              this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                player.volume = this.settings.radio_volume
-                player.play().then(() => {
-                  this.radioPlaying = true
-                  this.error = isFallback ? fallbackMessage : null
-                  localStorage.setItem('radioPlaying', 'true')
-                }).catch(err => {
-                  console.error('🔊 Audio play failed:', err)
-                  if (!isFallback && fallbackUrl) play(fallbackUrl, true)
-                })
-              })
-              this.hls.on(Hls.Events.ERROR, (event, data) => {
-                if (data.fatal && !isFallback && fallbackUrl) play(fallbackUrl, true)
-              })
-            } else {
-              player.src = url
-              player.volume = this.settings.radio_volume
-              player.play()
+          this.hls.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              this.hls.destroy();
+              this.hls = null;
+              if (!isFallback) {
+                play(fallbackStream, true);
+              } else {
+                this.error = fallbackMessage;
+                this.radioPlaying = false;
+              }
             }
-          }
+          });
 
-          if (this.radioPlaying) {
-            if (this.hls) this.hls.destroy()
-            player.pause()
-            player.src = ''
-            this.radioPlaying = false
-            this.error = null
-            localStorage.setItem('radioPlaying', 'false')
-          } else {
-            player.src = ''
-            play(streamUrl, false)
-          }
-        },
-        fetchSettings() {
-          return fetch('/api/settings')
-            .then(res => res.json())
-            .then(data => {
-              this.settings = { ...this.settings, ...data }
-            })
-        },
-        fetchAll() {
-          this.loading = true
-          Promise.all([
-            fetch('/scrape/events').then(res => res.json()),
-            fetch('/hooked').then(res => res.json())
-          ]).then(([eventsData, hookedData]) => {
-            const newEvents = eventsData.events || []
-            const newHooked = hookedData.events || []
-            this.handleNewEvents(newEvents)
-            this.events = newEvents
-            this.hooked = newHooked
-            this.loading = false
+        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+          player.src = url;
+          player.volume = this.settings.radio_volume / 100;
+          player.play().then(() => {
+            this.radioPlaying = true;
+            this.error = isFallback ? fallbackMessage : null;
+            localStorage.setItem('radioPlaying', 'true');
           }).catch(err => {
-            console.error("❌ Fetch error:", err)
-            this.loading = false
-          })
-        },
-        handleNewEvents(events) {
-          for (const event of events) {
-            const key = event.timestamp + event.uid
-            if (!this.lastEventTimestamps.has(key)) {
-              this.lastEventTimestamps.add(key)
-              if (this.settings.sounds_enabled) {
-                const isFollowed = this.isFollowed(event.uid)
-                const isBoated = event.details.toLowerCase().includes('boated')
-                if (isBoated) this.playSound(this.settings.boated_sound)
-                else if (isFollowed) this.playSound(this.settings.followed_sound)
-              }
+            if (!isFallback) {
+              play(fallbackStream, true);
+            } else {
+              this.error = fallbackMessage;
+              this.radioPlaying = false;
             }
+          });
+        } else {
+          this.error = fallbackMessage;
+          this.radioPlaying = false;
+        }
+      };
+
+      if (this.radioPlaying) {
+        if (this.hls) this.hls.destroy();
+        player.pause();
+        player.src = '';
+        this.radioPlaying = false;
+        this.error = null;
+        localStorage.setItem('radioPlaying', 'false');
+      } else {
+        player.src = '';
+        play(streamUrl, false);
+      }
+    },
+
+    saveRadioVolume() {
+      localStorage.setItem('radio_volume', this.settings.radio_volume);
+      const player = document.getElementById('radio-player');
+      if (player) {
+        player.volume = this.settings.radio_volume / 100;
+      }
+    },
+
+    fetchSettings() {
+      return fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => {
+          this.settings = { ...this.settings, ...data }
+        });
+    },
+
+    fetchAll() {
+      this.loading = true;
+      Promise.all([
+        fetch('/scrape/events').then(res => res.json()),
+        fetch('/hooked').then(res => res.json())
+      ]).then(([eventsData, hookedData]) => {
+        const newEvents = eventsData.events || [];
+        const newHooked = hookedData.events || [];
+        this.handleNewEvents(newEvents);
+        this.events = newEvents;
+        this.hooked = newHooked;
+        this.loading = false;
+      }).catch(err => {
+        console.error("❌ Fetch error:", err);
+        this.loading = false;
+      });
+    },
+
+    handleNewEvents(events) {
+      for (const event of events) {
+        const key = event.timestamp + event.uid;
+        if (!this.lastEventTimestamps.has(key)) {
+          this.lastEventTimestamps.add(key);
+          if (this.settings.sounds_enabled) {
+            const isFollowed = this.isFollowed(event.uid);
+            const isBoated = event.details.toLowerCase().includes('boated');
+            if (isBoated) this.playSound(this.settings.boated_sound);
+            else if (isFollowed) this.playSound(this.settings.followed_sound);
           }
-        },
-        playSound(name) {
-          const audio = new Audio(`/static/sounds/${name}.mp3`)
-          audio.volume = this.settings.event_volume / 100
-          audio.play().catch(e => console.warn("🔇 Sound failed to play:", e))
-        },
-        loadParticipants() {
-          fetch('/participants_data?limit=1000&offset=0')
-            .then(res => res.json())
-            .then(participantsData => {
-              const images = {}
-              for (const p of participantsData.participants) {
-                images[p.uid] = p.image_path
-              }
-              this.boatImages = images
-            })
-        },
-        getBoatImage(uid) {
-          return this.boatImages[uid] || ''
-        },
-        formatTime(ts) {
-          try {
-            const dt = new Date(ts)
-            return dt.toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            })
-          } catch {
-            return ts
-          }
-        },
-        isFollowed(uid) {
-          return this.followed.includes(uid)
-        },
-        loadTournamentLogo() {
-          fetch('/api/settings')
-            .then(res => res.json())
-            .then(settings => {
-              const tournament = settings.tournament
-              return fetch('https://js9467.github.io/Brtourney/settings.json')
-                .then(res => res.json())
-                .then(all => {
-                  this.tournamentLogo = all[tournament]?.logo || ''
-                })
-            })
         }
       }
-    }).mount('#app')
-  </script>
+    },
+
+    playSound(name) {
+      const audio = new Audio(`/static/sounds/${name}.mp3`);
+      audio.volume = this.settings.event_volume / 100;
+      audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
+    },
+
+    loadParticipants() {
+      fetch('/participants_data?limit=1000&offset=0')
+        .then(res => res.json())
+        .then(data => {
+          const images = {};
+          for (const p of data.participants) {
+            images[p.uid] = p.image_path;
+          }
+          this.boatImages = images;
+        });
+    },
+
+    getBoatImage(uid) {
+      return this.boatImages[uid] || '';
+    },
+
+    formatTime(ts) {
+      try {
+        const dt = new Date(ts);
+        return dt.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      } catch {
+        return ts;
+      }
+    },
+
+    isFollowed(uid) {
+      return this.followed.includes(uid);
+    },
+
+    loadTournamentLogo() {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+            });
+        });
+    }
+  }
+}).mount('#app');
+</script>
+
 </body>
 </html>

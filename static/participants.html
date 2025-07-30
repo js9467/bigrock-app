@@ -10,15 +10,15 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
   <div id="app">
-    <!-- Header with logo and back -->
-    <header class="bg-blue-900 text-white flex items-center justify-between px-6 py-3 shadow-md">
+    <!-- Updated Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition bg-blue-900">
-        ← Back
-      </a>
+      <div class="flex items-center gap-3">
+        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Home</a>
+      </div>
     </header>
 
     <div class="p-4 max-w-screen-xl mx-auto">
@@ -31,9 +31,9 @@
             type="text"
             placeholder="Search boats..."
             class="px-4 py-2 border rounded w-full sm:w-64"
+            @focus="launchKeyboard"
           />
-          <button @click="reload" class="px-4 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800">Reload</button>
-        </div>
+         
       </header>
 
       <!-- Grid of Participants -->
@@ -109,6 +109,9 @@
         },
         isFollowed(uid) {
           return this.followed.includes(uid);
+        },
+        launchKeyboard() {
+          fetch('/launch-keyboard');
         }
       },
       async mounted() {

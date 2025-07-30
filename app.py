@@ -810,11 +810,7 @@ def launch_keyboard():
         env = os.environ.copy()
         env['DISPLAY'] = ':0'
         env['XAUTHORITY'] = '/home/pi/.Xauthority'
-
-        # Log output to file so we can read it via SSH
-        with open('/tmp/matchbox.log', 'w') as f:
-            subprocess.Popen(['matchbox-keyboard', 'extended'], env=env, stdout=f, stderr=f)
-
+        subprocess.Popen(['onboard'], env=env)
         return jsonify({"status": "launched"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -824,11 +820,10 @@ def launch_keyboard():
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
     try:
-        subprocess.call(['pkill', '-f', 'matchbox-keyboard'])
+        subprocess.call(['pkill', '-f', 'onboard'])
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 

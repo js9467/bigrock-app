@@ -265,12 +265,23 @@ createApp({
     },
 
     fetchSettings() {
-      return fetch('/api/settings')
-        .then(res => res.json())
-        .then(data => {
-          this.settings = { ...this.settings, ...data }
-        });
-    },
+  return fetch('/api/settings')
+    .then(res => res.json())
+    .then(data => {
+      // Override defaults with backend
+      this.settings = { ...this.settings, ...data };
+
+      // Load localStorage overrides
+      const localFollowed = localStorage.getItem('followed_sound');
+      const localBoated = localStorage.getItem('boated_sound');
+      const localEventVolume = localStorage.getItem('event_volume');
+
+      if (localFollowed) this.settings.followed_sound = localFollowed;
+      if (localBoated) this.settings.boated_sound = localBoated;
+      if (localEventVolume) this.settings.event_volume = parseInt(localEventVolume);
+    });
+}
+,
 
     fetchAll() {
       this.loading = true;

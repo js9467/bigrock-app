@@ -160,9 +160,12 @@
               if (this.settings.sounds_enabled) {
                 const isFollowed = this.isFollowed(event.uid)
                 const isBoated = event.details.toLowerCase().includes('boated')
-                if (isBoated) this.playSound(this.settings.boated_sound)
-                else if (isFollowed) this.playSound(this.settings.followed_sound)
-              }
+                if (isBoated) {
+                 this.playSound(this.settings.boated_sound);
+               } else if (isFollowed) {
+                 this.playSound(this.settings.followed_sound); // ← use dynamic setting here
+               }
+
             }
           }
         },

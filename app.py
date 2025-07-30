@@ -428,7 +428,7 @@ def scrape_gallery(force=False):
 # Routes
 @app.route('/')
 def homepage():
-    return send_from_directory('templates', 'index.html')
+    return send_from_directory('static', 'index.html')
 
 @app.route('/participants')
 def participants_page():

@@ -132,12 +132,15 @@
     <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div class="bg-white p-6 rounded shadow-lg max-w-md w-full space-y-4">
         <h2 class="text-xl font-bold mb-2">Enter password for {{ modalSSID }}</h2>
+
         <input v-model="password" :type="showPassword ? 'text' : 'password'" placeholder="Wi-Fi Password"
                class="w-full p-2 border rounded" @focus="launchKeyboard">
+
         <div class="flex items-center space-x-2">
           <input type="checkbox" id="show-password" v-model="showPassword">
           <label for="show-password" class="text-sm text-gray-700">Show Password</label>
         </div>
+
         <div class="text-right space-x-2">
           <button @click="connectWifi" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Connect</button>
           <button @click="cancelPassword" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
@@ -218,11 +221,18 @@
           axios.post('/wifi/connect', {
             ssid: this.modalSSID,
             password: this.password
-          }).then(() => {
-            this.showModal = false;
-            axios.post('/hide_keyboard');
-            this.scanWifi();
-          }).catch(err => alert("Failed to connect: " + err));
+          }).then(res => {
+            if (res.data?.status === 'ok') {
+              alert("✅ Connected to Wi-Fi!");
+              this.showModal = false;
+              axios.post('/hide_keyboard');
+              this.scanWifi();
+            } else {
+              alert("⚠️ " + (res.data.message || "Unknown issue"));
+            }
+          }).catch(err => {
+            alert("❌ Failed to connect: " + (err?.response?.data?.message || err.message));
+          });
         },
         cancelPassword() {
           this.modalSSID = '';
@@ -273,7 +283,7 @@
     }).mount('#app');
   </script>
 
-  <!-- Global keyboard trigger -->
+  <!-- Global keyboard listener -->
   <script>
     document.addEventListener('focusin', (e) => {
       if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {

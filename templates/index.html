@@ -318,14 +318,12 @@ const app = createApp({
     },
 
    playSound(name) {
-  // Prefer the latest value from localStorage
-  const override = localStorage.getItem('followed_sound');
-  const usedName = name === this.settings.followed_sound && override ? override : name;
-
-  const audio = new Audio(`/static/sounds/${usedName}.mp3`);
+  const cleanName = name.replace(/\.mp3$/, '');
+  const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
   audio.volume = this.settings.event_volume / 100;
   audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
 }
+
 ,
 
     loadParticipants() {

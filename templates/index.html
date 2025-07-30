@@ -14,6 +14,11 @@
   100% { transform: translateX(-100%); }
 }
 
+.text-center a {
+  color: #facc15;
+  text-decoration: underline;
+  font-weight: bold;
+}
 .message-strip-wrapper {
   position: relative;
   overflow: hidden;
@@ -81,9 +86,10 @@
   </div>
 
   <!-- Ticker -->
-  <div v-if="messageQueue.length > 0" class="message-strip-wrapper w-full mt-2">
-    <div class="message-strip" v-html="combinedMessages"></div>
-  </div>
+ <div v-if="messageQueue.length > 0" class="bg-brand-blue py-1 px-4">
+  <div class="text-white text-lg font-semibold text-center" v-html="currentMessage"></div>
+</div>
+
 
   <!-- Version -->
   <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
@@ -285,13 +291,19 @@ fetchSettings() {
       if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg);
     },
     startMessageRotation() {
-      if (this.messageQueue.length > 0 && !this.messageTimer) {
-        this.currentMessage = this.messageQueue[0];
-        this.messageTimer = setInterval(() => {
-          this.combinedMessages = this.messageQueue.join(' &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ');
+  if (this.messageQueue.length === 0) return;
 
-        }, 8000);
-      }
+  let i = 0;
+  this.currentMessage = this.messageQueue[i];
+
+  if (this.messageTimer) clearInterval(this.messageTimer);
+
+  this.messageTimer = setInterval(() => {
+    i = (i + 1) % this.messageQueue.length;
+    this.currentMessage = this.messageQueue[i];
+  }, 7000); // change every 7 seconds
+}
+
     },
     fetchAll() {
       this.loading = true;

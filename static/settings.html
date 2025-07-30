@@ -1,124 +1,242 @@
-<!-- ... [Header and opening HTML unchanged] ... -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/base.css" />
+</head>
+<body class="bg-gray-100 text-gray-900 font-sans overflow-y-auto">
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
+      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">← Back</a>
+    </header>
 
-<!-- Sounds -->
-<div class="flex items-center space-x-3">
-  <div class="w-full">
-    <label class="block font-semibold mb-1">Followed Boat Activity</label>
-    <select v-model="settings.hooked_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
-      <option disabled value="">-- Select Sound --</option>
-      <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
-    </select>
-  </div>
-  <button @click="playSound(settings.hooked_sound)" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">▶</button>
-</div>
+    <main class="flex-grow p-6 w-full max-w-screen-xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
+      <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
 
-<div class="flex items-center space-x-3">
-  <div class="w-full">
-    <label class="block font-semibold mb-1">Hooked Up (Any Boat)</label>
-    <select v-model="settings.boated_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
-      <option disabled value="">-- Select Sound --</option>
-      <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
-    </select>
-  </div>
-  <button @click="playSound(settings.boated_sound)" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">▶</button>
-</div>
+      <!-- Tournament -->
+      <div>
+        <label class="block font-semibold mb-1">Tournament</label>
+        <select v-model="settings.tournament" class="w-full p-2 rounded border border-gray-400 bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option disabled value="">-- Select Tournament --</option>
+          <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
+        </select>
+      </div>
 
-<div class="flex items-center space-x-2">
-  <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" />
-  <label for="sounds" class="font-semibold">Play Event Sounds</label>
-</div>
+      <!-- Data Source -->
+      <div class="flex items-center space-x-4">
+        <span class="font-semibold">Data Source:</span>
+        <label class="inline-flex items-center"><input type="radio" value="live" v-model="settings.data_source" class="mr-1"> Live</label>
+        <label class="inline-flex items-center"><input type="radio" value="demo" v-model="settings.data_source" class="mr-1"> Demo</label>
+      </div>
 
-<!-- ... [Wi-Fi, Bluetooth, and Modals unchanged] ... -->
+      <!-- Volume Controls -->
+      <div>
+        <label class="block font-semibold mb-1">Event Volume</label>
+        <input type="range" min="0" max="100" v-model="settings.event_volume" class="w-full" />
+        <div class="text-center">{{ settings.event_volume }}%</div>
+      </div>
 
-<!-- Vue App -->
-<script>
-  const { createApp } = Vue;
-  createApp({
-    data() {
-      return {
-        settings: {
-          tournament: '',
-          data_source: 'live',
-          refresh_interval: 30,
-          event_volume: 80,
-          vhf_volume: 70,
-          sounds_enabled: true,
-          hooked_sound: '',
-          boated_sound: ''
+      <!-- Sound Options -->
+      <div class="flex items-center space-x-3">
+        <div class="w-full">
+          <label class="block font-semibold mb-1">Followed Boat Activity</label>
+          <select v-model="settings.hooked_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
+            <option disabled value="">-- Select Sound --</option>
+            <option v-for="sound in soundLibrary" :key="sound" :value="sound">
+              {{ sound.replace('.mp3', '') }}
+            </option>
+          </select>
+        </div>
+        <button @click="playSound(settings.hooked_sound)" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">▶</button>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <div class="w-full">
+          <label class="block font-semibold mb-1">Hooked Up (Any Boat)</label>
+          <select v-model="settings.boated_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
+            <option disabled value="">-- Select Sound --</option>
+            <option v-for="sound in soundLibrary" :key="sound" :value="sound">
+              {{ sound.replace('.mp3', '') }}
+            </option>
+          </select>
+        </div>
+        <button @click="playSound(settings.boated_sound)" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">▶</button>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" />
+        <label for="sounds" class="font-semibold">Play Event Sounds</label>
+      </div>
+
+      <!-- Wi-Fi -->
+      <div class="pt-6">
+        <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
+        <div class="text-sm text-gray-700 mb-2">Connected: <span class="font-semibold">{{ connectedSSID }}</span></div>
+        <button @click="openWifiPopup" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
+      </div>
+
+      <!-- Bluetooth -->
+      <div class="pt-6">
+        <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
+        <button @click="scanBluetooth" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-3">Scan Devices</button>
+        <div v-if="bluetoothDevices.length">
+          <div v-for="device in bluetoothDevices" :key="device.mac" class="flex justify-between items-center border p-3 rounded mb-2">
+            <div>
+              <div class="font-semibold">{{ device.name || 'Unnamed Device' }}</div>
+              <div class="text-sm text-gray-500">{{ device.mac }}</div>
+              <div v-if="device.connected" class="text-green-600 text-sm">Connected</div>
+            </div>
+            <div>
+              <button v-if="!device.connected" @click="connectBluetooth(device.mac)" class="text-blue-600 hover:underline">Connect</button>
+              <button v-if="device.connected" @click="disconnectBluetooth(device.mac)" class="text-red-600 hover:underline">Disconnect</button>
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-sm text-gray-500">No Bluetooth devices found.</div>
+      </div>
+    </main>
+
+    <!-- Vue App -->
+    <script>
+      const { createApp } = Vue;
+      createApp({
+        data() {
+          return {
+            settings: {
+              tournament: '',
+              data_source: 'live',
+              refresh_interval: 30,
+              event_volume: 80,
+              vhf_volume: 70,
+              sounds_enabled: true,
+              hooked_sound: '',
+              boated_sound: ''
+            },
+            tournaments: {},
+            tournamentLogo: '',
+            wifiNetworks: [],
+            modalSSID: '',
+            password: '',
+            showPassword: false,
+            showModal: false,
+            wifiPopup: false,
+            bluetoothDevices: [],
+            soundLibrary: []
+          };
         },
-        tournaments: {},
-        tournamentLogo: '',
-        wifiNetworks: [],
-        modalSSID: '',
-        password: '',
-        showPassword: false,
-        showModal: false,
-        wifiPopup: false,
-        bluetoothDevices: [],
-        soundLibrary: ['default.mp3', 'alert.mp3', 'marlin.mp3', 'airhorn.mp3']
-      };
-    },
-    computed: {
-      validTournaments() {
-        return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
-      },
-      connectedSSID() {
-        const net = this.wifiNetworks.find(n => n.connected);
-        return net ? net.ssid : 'Not connected';
-      }
-    },
-    methods: {
-      playSound(file) {
-        if (!file) return;
-        const audio = new Audio(`/static/sounds/${file}`);
-        audio.volume = this.settings.event_volume / 100;
-        audio.play();
-      },
-      // ... [Other methods unchanged: scanWifi, connectWifi, etc.] ...
-      updateLogo() {
-        const t = this.settings.tournament;
-        if (this.tournaments[t]) {
-          this.tournamentLogo = this.tournaments[t].logo;
-        }
-      },
-      scanBluetooth() {
-        axios.get('/bluetooth/scan').then(res => {
-          this.bluetoothDevices = res.data.devices;
-        });
-      },
-      connectBluetooth(mac) {
-        axios.post('/bluetooth/connect', { mac }).then(() => this.scanBluetooth());
-      },
-      disconnectBluetooth(mac) {
-        axios.post('/bluetooth/disconnect', { mac }).then(() => this.scanBluetooth());
-      }
-    },
-    mounted() {
-      axios.get('/api/settings').then(res => {
-        this.settings = { ...this.settings, ...res.data };
-        this.updateLogo();
-      });
-
-      axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-        this.tournaments = res.data;
-        this.updateLogo();
-      });
-
-      this.scanWifi();
-      this.scanBluetooth();
-    },
-    watch: {
-      settings: {
-        handler(newSettings) {
-          axios.post('/api/settings', newSettings).catch(err => {
-            console.error("Auto-save failed:", err);
+        computed: {
+          validTournaments() {
+            return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
+          },
+          connectedSSID() {
+            const net = this.wifiNetworks.find(n => n.connected);
+            return net ? net.ssid : 'Not connected';
+          }
+        },
+        methods: {
+          playSound(file) {
+            if (!file) return;
+            const audio = new Audio(`/static/sounds/${file}`);
+            audio.volume = this.settings.event_volume / 100;
+            audio.play();
+          },
+          openWifiPopup() {
+            this.wifiPopup = true;
+            this.scanWifi();
+          },
+          scanWifi() {
+            axios.get('/wifi/scan').then(res => {
+              this.wifiNetworks = res.data.networks;
+            });
+          },
+          promptPassword(ssid) {
+            this.modalSSID = ssid;
+            this.password = '';
+            this.showPassword = false;
+            this.showModal = true;
+            axios.post('/launch_keyboard');
+          },
+          connectWifi() {
+            axios.post('/wifi/connect', {
+              ssid: this.modalSSID,
+              password: this.password
+            }).then(res => {
+              if (res.data?.status === 'ok') {
+                this.showModal = false;
+                this.scanWifi();
+                axios.post('/hide_keyboard');
+              } else {
+                alert(res.data.message || "Failed to connect.");
+              }
+            }).catch(err => alert("Connection error: " + err));
+          },
+          cancelPassword() {
+            this.showModal = false;
+            axios.post('/hide_keyboard');
+          },
+          disconnectWifi() {
+            axios.post('/wifi/disconnect').then(() => this.scanWifi());
+          },
+          launchKeyboard() {
+            axios.post('/launch_keyboard');
+          },
+          updateLogo() {
+            const t = this.settings.tournament;
+            if (this.tournaments[t]) {
+              this.tournamentLogo = this.tournaments[t].logo;
+            }
+          },
+          scanBluetooth() {
+            axios.get('/bluetooth/scan').then(res => {
+              this.bluetoothDevices = res.data.devices;
+            });
+          },
+          connectBluetooth(mac) {
+            axios.post('/bluetooth/connect', { mac }).then(() => this.scanBluetooth());
+          },
+          disconnectBluetooth(mac) {
+            axios.post('/bluetooth/disconnect', { mac }).then(() => this.scanBluetooth());
+          }
+        },
+        mounted() {
+          axios.get('/api/settings').then(res => {
+            this.settings = { ...this.settings, ...res.data };
+            this.updateLogo();
           });
+          axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
+            this.tournaments = res.data;
+            this.updateLogo();
+          });
+          axios.get('/sounds').then(res => {
+            this.soundLibrary = res.data.files;
+          });
+          this.scanWifi();
+          this.scanBluetooth();
         },
-        deep: true
-      },
-      'settings.tournament'(newVal) {
-        this.updateLogo();
-      }
-    }
-  }).mount('#app');
-</script>
+        watch: {
+          settings: {
+            handler(newSettings) {
+              axios.post('/api/settings', newSettings).catch(err => {
+                console.error("Auto-save failed:", err);
+              });
+            },
+            deep: true
+          },
+          'settings.tournament'(newVal) {
+            this.updateLogo();
+          }
+        }
+      }).mount('#app');
+    </script>
+</body>
+</html>

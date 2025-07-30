@@ -159,10 +159,17 @@ createApp({
 
   methods: {
     toggleRadio() {
-      const player = document.getElementById('radio-player');
-      const streamUrl = 'https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8';
-      const fallbackStream = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
-      const fallbackMessageBase = '🎣 Tournament VHF currently unavailable. Using test stream.';
+  const player = document.getElementById('radio-player');
+  const tournamentName = this.settings.tournament;
+
+  fetch('https://js9467.github.io/Brtourney/settings.json')
+    .then(res => res.json())
+    .then(all => {
+      const tourney = all[tournamentName] || {};
+      const streamUrl = tourney.stream || '';
+      const fallbackStream = all.fallback_stream || '';
+
+      const fallbackMessageBase = '🎣 Tournament VHF currently unavailable. Using fallback stream.';
       const isDemo = this.settings.data_source === 'demo';
       const fallbackMessage = isDemo ? `${fallbackMessageBase} You are in demo mode.` : fallbackMessageBase;
 
@@ -235,9 +242,15 @@ createApp({
         localStorage.setItem('radioPlaying', 'false');
       } else {
         player.src = '';
-        play(streamUrl, false);
+        play(streamUrl || fallbackStream, false);
       }
-    },
+    })
+    .catch(err => {
+      console.error("⚠️ Error fetching stream settings:", err);
+      this.error = 'Unable to load VHF stream settings.';
+    });
+},
+
 
     saveRadioVolume() {
       localStorage.setItem('radio_volume', this.settings.radio_volume);

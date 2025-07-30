@@ -63,8 +63,14 @@
       </div>
 
       <div>
-        <label class="block font-semibold mb-1">Follwed Activity Volume</label>
-        <input type="range" min="0" max="100" v-model="settings.event_volume" @change="saveSettings" class="w-full">
+        <label class="block font-semibold mb-1">Event Activity Volume</label>
+        <input type="range" min="0" max="100" v-model="settings.event_volume"
+  @change="() => {
+    localStorage.setItem('event_volume', settings.event_volume);
+    saveSettings();
+  }"
+  class="w-full">
+
         <div class="text-center">{{ settings.event_volume }}%</div>
       </div>
 

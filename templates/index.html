@@ -10,361 +10,211 @@
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
     body { touch-action: manipulation; }
-    .toast {
+    .message-strip {
       position: fixed;
-      top: 1rem;
+      top: 0.5rem;
       left: 50%;
       transform: translateX(-50%);
       background-color: #f59e0b;
       color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
+      padding: 0.5rem 1.25rem;
+      border-radius: 0.5rem;
       z-index: 9999;
+      max-width: 90%;
+      font-weight: 600;
+      font-size: 0.95rem;
+      animation: fadein 0.5s ease-in-out;
+    }
+    .message-strip a {
+      color: #fff;
+      text-decoration: underline;
+    }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
   </style>
-  <style>
-.message-strip {
-  position: fixed;
-  top: 0.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #f59e0b;
-  color: white;
-  padding: 0.5rem 1.25rem;
-  border-radius: 0.5rem;
-  z-index: 9999;
-  max-width: 90%;
-  font-weight: 600;
-  font-size: 0.95rem;
-  animation: fadein 0.5s ease-in-out;
-}
-.message-strip a {
-  color: #fff;
-  text-decoration: underline;
-}
-@keyframes fadein {
-  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-</style>
-
-  
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-<div v-if="currentMessage" class="message-strip" v-html="currentMessage"></div>
 
-  <div id="app">
-    <div v-if="error" class="toast">{{ error }}</div>
+<div id="app">
+  <!-- Top rotating message -->
+  <div v-if="currentMessage" class="message-strip" v-html="currentMessage"></div>
 
-    <header class="bg-brand-blue text-white px-4 py-3 shadow-md">
-  <div class="flex items-center justify-between flex-wrap gap-4">
-    
-    <!-- Logo + VHF Status -->
-    <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
-    </div>
+  <!-- Toast for errors -->
+  <div v-if="error" class="toast">{{ error }}</div>
 
-    <!-- Right side button group -->
-    <div class="flex gap-4 items-start">
-      <!-- VHF Button + Volume (stacked) -->
-      <div class="flex flex-col items-center">
-        <button @click="toggleRadio"
-                class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-        </button>
-        <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
-          <span class="text-lg">🔊</span>
-          <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
-                 class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
-          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
-        </div>
+  <!-- Header -->
+  <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div class="flex items-center gap-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+        <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
       </div>
 
-      <!-- Other buttons -->
-      <a href="/participants"
-         class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Participants
-      </a>
-      <a href="/leaderboard"
-         class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Leaderboard
-      </a>
-      <a href="/catch-summary"
-         class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Catch Summary
-      </a>
-      <a href="/settings-page"
-         class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        ⚙
-      </a>
-    </div>
-  </div>
-</header>
+      <div class="text-xs absolute top-1 right-3 text-white opacity-70" v-if="version">
+        v{{ version }}
+      </div>
 
-
-
-
-    <div class="flex h-screen overflow-hidden">
-      <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
-        <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
-        <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
-        <div
-          v-for="event in hooked"
-          :key="event.timestamp + event.uid"
-          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
-        >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
-          <div>
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
+      <div class="flex gap-4 items-start">
+        <div class="flex flex-col items-center">
+          <button @click="toggleRadio"
+                  class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+            {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+          </button>
+          <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
+            <span class="text-lg">🔊</span>
+            <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
+                   class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
+            <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
           </div>
         </div>
+        <a href="/participants" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+        <a href="/leaderboard" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
+        <a href="/catch-summary" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Catch Summary</a>
+        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
+    </div>
+  </header>
 
-      <div class="w-2/3 overflow-y-auto">
-        <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
-          Event Feed
-        </div>
-
-        <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
-        <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
-
-        <div
-          v-for="event in events"
-          :key="event.timestamp + event.uid"
-          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']"
-        >
-          <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
-          <div>
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
-            <div class="text-sm">{{ event.details }}</div>
-          </div>
+  <!-- Main content -->
+  <div class="flex h-screen overflow-hidden">
+    <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
+      <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
+      <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
+      <div v-for="event in hooked" :key="event.timestamp + event.uid"
+           :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+        <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+        <div>
+          <div class="text-lg font-semibold">{{ event.boat }}</div>
+          <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
         </div>
       </div>
     </div>
 
-    <audio id="radio-player" hidden></audio>
+    <div class="w-2/3 overflow-y-auto">
+      <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
+        Event Feed
+      </div>
+      <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
+      <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+      <div v-for="event in events" :key="event.timestamp + event.uid"
+           :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+        <img :src="getBoatImage(event.uid)" class="w-20 h-20 object-cover rounded" onerror="this.style.display='none'" />
+        <div>
+          <div class="text-lg font-semibold">{{ event.boat }}</div>
+          <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+          <div class="text-sm">{{ event.details }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script>
-const { createApp } = Vue
+  <audio id="radio-player" hidden></audio>
+</div>
+
+<script>
+const { createApp } = Vue;
 
 const app = createApp({
-
   data() {
     return {
       events: [],
       hooked: [],
       boatImages: {},
       tournamentLogo: '',
+      version: '',
       loading: false,
       followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
       lastEventTimestamps: new Set(),
       settings: {
-        followed_sound: '1904_champagne-cork-pop-02.mp3',
-        boated_sound: '1804_doorbell-02.mp3',
+        followed_sound: 'followed-activity',
+        boated_sound: '1904_champagne-cork-pop-02',
         event_volume: 80,
         radio_volume: 30,
-        sounds_enabled: true
+        sounds_enabled: true,
+        data_source: 'live',
+        tournament: ''
       },
       radioPlaying: false,
       hls: null,
-      error: null
-    }
+      error: null,
+      messageQueue: [],
+      currentMessage: '',
+      messageTimer: null
+    };
   },
-
   mounted() {
-    this.loadParticipants();
-    this.loadTournamentLogo();
     this.fetchSettings().then(() => {
-      this.settings.radio_volume = parseInt(localStorage.getItem('radio_volume')) || 30;
+      this.setupMessages();
+      this.startMessageRotation();
+      this.fetchVersion();
+      this.loadTournamentLogo();
+      this.loadParticipants();
       this.fetchAll();
       setInterval(this.fetchAll, 30000);
     });
+
     this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
     const player = document.getElementById('radio-player');
-    if (player) {
-      player.volume = this.settings.radio_volume / 100;
-    }
+    if (player) player.volume = this.settings.radio_volume / 100;
+
+    window.addEventListener('online', this.setupMessages);
+    window.addEventListener('offline', this.setupMessages);
   },
-
   methods: {
-    toggleRadio() {
-  const player = document.getElementById('radio-player');
-  const tournamentName = this.settings.tournament;
-
-  fetch('https://js9467.github.io/Brtourney/settings.json')
-    .then(res => res.json())
-    .then(all => {
-      const tourney = all[tournamentName] || {};
-      const streamUrl = tourney.stream || '';
-      const fallbackStream = all.fallback_stream || '';
-
-      const fallbackMessageBase = '🎣 Tournament VHF currently unavailable. Using fallback stream.';
-      const isDemo = this.settings.data_source === 'demo';
-      const fallbackMessage = isDemo ? `${fallbackMessageBase} You are in demo mode.` : fallbackMessageBase;
-
-      const play = (url, isFallback = false) => {
-        if (Hls.isSupported()) {
-          if (this.hls) this.hls.destroy();
-          this.hls = new Hls();
-          this.hls.loadSource(url);
-          this.hls.attachMedia(player);
-
-          this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            player.volume = this.settings.radio_volume / 100;
-            player.play().then(() => {
-              this.radioPlaying = true;
-              this.error = isFallback ? fallbackMessage : null;
-              localStorage.setItem('radioPlaying', 'true');
-            }).catch(err => {
-              console.error('🔊 Audio play failed:', err);
-              if (!isFallback) {
-                this.hls.destroy();
-                this.hls = null;
-                play(fallbackStream, true);
-              } else {
-                this.error = fallbackMessage;
-                this.radioPlaying = false;
-              }
-            });
-          });
-
-          this.hls.on(Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) {
-              this.hls.destroy();
-              this.hls = null;
-              if (!isFallback) {
-                play(fallbackStream, true);
-              } else {
-                this.error = fallbackMessage;
-                this.radioPlaying = false;
-              }
-            }
-          });
-
-        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-          player.src = url;
-          player.volume = this.settings.radio_volume / 100;
-          player.play().then(() => {
-            this.radioPlaying = true;
-            this.error = isFallback ? fallbackMessage : null;
-            localStorage.setItem('radioPlaying', 'true');
-          }).catch(err => {
-            if (!isFallback) {
-              play(fallbackStream, true);
-            } else {
-              this.error = fallbackMessage;
-              this.radioPlaying = false;
-            }
-          });
-        } else {
-          this.error = fallbackMessage;
-          this.radioPlaying = false;
-        }
-      };
-
-      if (this.radioPlaying) {
-        if (this.hls) this.hls.destroy();
-        player.pause();
-        player.src = '';
-        this.radioPlaying = false;
-        this.error = null;
-        localStorage.setItem('radioPlaying', 'false');
-      } else {
-        player.src = '';
-        play(streamUrl || fallbackStream, false);
+    fetchSettings() {
+      return fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => { this.settings = { ...this.settings, ...data }; });
+    },
+    fetchVersion() {
+      fetch('/api/version')
+        .then(res => res.json())
+        .then(data => { this.version = data.version; });
+    },
+    setupMessages() {
+      this.messageQueue = [];
+      if (!navigator.onLine) {
+        this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a> for live event updates.`);
       }
-    })
-    .catch(err => {
-      console.error("⚠️ Error fetching stream settings:", err);
-      this.error = 'Unable to load VHF stream settings.';
-    });
-},
-
-
-    saveRadioVolume() {
-      localStorage.setItem('radio_volume', this.settings.radio_volume);
-      const player = document.getElementById('radio-player');
-      if (player) {
-        player.volume = this.settings.radio_volume / 100;
+      if (this.settings.data_source === 'demo') {
+        this.enqueueMessage(`You are in demo mode. Events are emulated from a previous tournament. <a href='#' onclick='injectTestEvent()'>To simulate a boated event, click here.</a>`);
+      }
+      if (this.radioPlaying && this.error) {
+        this.enqueueMessage(this.error);
       }
     },
-
-    fetchSettings() {
-  return fetch('/api/settings')
-    .then(res => res.json())
-    .then(data => {
-      // Override defaults with backend
-      this.settings = { ...this.settings, ...data };
-
-      // Load localStorage overrides
-      const localFollowed = localStorage.getItem('followed_sound');
-      const localBoated = localStorage.getItem('boated_sound');
-      const localEventVolume = localStorage.getItem('event_volume');
-
-      if (localFollowed) this.settings.followed_sound = localFollowed;
-      if (localBoated) this.settings.boated_sound = localBoated;
-      if (localEventVolume) this.settings.event_volume = parseInt(localEventVolume);
-    });
-}
-,
-
+    enqueueMessage(msg) {
+      if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg);
+    },
+    startMessageRotation() {
+      if (this.messageQueue.length > 0 && !this.messageTimer) {
+        this.currentMessage = this.messageQueue[0];
+        this.messageTimer = setInterval(() => {
+          this.messageQueue.push(this.messageQueue.shift());
+          this.currentMessage = this.messageQueue[0];
+        }, 8000);
+      }
+    },
     fetchAll() {
       this.loading = true;
       Promise.all([
         fetch('/scrape/events').then(res => res.json()),
         fetch('/hooked').then(res => res.json())
       ]).then(([eventsData, hookedData]) => {
-        const newEvents = eventsData.events || [];
-        const newHooked = hookedData.events || [];
-        this.handleNewEvents(newEvents);
-        this.events = newEvents;
-        this.hooked = newHooked;
+        this.events = eventsData.events || [];
+        this.hooked = hookedData.events || [];
         this.loading = false;
       }).catch(err => {
         console.error("❌ Fetch error:", err);
         this.loading = false;
       });
     },
-
-    handleNewEvents(events) {
-  for (const event of events) {
-    const key = event.timestamp + event.uid;
-    if (!this.lastEventTimestamps.has(key)) {
-      this.lastEventTimestamps.add(key);
-
-      if (this.settings.sounds_enabled) {
-        const isFollowed = this.isFollowed(event.uid);
-        const details = (event.details || '').toLowerCase();
-        const isBoated = details.includes('boated');
-
-        // 🔊 Play sound for boated first, otherwise followed boat
-        if (isBoated) {
-          this.playSound(this.settings.boated_sound);
-        } else if (isFollowed) {
-          this.playSound(this.settings.followed_sound);
-        }
-      }
-    }
-  }
-},
-
-
-playSound(filename) {
-  if (!filename) return;
-  const audio = new Audio(`/static/sounds/${filename}`);
-  audio.volume = (this.settings.event_volume || 80) / 100;
-  audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
-}
-
-
-
-,
-
+    getBoatImage(uid) {
+      return this.boatImages[uid] || '';
+    },
     loadParticipants() {
       fetch('/participants_data?limit=1000&offset=0')
         .then(res => res.json())
@@ -376,28 +226,6 @@ playSound(filename) {
           this.boatImages = images;
         });
     },
-
-    getBoatImage(uid) {
-      return this.boatImages[uid] || '';
-    },
-
-    formatTime(ts) {
-      try {
-        const dt = new Date(ts);
-        return dt.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        });
-      } catch {
-        return ts;
-      }
-    },
-
-    isFollowed(uid) {
-      return this.followed.includes(uid);
-    },
-
     loadTournamentLogo() {
       fetch('/api/settings')
         .then(res => res.json())
@@ -409,106 +237,37 @@ playSound(filename) {
               this.tournamentLogo = all[tournament]?.logo || '';
             });
         });
-    }
-  }
-}).mount('#app');
-window.app = app;
-
-</script>
-  <script>
-const { createApp } = Vue;
-
-const app = createApp({
-  data() {
-    return {
-      events: [],
-      hooked: [],
-      boatImages: {},
-      tournamentLogo: '',
-      loading: false,
-      followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-      lastEventTimestamps: new Set(),
-      settings: {
-        followed_sound: 'followed-activity',
-        boated_sound: '1904_champagne-cork-pop-02',
-        event_volume: 80,
-        radio_volume: 30,
-        sounds_enabled: true,
-        data_source: 'live', // gets overridden
-        tournament: ''
-      },
-      radioPlaying: false,
-      hls: null,
-      error: null,
-
-      // Message strip queue
-      messageQueue: [],
-      currentMessage: '',
-      messageTimer: null
-    };
-  },
-
-  mounted() {
-    this.fetchSettings().then(() => {
-      this.setupMessageQueue();
-      this.startMessageRotation();
-    });
-
-    window.addEventListener('online', this.checkConnection);
-    window.addEventListener('offline', this.checkConnection);
-    this.checkConnection(); // Initial status
-  },
-
-  methods: {
-    setupMessageQueue() {
-      if (this.settings.data_source === 'demo') {
-        this.enqueueMessage(
-          `You are in demo mode. Events are being emulated from a previous tournament. <a href="#" onclick="injectTestEvent()" class='underline'>To test a boated event, click here.</a>`
-        );
-      }
     },
-
-    enqueueMessage(msg) {
-      if (!this.messageQueue.includes(msg)) {
-        this.messageQueue.push(msg);
-      }
+    formatTime(ts) {
+      const dt = new Date(ts);
+      return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     },
-
-    startMessageRotation() {
-      if (this.messageQueue.length > 0 && !this.messageTimer) {
-        this.currentMessage = this.messageQueue[0];
-        this.messageTimer = setInterval(() => {
-          this.messageQueue.push(this.messageQueue.shift());
-          this.currentMessage = this.messageQueue[0];
-        }, 8000);
-      }
+    isFollowed(uid) {
+      return this.followed.includes(uid);
     },
-
-    checkConnection() {
-      if (!navigator.onLine) {
-        this.enqueueMessage('📡 Internet Disconnected. Connect to WiFi for live event updates.');
-      }
+    playSound(filename) {
+      const audio = new Audio(`/static/sounds/${filename}`);
+      audio.volume = (this.settings.event_volume || 80) / 100;
+      audio.play().catch(err => console.warn('🔇 Sound failed:', err));
     }
   }
 }).mount('#app');
 
-// Inject boated event for Palmer Lou
+// Inject demo event for Palmer Lou
 window.injectTestEvent = function () {
   const now = new Date();
-  const futureTime = new Date(now.getTime() + 10000).toISOString();
+  const future = new Date(now.getTime() + 10000).toISOString();
   const injected = {
     boat: "Palmer Lou",
     event: "Boated",
-    details: "Palmer Lou has boated a massive blue marlin and will be headed to the scales.",
-    timestamp: futureTime,
-    uid: "palmer_lou_demo"
+    details: "Palmer Lou has boated a massive Blue Marlin and will be heading to the scales.",
+    timestamp: future,
+    uid: "palmer_lou"
   };
   app.events.unshift(injected);
   app.lastEventTimestamps.add(injected.timestamp + injected.uid);
   app.playSound(app.settings.boated_sound);
 };
 </script>
-
-
 </body>
 </html>

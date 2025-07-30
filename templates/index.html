@@ -8,104 +8,40 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
-
   <style>
-body { touch-action: manipulation; }
+    body { touch-action: manipulation; }
 
-.message-strip {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 1.4rem;
-  background-color: #002855;
-  color: white;
-  font-weight: 600;
-  font-size: 0.8rem;
-  white-space: nowrap;
-  overflow: hidden;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  padding-left: 100%;
-  line-height: 1.4rem;
-}
-
-.ticker {
-  display: inline-block;
-  padding-left: 2rem;
-  animation: ticker-scroll 12s linear infinite;
-}
-
-.message-strip:hover .ticker {
-  animation-play-state: paused;
-}
-
-.message-strip a {
-  color: #f6c553;
-  text-decoration: underline;
-}
-
-.message-error { color: #f87171; }
-.message-warning { color: #facc15; }
-.message-info { color: #93c5fd; }
-
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-
-.animate-marquee {
-  animation: marquee 20s linear infinite;
-  will-change: transform;
-}
-</style>
-
-
-
-
-  
-
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .animate-marquee {
+      animation: marquee 20s linear infinite;
+      will-change: transform;
+    }
+    .message-error { color: #f87171; }
+    .message-warning { color: #facc15; }
+    .message-info { color: #93c5fd; }
+  </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-
 <div id="app">
-  <!-- Top rotating message -->
-  <div v-if="combinedMessages" class="message-strip">
-  <div class="ticker" v-html="combinedMessages"></div>
-</div>
-
-
-  <!-- Toast for errors -->
-  <div v-if="error" class="toast">{{ error }}</div>
-
   <!-- Header -->
   <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
     <div class="flex items-center justify-between gap-4 flex-wrap w-full">
-  <!-- Left: Logo + VHF playing -->
-  <div class="flex items-center gap-4">
-    <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-    <span v-else class="text-white text-base">Loading Logo...</span>
-    <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
-  </div>
+      <!-- Left: Logo + VHF playing -->
+      <div class="flex items-center gap-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+        <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
+      </div>
 
-  <!-- Center: Ticker area -->
-  <div class="relative flex-1 overflow-hidden h-6">
-    <div v-if="combinedMessages" class="absolute whitespace-nowrap animate-marquee text-sm font-semibold text-white" v-html="combinedMessages"></div>
-  </div>
+      <!-- Center: Ticker area -->
+      <div v-if="messageQueue.length > 0" class="relative flex-1 overflow-hidden h-6">
+        <div :class="['absolute whitespace-nowrap text-sm font-semibold text-white', messageQueue.length > 1 ? 'animate-marquee' : '']" v-html="combinedMessages"></div>
+      </div>
 
-  <!-- Right: Buttons -->
-  <div class="flex gap-4 items-start">
-    <!-- your existing buttons go here -->
-  </div>
-</div>
-
-
-     <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
-  v{{ version }}
-</div>
-
-
+      <!-- Right: Buttons -->
       <div class="flex gap-4 items-start">
         <div class="flex flex-col items-center">
           <button @click="toggleRadio"
@@ -125,9 +61,11 @@ body { touch-action: manipulation; }
         <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
     </div>
+    <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
+      v{{ version }}
+    </div>
   </header>
 
-  <!-- Main content -->
   <div class="flex h-screen overflow-hidden">
     <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
       <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>

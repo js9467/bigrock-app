@@ -75,12 +75,21 @@
       </div>
 
       <div>
-        <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-        <select v-model="settings.hooked_sound" @change="previewSound(settings.hooked_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option disabled value="">-- Select Sound --</option>
-          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
-        </select>
-      </div>
+  <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
+  <select
+    v-model="settings.hooked_sound"
+    @change="() => {
+      previewSound(settings.hooked_sound);
+      localStorage.setItem('hooked_sound', settings.hooked_sound);
+      saveSettings();
+    }"
+    class="w-full p-2 rounded border border-gray-400 bg-white text-black"
+  >
+    <option disabled value="">-- Select Sound --</option>
+    <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
+  </select>
+</div>
+
 
       <div>
         <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>

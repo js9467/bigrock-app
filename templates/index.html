@@ -307,12 +307,14 @@ const app = createApp({
     const key = event.timestamp + event.uid;
     if (!this.lastEventTimestamps.has(key)) {
       this.lastEventTimestamps.add(key);
+
       if (this.settings.sounds_enabled) {
         const isFollowed = this.isFollowed(event.uid);
         const details = (event.details || '').toLowerCase();
+        const isBoated = details.includes('boated');
 
-        // Prioritize 'boated' detection
-        if (details.includes('boated')) {
+        // 🔊 Play sound for boated first, otherwise followed boat
+        if (isBoated) {
           this.playSound(this.settings.boated_sound);
         } else if (isFollowed) {
           this.playSound(this.settings.followed_sound);
@@ -321,6 +323,7 @@ const app = createApp({
     }
   }
 },
+
 
 playSound(filename) {
   if (!filename) return;

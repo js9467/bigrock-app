@@ -779,34 +779,30 @@ def wifi_connect():
         if not ssid:
             return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
 
-        print(f"🔄 Rescanning Wi-Fi networks before connecting to '{ssid}'...")
-        subprocess.call(['nmcli', 'dev', 'wifi', 'rescan'])
-        time.sleep(2)
+        print(f"🔌 Attempting connection to '{ssid}'")
 
-        # Check if SSID is visible
-        available = subprocess.check_output(['nmcli', '-t', '-f', 'SSID', 'dev', 'wifi'], text=True).splitlines()
-        print(f"📡 Visible networks: {available}")
-        ssid_visible = ssid in available
-
-        # Build connection command
+        # Build nmcli connect command
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             cmd += ['password', password]
-        if not ssid_visible:
-            print("⚠️ SSID not found in scan; assuming hidden")
-            cmd += ['hidden', 'yes']
 
-        print(f"🔌 Connecting using: {' '.join(cmd)}")
-        result = subprocess.check_output(cmd, text=True)
-        print(f"✅ Wi-Fi connected: {result}")
+        print(f"➡️ Running: {' '.join(cmd)}")
+        result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+
+        print(f"✅ Connection successful: {result}")
         return jsonify({'status': 'ok', 'message': result})
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ nmcli error: {e}")
-        return jsonify({'status': 'error', 'message': e.output.strip() if hasattr(e, 'output') else str(e)}), 500
+        # Check if already connected or already activating
+        if 'New connection activation was enqueued' in e.output or 'already active' in e.output:
+            print("ℹ️ Already connected or pending activation, treating as success")
+            return jsonify({'status': 'ok', 'message': e.output.strip()})
+        print(f"❌ nmcli error: {e.output}")
+        return jsonify({'status': 'error', 'message': e.output.strip()}), 500
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():

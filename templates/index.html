@@ -14,39 +14,39 @@ body { touch-action: manipulation; }
 
 .message-strip {
   position: fixed;
-  top: 0.5rem;
-  left: 15%;
-  width: 70%;
-  overflow: hidden;
-  background-color: #f59e0b;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1.75rem;
+  background-color: #002855; /* match .bg-brand-blue */
   color: white;
-  border-radius: 0.5rem;
-  z-index: 9999;
   font-weight: 600;
-  font-size: 0.95rem;
-  height: 2.25rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  z-index: 9999;
   display: flex;
   align-items: center;
-  white-space: nowrap;
-  padding: 0 1rem;
+  padding-left: 100%; /* start from outside right */
 }
 
-.message-content {
+.message-strip .ticker {
   display: inline-block;
-  padding-left: 100%;
-  animation: ticker 12s linear infinite;
+  padding-left: 2rem;
+  animation: ticker-scroll 30s linear infinite;
 }
 
 .message-strip a {
-  color: #fff;
+  color: #f6c553;
   text-decoration: underline;
 }
 
-@keyframes ticker {
-  0%   { transform: translateX(0); }
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }
 </style>
+
 
   
 
@@ -55,7 +55,10 @@ body { touch-action: manipulation; }
 
 <div id="app">
   <!-- Top rotating message -->
-  <div v-if="currentMessage" class="message-strip" v-html="currentMessage"></div>
+  <div v-if="combinedMessages" class="message-strip">
+  <div class="ticker" v-html="combinedMessages"></div>
+</div>
+
 
   <!-- Toast for errors -->
   <div v-if="error" class="toast">{{ error }}</div>
@@ -137,6 +140,7 @@ const { createApp } = Vue;
 const app = createApp({
   data() {
     return {
+      combinedMessages: '',
       events: [],
       hooked: [],
       boatImages: {},
@@ -282,8 +286,8 @@ fetchSettings() {
       if (this.messageQueue.length > 0 && !this.messageTimer) {
         this.currentMessage = this.messageQueue[0];
         this.messageTimer = setInterval(() => {
-          this.messageQueue.push(this.messageQueue.shift());
-          this.currentMessage = this.messageQueue[0];
+          this.combinedMessages = this.messageQueue.join(' &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ');
+
         }, 8000);
       }
     },

@@ -27,45 +27,43 @@
   <div id="app">
     <div v-if="error" class="toast">{{ error }}</div>
 
-    <!-- Header -->
-<header class="bg-brand-blue text-white px-4 py-3 shadow-md">
+    <header class="bg-brand-blue text-white px-4 py-3 shadow-md">
   <div class="flex items-center justify-between flex-wrap gap-4">
     
-    <!-- Logo and VHF status -->
+    <!-- Logo + VHF Status -->
     <div class="flex items-center gap-4">
       <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
       <span v-else class="text-white text-base">Loading Logo...</span>
       <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
     </div>
 
-    <!-- Button Row -->
-    <div class="flex items-end gap-3 flex-wrap">
-      
-      <!-- VHF Button + Volume -->
+    <!-- Right side button group -->
+    <div class="flex gap-4 items-start">
+      <!-- VHF Button + Volume (stacked) -->
       <div class="flex flex-col items-center">
         <button @click="toggleRadio"
-                class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36">
+                class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
           {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
         </button>
-        <div class="mt-1 flex items-center text-sm text-white gap-2 w-36">
-          <span>🔊</span>
+        <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
+          <span class="text-lg">🔊</span>
           <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
-                 class="flex-1 h-1 bg-white rounded-lg appearance-none cursor-pointer">
-          <span class="w-8 text-right">{{ settings.radio_volume }}%</span>
+                 class="w-full h-1 bg-white rounded-lg appearance-none cursor-pointer accent-yellow-400">
+          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
         </div>
       </div>
 
-      <!-- Other Buttons -->
+      <!-- Other buttons -->
       <a href="/participants"
-         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36 text-center">
+         class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
         Participants
       </a>
       <a href="/leaderboard"
-         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36 text-center">
+         class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
         Leaderboard
       </a>
       <a href="/catch-summary"
-         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36 text-center">
+         class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
         Catch Summary
       </a>
       <a href="/settings-page"

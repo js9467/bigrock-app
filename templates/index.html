@@ -50,9 +50,14 @@ body { touch-action: manipulation; }
 .message-warning { color: #facc15; }
 .message-info { color: #93c5fd; }
 
-@keyframes ticker-scroll {
-  0% { transform: translateX(0); }
+@keyframes marquee {
+  0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+  will-change: transform;
 }
 </style>
 
@@ -76,12 +81,25 @@ body { touch-action: manipulation; }
 
   <!-- Header -->
   <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
-    <div class="flex items-center justify-between flex-wrap gap-4">
-      <div class="flex items-center gap-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-        <span v-else class="text-white text-base">Loading Logo...</span>
-        <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
-      </div>
+    <div class="flex items-center justify-between gap-4 flex-wrap w-full">
+  <!-- Left: Logo + VHF playing -->
+  <div class="flex items-center gap-4">
+    <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+    <span v-else class="text-white text-base">Loading Logo...</span>
+    <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
+  </div>
+
+  <!-- Center: Ticker area -->
+  <div class="relative flex-1 overflow-hidden h-6">
+    <div v-if="combinedMessages" class="absolute whitespace-nowrap animate-marquee text-sm font-semibold text-white" v-html="combinedMessages"></div>
+  </div>
+
+  <!-- Right: Buttons -->
+  <div class="flex gap-4 items-start">
+    <!-- your existing buttons go here -->
+  </div>
+</div>
+
 
      <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
   v{{ version }}

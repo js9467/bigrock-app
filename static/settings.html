@@ -1,100 +1,271 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings</title>
   <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/base.css">
+  <style>
+    body {
+      touch-action: manipulation;
+    }
+
+   .toast {
+  position: fixed;
+  top: 5rem; /* move it below the header */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  color: black;
+  text-align: center;
+  max-width: 90vw;
+}
+
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans">
-  <div id="app" class="p-6 max-w-2xl mx-auto space-y-8">
-    <h1 class="text-3xl font-bold mb-4">⚙️ Settings</h1>
+<body class="bg-gray-100 text-gray-900 font-sans overflow-y-auto">
+  <div id="app">
+    <!-- Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Home</a>
+      </div>
+    </header>
 
-    <div>
-      <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-      <select v-model="settings.followed_sound" @change="previewSound(settings.followed_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-        <option disabled value="">-- Select Sound --</option>
-        <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
-      </select>
+    <div class="p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
+      <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
+
+      <div>
+        <label class="block font-semibold mb-1">Tournament</label>
+        <div v-if="Object.keys(validTournaments).length">
+          <select v-model="settings.tournament" @change="onTournamentChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+            <option disabled value="">-- Select Tournament --</option>
+            <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
+          </select>
+        </div>
+        <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <span class="font-semibold">Data Source:</span>
+        <label class="inline-flex items-center"><input type="radio" value="live" v-model="settings.data_source" @change="saveSettings" class="mr-1"> Live</label>
+        <label class="inline-flex items-center"><input type="radio" value="demo" v-model="settings.data_source" @change="saveSettings" class="mr-1"> Demo</label>
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">Event Volume</label>
+        <input type="range" min="0" max="100" v-model="settings.event_volume" @change="saveSettings" class="w-full">
+        <div class="text-center">{{ settings.event_volume }}%</div>
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">VHF Volume</label>
+        <input type="range" min="0" max="100" v-model="settings.vhf_volume" @change="saveSettings" class="w-full">
+        <div class="text-center">{{ settings.vhf_volume }}%</div>
+      </div>
+
+      <div>
+  <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
+  <select
+  v-model="settings.hooked_sound"
+  @change="onHookedSoundChange"
+  class="w-full p-2 rounded border border-gray-400 bg-white text-black"
+>
+  <option disabled value="">-- Select Sound --</option>
+  <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
+</select>
+
+</div>
+
+
+      <div>
+        <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
+        <select v-model="settings.boated_sound" @change="previewSound(settings.boated_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+          <option disabled value="">-- Select Sound --</option>
+          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
+        </select>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" @change="saveSettings">
+        <label for="sounds" class="font-semibold">Play Event Sounds</label>
+      </div>
+
+      <div class="pt-6">
+        <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
+        <div class="text-sm text-gray-700 mb-2">Connected To: <span class="font-semibold">{{ connectedSSID }}</span></div>
+        <button @click="wifiPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Wi-Fi</button>
+      </div>
+
+      <div class="pt-6">
+        <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
+        <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Bluetooth</button>
+      </div>
     </div>
 
-    <div>
-      <label class="block font-semibold mb-1">Sound for Boated Events</label>
-      <select v-model="settings.boated_sound" @change="previewSound(settings.boated_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-        <option disabled value="">-- Select Sound --</option>
-        <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
-      </select>
+    <!-- Toast -->
+    <div v-if="toast.message" :class="['toast', toast.type === 'success' ? 'toast-success' : toast.type === 'error' ? 'toast-error' : 'toast-info']">
+      {{ toast.message }}
     </div>
 
-    <div>
-      <label class="block font-semibold mb-1">Event Volume</label>
-      <input type="range" min="0" max="100" v-model="settings.event_volume" @change="saveSettings" class="w-full">
-      <span>{{ settings.event_volume }}%</span>
+    <!-- Wi-Fi Modal -->
+    <div v-if="wifiPopup" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-10 overflow-auto">
+      <div class="bg-white rounded p-4 max-w-md w-full space-y-3">
+        <h2 class="text-lg font-bold">Available Networks</h2>
+        <div v-if="wifiNetworks.length">
+          <div v-for="net in wifiNetworks" :key="net.ssid" class="flex justify-between items-center border p-2 rounded">
+            <div>
+              <span class="font-semibold">{{ net.ssid }}</span>
+              <span class="text-sm text-gray-500 ml-2">({{ net.signal }}%)</span>
+              <span v-if="net.connected" class="ml-2 text-green-600 font-semibold">Connected</span>
+            </div>
+            <button v-if="!net.connected" @click="connectWifi(net.ssid)" class="text-blue-600 hover:underline">Connect</button>
+            <button v-if="net.connected" @click="disconnectWifi()" class="text-red-600 hover:underline">Disconnect</button>
+          </div>
+        </div>
+        <div v-else class="text-gray-500">No networks found.</div>
+        <div class="text-right">
+          <button @click="wifiPopup = false" class="mt-2 px-4 py-1 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+        </div>
+      </div>
     </div>
 
-    <div>
-      <label class="block font-semibold mb-1">Radio Volume</label>
-      <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveSettings" class="w-full">
-      <span>{{ settings.radio_volume }}%</span>
+    <!-- Bluetooth Modal -->
+    <div v-if="bluetoothPopup" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-10 overflow-auto">
+      <div class="bg-white rounded p-4 max-w-md w-full space-y-3">
+        <h2 class="text-lg font-bold">Bluetooth Devices</h2>
+        <div v-if="bluetoothDevices.length">
+          <div v-for="dev in bluetoothDevices" :key="dev.mac" class="flex justify-between items-center border p-2 rounded">
+            <span>{{ dev.name }} ({{ dev.mac }})</span>
+            <button @click="connectBluetooth(dev.mac)" class="text-blue-600 hover:underline">Connect</button>
+          </div>
+        </div>
+        <div v-else class="text-gray-500">No devices found.</div>
+        <div class="text-right">
+          <button @click="bluetoothPopup = false" class="mt-2 px-4 py-1 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
-    const { createApp } = Vue
-
+    const { createApp } = Vue;
     createApp({
       data() {
         return {
           settings: {
-            followed_sound: '',
-            boated_sound: '',
-            event_volume: 80,
-            radio_volume: 30,
-            sounds_enabled: true,
+            tournament: '',
             data_source: 'live',
-            tournament: ''
+            event_volume: 80,
+            vhf_volume: 70,
+            sounds_enabled: true,
+            hooked_sound: '',
+            boated_sound: ''
           },
-          availableSounds: []
+          tournaments: {},
+          wifiNetworks: [],
+          bluetoothDevices: [],
+          wifiPopup: false,
+          bluetoothPopup: false,
+          toast: { message: '', type: '' },
+          availableSounds: [],
+          tournamentLogo: ''
+        };
+      },
+      computed: {
+        validTournaments() {
+          return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
+        },
+        connectedSSID() {
+          const connected = this.wifiNetworks.find(n => n.connected);
+          return connected ? connected.ssid : 'Not connected';
+        }
+      },
+      methods: {
+        showToast(message, type = 'info') {
+          this.toast = { message, type };
+          setTimeout(() => this.toast.message = '', 3000);
+        },
+        saveSettings() {
+          axios.post('/api/settings', this.settings).then(() => {
+            this.showToast('✅ Settings saved.', 'success');
+          }).catch(err => {
+            this.showToast('❌ Failed to save settings.', 'error');
+          });
+        },
+        previewSound(file) {
+          if (!file) return;
+          const audio = new Audio(`/static/sounds/${file}`);
+          audio.volume = (this.settings.event_volume || 80) / 100;
+          audio.play().catch(() => {});
+        },
+        connectWifi(ssid) {
+          axios.post('/wifi/connect', { ssid }).then(() => {
+            this.showToast('Connected to Wi-Fi', 'success');
+            this.fetchWifi();
+          }).catch(() => {
+            this.showToast('Wi-Fi connect failed', 'error');
+          });
+        },
+        disconnectWifi() {
+          axios.post('/wifi/disconnect').then(() => {
+            this.showToast('Disconnected Wi-Fi', 'info');
+            this.fetchWifi();
+          });
+        },
+        connectBluetooth(mac) {
+          axios.post('/bluetooth/connect', { mac }).then(() => {
+            this.showToast('Bluetooth connected', 'success');
+          });
+        },
+        fetchWifi() {
+          axios.get('/wifi/scan').then(res => {
+            this.wifiNetworks = res.data.networks;
+          });
+        },
+        onHookedSoundChange() {
+  const file = this.settings.hooked_sound;
+  if (file) {
+    this.previewSound(file);
+    localStorage.setItem('followed_sound', file);  // match the setting used on index.html
+    this.saveSettings();
+  }
+},
+onTournamentChange() {
+          this.saveSettings();
+          this.updateTournamentLogo();
+        },
+        updateTournamentLogo() {
+          const t = this.settings.tournament;
+          this.tournamentLogo = this.tournaments[t]?.logo || '';
         }
       },
       mounted() {
-        this.loadSettings()
-        this.loadAvailableSounds()
-      },
-      methods: {
-        loadSettings() {
-          fetch('/api/settings')
-            .then(res => res.json())
-            .then(data => {
-              this.settings = { ...this.settings, ...data }
-            })
-        },
-        saveSettings() {
-          localStorage.setItem('settings', JSON.stringify(this.settings))
-          fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(this.settings)
-          })
-        },
-        loadAvailableSounds() {
-          fetch('/static/sounds/')
-            .then(res => res.text())
-            .then(html => {
-              const matches = html.match(/href="(.*?)\.mp3"/g) || []
-              this.availableSounds = matches.map(m => m.split('"')[1].replace('.mp3', ''))
-            })
-        },
-        previewSound(name) {
-          if (!name) return
-          const audio = new Audio(`/static/sounds/${name}.mp3`)
-          audio.volume = this.settings.event_volume / 100
-          audio.play().catch(e => console.warn("🔇 Preview failed:", e))
-        }
+        axios.get('/api/settings').then(res => {
+          this.settings = { ...this.settings, ...res.data };
+          axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
+            this.tournaments = res.data;
+            this.updateTournamentLogo();
+          });
+        });
+        axios.get('/sounds').then(res => {
+          this.availableSounds = res.data.files || [];
+        }).catch(() => {
+          this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+        });
+        this.fetchWifi();
       }
-    }).mount('#app')
+    }).mount('#app');
   </script>
 </body>
 </html>

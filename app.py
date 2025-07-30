@@ -428,11 +428,11 @@ def scrape_gallery(force=False):
 # Routes
 @app.route('/')
 def homepage():
-    return send_from_directory('static', 'index.html')
+    return send_from_directory('templates', 'index.html')
 
 @app.route('/participants')
 def participants_page():
-    return send_from_directory('templates', 'participants.html')
+    return send_from_directory('static', 'participants.html')
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):

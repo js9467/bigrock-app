@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="/static/css/base.css">
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-
   <div id="app">
     <!-- Header -->
     <header class="bg-blue-900 text-white flex items-center justify-between px-6 py-3 shadow-md">
@@ -37,7 +36,6 @@
             <option disabled value="">-- Select Tournament --</option>
             <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
           </select>
-          <div class="text-sm text-gray-600 mt-2">Selected: {{ settings.tournament }}</div>
         </div>
         <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
       </div>
@@ -82,7 +80,7 @@
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
         <div class="text-sm text-gray-700 mb-2">Currently Connected: <span class="font-semibold">{{ connectedSSID }}</span></div>
-        <button @click="wifiPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
+        <button @click="wifiPopup = true; scanWifi()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
       </div>
 
       <!-- Bluetooth -->
@@ -109,18 +107,41 @@
     </div>
 
     <!-- Wi-Fi Modal -->
+    <div v-if="wifiPopup" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div class="bg-white p-6 rounded shadow-lg max-w-md w-full space-y-4">
+        <h2 class="text-xl font-bold mb-2">Available Wi-Fi Networks</h2>
+
+        <div v-if="wifiNetworks.length">
+          <div v-for="net in wifiNetworks" :key="net.ssid" class="flex justify-between items-center border p-3 rounded mb-2">
+            <div>
+              <span class="font-semibold">{{ net.ssid }}</span>
+              <span class="text-sm text-gray-500 ml-2">({{ net.signal }}%)</span>
+              <span v-if="net.connected" class="ml-2 text-green-600 font-semibold">Connected</span>
+            </div>
+            <button v-if="!net.connected" @click="promptPassword(net.ssid)" class="text-blue-600 hover:underline">Connect</button>
+            <button v-if="net.connected" @click="disconnectWifi()" class="text-red-600 hover:underline">Disconnect</button>
+          </div>
+        </div>
+        <div v-else class="text-gray-600">No networks found.</div>
+
+        <div class="text-right">
+          <button @click="wifiPopup = false" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Password Prompt Modal -->
     <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div class="bg-white p-6 rounded shadow-lg max-w-md w-full space-y-4">
-        <h2 class="text-xl font-bold">Enter password for {{ modalSSID }}</h2>
-        <input v-model="password" type="password" class="w-full p-2 border rounded"
-               placeholder="Wi-Fi Password" @focus="launchKeyboard">
+        <h2 class="text-xl font-bold mb-2">Enter password for {{ modalSSID }}</h2>
+        <input v-model="password" type="password" placeholder="Wi-Fi Password"
+               class="w-full p-2 border rounded" @focus="launchKeyboard">
         <div class="text-right space-x-2">
           <button @click="connectWifi" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Connect</button>
           <button @click="cancelPassword" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
         </div>
       </div>
     </div>
-
   </div>
 
   <script>
@@ -233,20 +254,29 @@
         });
         axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
           this.tournaments = res.data;
-          if (!this.settings.tournament) {
-            const firstValid = Object.keys(res.data).find(k => res.data[k]);
-            if (firstValid) this.settings.tournament = firstValid;
-          }
         });
         axios.get('/status').then(res => {
           this.cacheStatus = res.data;
-        }).catch(err => {
-          console.error("Failed to load cache status:", err);
         });
         this.scanWifi();
         this.scanBluetooth();
       }
     }).mount('#app');
+  </script>
+
+  <!-- Global keyboard trigger -->
+  <script>
+    document.addEventListener('focusin', (e) => {
+      if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
+        axios.post('/launch_keyboard');
+      }
+    });
+
+    document.addEventListener('focusout', (e) => {
+      if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
+        axios.post('/hide_keyboard');
+      }
+    });
   </script>
 </body>
 </html>

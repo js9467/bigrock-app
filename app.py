@@ -735,50 +735,55 @@ def bluetooth_connect():
 @app.route('/wifi/scan')
 def wifi_scan():
     try:
-        # Force a Wi-Fi rescan
+        # Rescan (with sudo for proper permissions)
         subprocess.run(['sudo', 'nmcli', 'dev', 'wifi', 'rescan'], check=True)
 
-        # Retrieve available Wi-Fi networks
-        scan_result = subprocess.check_output(
+        # Get scan results
+        output = subprocess.check_output(
             ['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'],
             text=True
         )
 
-        seen = {}
+        networks_by_ssid = {}
         connected_ssid = None
 
-        for line in scan_result.strip().split('\n'):
+        for line in output.strip().split('\n'):
             parts = line.strip().split(':')
-            if len(parts) >= 3:
-                ssid, signal_str, in_use = parts
-                if not ssid:
-                    continue
-                try:
-                    signal = int(signal_str)
-                except ValueError:
-                    signal = 0
-                is_connected = in_use.strip() == '*'
+            if len(parts) < 3:
+                continue
+            ssid, signal_str, in_use = parts
 
-                # Only keep the strongest signal or the connected instance
-                if ssid not in seen or is_connected or signal > seen[ssid]['signal']:
-                    seen[ssid] = {
-                        'ssid': ssid,
-                        'signal': signal,
-                        'connected': is_connected
-                    }
-                if is_connected:
-                    connected_ssid = ssid
+            if not ssid or ssid.isspace():
+                continue  # Skip empty or whitespace SSIDs
 
-        networks = list(seen.values())
-        networks.sort(key=lambda x: -x['signal'])  # Optional: sort by signal strength
+            try:
+                signal = int(signal_str)
+            except ValueError:
+                signal = 0
+
+            is_connected = in_use.strip() == '*'
+
+            # Store only best signal or connected version
+            if ssid not in networks_by_ssid or is_connected or signal > networks_by_ssid[ssid]['signal']:
+                networks_by_ssid[ssid] = {
+                    'ssid': ssid,
+                    'signal': signal,
+                    'connected': is_connected
+                }
+
+            if is_connected:
+                connected_ssid = ssid
+
+        networks = sorted(networks_by_ssid.values(), key=lambda x: -x['signal'])
         return jsonify({'networks': networks, 'connected': connected_ssid})
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ nmcli scan error: {e}")
+        print(f"❌ Scan error: {e}")
         return jsonify({'networks': [], 'connected': None, 'error': str(e)}), 500
     except Exception as e:
-        print(f"❌ Wi-Fi scan error: {e}")
+        print(f"❌ Unexpected scan error: {e}")
         return jsonify({'networks': [], 'connected': None, 'error': str(e)}), 500
+
 
 
 @app.route('/wifi/connect', methods=['POST'])

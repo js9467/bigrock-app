@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Tournament Events Feed</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Events Feed</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/base.css">
   <style>
     body { touch-action: manipulation; }
     .toast {
@@ -40,6 +40,7 @@
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
+  <!-- Header -->
   <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
     <div class="flex items-center space-x-4">
       <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
@@ -50,22 +51,40 @@
         {{ radioPlaying ? 'VHF On' : 'VHF Off' }}
         <span v-if="radioPlaying" class="vhf-indicator"></span>
       </button>
+      <a href="/leaderboard.html" class="bg-brand-gold text-white px-4 py-2 rounded font-bold">Leaderboard</a>
+      <a href="/settings.html" class="bg-gray-300 text-brand-blue px-4 py-2 rounded font-bold">Settings</a>
     </div>
   </header>
 
-  <main class="p-4">
-    <h2 class="text-xl font-bold mb-2">Live Tournament Feed</h2>
-    <div v-if="loading" class="text-gray-500">Loading events...</div>
-    <div v-else>
-      <div v-for="event in events" :key="event.id" class="mb-4 p-4 bg-white shadow rounded">
-        <p class="font-semibold">{{ event.time }} — {{ event.boat }}</p>
-        <p class="text-gray-700">{{ event.details }}</p>
+  <!-- Main Feed -->
+  <main class="p-4 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Hooked Up Feed -->
+      <div class="col-span-1">
+        <h2 class="text-lg font-bold mb-2">Hooked Up</h2>
+        <div v-if="hooked.length === 0" class="text-gray-500">No boats currently hooked up</div>
+        <div v-for="event in hooked" :key="event.id" class="bg-white p-3 rounded shadow">
+          <img v-if="boatImages[event.uid]" :src="boatImages[event.uid]" class="h-32 w-full object-cover rounded mb-2">
+          <p class="font-bold text-brand-blue">{{ event.boat }}</p>
+          <p class="text-sm text-gray-600">{{ event.time }}</p>
+        </div>
+      </div>
+
+      <!-- Main Event Feed -->
+      <div class="col-span-2">
+        <h2 class="text-lg font-bold mb-2">Live Events</h2>
+        <div v-if="loading" class="text-gray-500">Loading events...</div>
+        <div v-for="event in events" :key="event.id" class="bg-white p-3 rounded shadow flex items-center justify-between">
+          <div>
+            <p class="font-bold">{{ event.boat }}</p>
+            <p class="text-sm text-gray-600">{{ event.time }} — {{ event.details }}</p>
+          </div>
+        </div>
       </div>
     </div>
   </main>
 
   <div v-if="toastMessage" :class="['toast', toastType]">{{ toastMessage }}</div>
-
   <audio ref="audioPlayer" preload="auto"></audio>
 </div>
 
@@ -76,6 +95,8 @@ createApp({
   data() {
     return {
       events: [],
+      hooked: [],
+      boatImages: {},
       loading: true,
       toastMessage: '',
       toastType: '',
@@ -84,34 +105,33 @@ createApp({
       settings: {},
       tournamentLogo: null,
       primaryStream: '',
-      fallbackStream: '',
+      fallbackStream: ''
     };
   },
   methods: {
     async fetchSettings() {
-      try {
-        const res = await axios.get('/api/settings');
-        this.settings = res.data;
-        this.fallbackStream = this.settings.fallback_stream || '';
-        const tournament = this.settings.tournament;
-        const allTournaments = await axios.get('https://js9467.github.io/Brtourney/settings.json');
-        const entry = allTournaments.data[tournament] || {};
-        this.primaryStream = entry.stream || '';
-        this.tournamentLogo = entry.logo || null;
-      } catch (err) {
-        this.showToast('Failed to load tournament settings', 'toast-error');
-        console.error(err);
-      }
+      const res = await axios.get('/api/settings');
+      this.settings = res.data;
+      const tournament = this.settings.tournament;
+      const remote = await axios.get('https://js9467.github.io/Brtourney/settings.json');
+      const tournamentEntry = remote.data[tournament] || {};
+      this.primaryStream = tournamentEntry.stream || '';
+      this.fallbackStream = remote.data.fallback_stream || '';
+      this.tournamentLogo = tournamentEntry.logo || null;
     },
     async fetchEvents() {
-      try {
-        const res = await axios.get('/events');
-        this.events = res.data || [];
-      } catch (err) {
-        console.error('Event fetch failed:', err);
-      } finally {
-        this.loading = false;
-      }
+      const res = await axios.get('/events');
+      this.events = res.data;
+    },
+    async fetchHooked() {
+      const res = await axios.get('/hooked');
+      this.hooked = res.data;
+    },
+    async fetchImages() {
+      const res = await axios.get('/participants');
+      res.data.forEach(p => {
+        this.boatImages[p.uid] = p.image_path;
+      });
     },
     showToast(msg, type = 'toast-success') {
       this.toastMessage = msg;
@@ -120,7 +140,6 @@ createApp({
     },
     toggleRadio() {
       const player = this.$refs.audioPlayer;
-
       const playStream = (url, isFallback = false) => {
         if (this.hls) {
           this.hls.destroy();
@@ -133,17 +152,19 @@ createApp({
           this.hls.attachMedia(player);
           this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
             player.volume = this.settings.radio_volume || 0.3;
-            player.play().then(() => {
-              this.radioPlaying = true;
-              this.showToast('📡 VHF Stream Playing');
-            }).catch(err => {
-              console.error('🔊 HLS play failed:', err);
-              if (!isFallback && this.fallbackStream) {
-                playStream(this.fallbackStream, true);
-              } else {
-                this.showToast('🔇 Stream unavailable', 'toast-error');
-              }
-            });
+            player.play()
+              .then(() => {
+                this.radioPlaying = true;
+                this.showToast('📡 VHF Stream Playing');
+              })
+              .catch(err => {
+                console.error('🔊 HLS play failed:', err);
+                if (!isFallback && this.fallbackStream) {
+                  playStream(this.fallbackStream, true);
+                } else {
+                  this.showToast('🔇 Stream unavailable', 'toast-error');
+                }
+              });
           });
         } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
           player.src = url;
@@ -181,7 +202,11 @@ createApp({
   },
   async mounted() {
     await this.fetchSettings();
+    await this.fetchImages();
     await this.fetchEvents();
+    await this.fetchHooked();
+    setInterval(this.fetchEvents, 30000);
+    setInterval(this.fetchHooked, 30000);
   }
 }).mount("#app");
 </script>

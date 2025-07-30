@@ -856,6 +856,15 @@ def hide_keyboard():
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@app.route('/sounds')
+def list_sounds():
+    import os
+    sound_dir = os.path.join('static', 'sounds')
+    try:
+        files = [f for f in os.listdir(sound_dir) if f.lower().endswith('.mp3')]
+        return jsonify({'files': files})
+    except Exception as e:
+        return jsonify({'files': [], 'error': str(e)}), 500
 
 
 

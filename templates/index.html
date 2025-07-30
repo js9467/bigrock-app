@@ -54,9 +54,9 @@
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
   <!-- Header -->
-  <header class="bg-brand-blue text-white px-4 py-3 shadow-md">
+  <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
   <div class="flex items-center justify-between gap-4 flex-wrap w-full">
-    <!-- Left: Logo + VHF status -->
+    <!-- Left: Logo + VHF playing -->
     <div class="flex items-center gap-4">
       <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
       <span v-else class="text-white text-base">Loading Logo...</span>
@@ -85,17 +85,17 @@
     </div>
   </div>
 
-  <!-- Ticker -->
- <div v-if="messageQueue.length > 0" class="bg-brand-blue py-1 px-4">
-  <div class="text-white text-lg font-semibold text-center" v-html="currentMessage"></div>
-</div>
-
+  <!-- Rotating Message -->
+  <div v-if="messageQueue.length > 0" class="w-full bg-brand-blue py-1">
+    <div class="text-white text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
+  </div>
 
   <!-- Version -->
   <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
     v{{ version }}
   </div>
 </header>
+
 
 
   <div class="flex h-screen overflow-hidden">

@@ -732,6 +732,37 @@ def bluetooth_connect():
     print(f"Connecting to: {data['mac']}")
     return jsonify({"status": "ok"})
 
+@app.route('/wifi/scan')
+def wifi_scan():
+    try:
+        scan_result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'], text=True)
+        seen = {}
+        connected_ssid = None
+
+        for line in scan_result.strip().split('\n'):
+            parts = line.strip().split(':')
+            if len(parts) >= 3:
+                ssid, signal, in_use = parts
+                if not ssid:
+                    continue
+                signal = int(signal)
+                is_connected = in_use.strip() == '*'
+
+                # Update if not seen or this one has stronger signal or is connected
+                if ssid not in seen or is_connected or signal > seen[ssid]['signal']:
+                    seen[ssid] = {
+                        'ssid': ssid,
+                        'signal': signal,
+                        'connected': is_connected
+                    }
+                if is_connected:
+                    connected_ssid = ssid
+
+        networks = list(seen.values())
+        return jsonify({'networks': networks, 'connected': connected_ssid})
+    except Exception as e:
+        print(f"❌ Wi-Fi scan error: {e}")
+        return jsonify({'networks': [], 'connected': None})
 
 
 @app.route('/wifi/connect', methods=['POST'])

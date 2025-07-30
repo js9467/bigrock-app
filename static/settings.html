@@ -248,11 +248,12 @@
           this.tournaments = res.data;
           this.updateTournamentLogo();
         });
-        axios.get('/static/sounds/list.json').then(res => {
-          this.availableSounds = res.data.files || [];
-        }).catch(() => {
-          this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3']; // fallback
-        });
+        axios.get('/sounds').then(res => {
+  this.availableSounds = res.data.files || [];
+}).catch(() => {
+  this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+});
+
         this.fetchWifi();
       }
     }).mount('#app');

@@ -303,27 +303,32 @@ const app = createApp({
     },
 
     handleNewEvents(events) {
-      for (const event of events) {
-        const key = event.timestamp + event.uid;
-        if (!this.lastEventTimestamps.has(key)) {
-          this.lastEventTimestamps.add(key);
-          if (this.settings.sounds_enabled) {
-            const isFollowed = this.isFollowed(event.uid);
-            const isBoated = event.details.toLowerCase().includes('boated');
-            if (isBoated) this.playSound(this.settings.boated_sound);
-            else if (isFollowed) this.playSound(this.settings.followed_sound);
-          }
+  for (const event of events) {
+    const key = event.timestamp + event.uid;
+    if (!this.lastEventTimestamps.has(key)) {
+      this.lastEventTimestamps.add(key);
+      if (this.settings.sounds_enabled) {
+        const isFollowed = this.isFollowed(event.uid);
+        const details = (event.details || '').toLowerCase();
+
+        // Prioritize 'boated' detection
+        if (details.includes('boated')) {
+          this.playSound(this.settings.boated_sound);
+        } else if (isFollowed) {
+          this.playSound(this.settings.followed_sound);
         }
       }
-    },
+    }
+  }
+},
 
-   playSound(name) {
-  const cleanName = name.replace(/\.mp3$/i, '');
-  console.log("🧪 Playing sound:", cleanName);
-  const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
-  audio.volume = this.settings.event_volume / 100;
+playSound(filename) {
+  if (!filename) return;
+  const audio = new Audio(`/static/sounds/${filename}`);
+  audio.volume = (this.settings.event_volume || 80) / 100;
   audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
 }
+
 
 
 ,

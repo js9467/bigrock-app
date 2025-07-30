@@ -22,8 +22,37 @@
       z-index: 9999;
     }
   </style>
+  <style>
+.message-strip {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #f59e0b;
+  color: white;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  z-index: 9999;
+  max-width: 90%;
+  font-weight: 600;
+  font-size: 0.95rem;
+  animation: fadein 0.5s ease-in-out;
+}
+.message-strip a {
+  color: #fff;
+  text-decoration: underline;
+}
+@keyframes fadein {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+</style>
+
+  
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
+<div v-if="currentMessage" class="message-strip" v-html="currentMessage"></div>
+
   <div id="app">
     <div v-if="error" class="toast">{{ error }}</div>
 
@@ -386,6 +415,100 @@ playSound(filename) {
 window.app = app;
 
 </script>
+  <script>
+const { createApp } = Vue;
+
+const app = createApp({
+  data() {
+    return {
+      events: [],
+      hooked: [],
+      boatImages: {},
+      tournamentLogo: '',
+      loading: false,
+      followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+      lastEventTimestamps: new Set(),
+      settings: {
+        followed_sound: 'followed-activity',
+        boated_sound: '1904_champagne-cork-pop-02',
+        event_volume: 80,
+        radio_volume: 30,
+        sounds_enabled: true,
+        data_source: 'live', // gets overridden
+        tournament: ''
+      },
+      radioPlaying: false,
+      hls: null,
+      error: null,
+
+      // Message strip queue
+      messageQueue: [],
+      currentMessage: '',
+      messageTimer: null
+    };
+  },
+
+  mounted() {
+    this.fetchSettings().then(() => {
+      this.setupMessageQueue();
+      this.startMessageRotation();
+    });
+
+    window.addEventListener('online', this.checkConnection);
+    window.addEventListener('offline', this.checkConnection);
+    this.checkConnection(); // Initial status
+  },
+
+  methods: {
+    setupMessageQueue() {
+      if (this.settings.data_source === 'demo') {
+        this.enqueueMessage(
+          `You are in demo mode. Events are being emulated from a previous tournament. <a href="#" onclick="injectTestEvent()" class='underline'>To test a boated event, click here.</a>`
+        );
+      }
+    },
+
+    enqueueMessage(msg) {
+      if (!this.messageQueue.includes(msg)) {
+        this.messageQueue.push(msg);
+      }
+    },
+
+    startMessageRotation() {
+      if (this.messageQueue.length > 0 && !this.messageTimer) {
+        this.currentMessage = this.messageQueue[0];
+        this.messageTimer = setInterval(() => {
+          this.messageQueue.push(this.messageQueue.shift());
+          this.currentMessage = this.messageQueue[0];
+        }, 8000);
+      }
+    },
+
+    checkConnection() {
+      if (!navigator.onLine) {
+        this.enqueueMessage('📡 Internet Disconnected. Connect to WiFi for live event updates.');
+      }
+    }
+  }
+}).mount('#app');
+
+// Inject boated event for Palmer Lou
+window.injectTestEvent = function () {
+  const now = new Date();
+  const futureTime = new Date(now.getTime() + 10000).toISOString();
+  const injected = {
+    boat: "Palmer Lou",
+    event: "Boated",
+    details: "Palmer Lou has boated a massive blue marlin and will be headed to the scales.",
+    timestamp: futureTime,
+    uid: "palmer_lou_demo"
+  };
+  app.events.unshift(injected);
+  app.lastEventTimestamps.add(injected.timestamp + injected.uid);
+  app.playSound(app.settings.boated_sound);
+};
+</script>
+
 
 </body>
 </html>

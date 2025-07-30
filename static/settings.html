@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
 
    .toast {
   position: fixed;
-  top: 5rem; /* move it below the header */
+  top: 5rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
@@ -75,18 +75,12 @@
       </div>
 
       <div>
-  <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-  <select
-  v-model="settings.hooked_sound"
-  @change="onHookedSoundChange"
-  class="w-full p-2 rounded border border-gray-400 bg-white text-black"
->
-  <option disabled value="">-- Select Sound --</option>
-  <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
-</select>
-
-</div>
-
+        <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
+        <select v-model="settings.hooked_sound" @change="onHookedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+          <option disabled value="">-- Select Sound --</option>
+          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
+        </select>
+      </div>
 
       <div>
         <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
@@ -234,14 +228,14 @@
           });
         },
         onHookedSoundChange() {
-  const file = this.settings.hooked_sound;
-  if (file) {
-    this.previewSound(file);
-    localStorage.setItem('followed_sound', file);  // match the setting used on index.html
-    this.saveSettings();
-  }
-},
-onTournamentChange() {
+          const file = this.settings.hooked_sound;
+          if (file) {
+            this.previewSound(file);
+            localStorage.setItem('followed_sound', file);
+            this.saveSettings();
+          }
+        },
+        onTournamentChange() {
           this.saveSettings();
           this.updateTournamentLogo();
         },
@@ -253,6 +247,8 @@ onTournamentChange() {
       mounted() {
         axios.get('/api/settings').then(res => {
           this.settings = { ...this.settings, ...res.data };
+          const stored = localStorage.getItem('followed_sound');
+          if (stored) this.settings.hooked_sound = stored;
           axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
             this.tournaments = res.data;
             this.updateTournamentLogo();

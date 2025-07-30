@@ -821,14 +821,19 @@ def wifi_disconnect():
                 print(f"🚫 Disconnecting Wi-Fi connection: {name}")
                 subprocess.check_call(['nmcli', 'con', 'down', name])
                 return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
-                
-        return jsonify({'status': 'error', 'message': 'No active Wi-Fi connection found'}), 400
+
+        # Fallback: try to disconnect wlan0 directly if no connection name found
+        print("⚠️ No connection name found — disconnecting wlan0 directly...")
+        subprocess.check_call(['nmcli', 'device', 'disconnect', 'wlan0'])
+        return jsonify({'status': 'ok', 'message': 'Disconnected wlan0'})
+
     except subprocess.CalledProcessError as e:
         print(f"❌ Wi-Fi disconnect error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 
 @app.route('/launch_keyboard', methods=['POST'])

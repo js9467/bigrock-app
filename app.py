@@ -804,5 +804,21 @@ def wifi_disconnect():
         print(f"❌ Wi-Fi disconnect error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/launch_keyboard', methods=['POST'])
+def launch_keyboard():
+    try:
+        subprocess.Popen(['matchbox-keyboard'])
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+@app.route('/hide_keyboard', methods=['POST'])
+def hide_keyboard():
+    try:
+        subprocess.run(['pkill', 'matchbox-keyboard'])
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

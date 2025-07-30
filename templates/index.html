@@ -23,7 +23,6 @@
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
-
   <div id="app">
     <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
@@ -109,16 +108,14 @@
       mounted() {
         this.fetchAll()
         this.loadTournamentLogo()
+        setInterval(this.fetchAll, 30000)  // 🔁 Refresh every 30 seconds
       },
       methods: {
         fetchAll() {
           this.loading = true
 
-          // Fetch events and hooked immediately
           const eventsPromise = fetch('/scrape/events').then(res => res.json())
           const hookedPromise = fetch('/hooked').then(res => res.json())
-
-          // Fetch participants for images (may lag slightly)
           const participantsPromise = fetch('/participants_data?limit=1000&offset=0').then(res => res.json())
 
           Promise.all([eventsPromise, hookedPromise])

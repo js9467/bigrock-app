@@ -1,32 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Settings</title>
   <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/base.css" />
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans">
-  <div id="app">
+<body class="bg-gray-100 text-gray-900 font-sans overflow-y-auto">
+  <div id="app" class="min-h-screen flex flex-col">
     <!-- Header -->
-    <header class="bg-blue-900 text-white flex items-center justify-between px-6 py-3 shadow-md">
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition bg-blue-900">← Back</a>
+      <div class="flex items-center gap-3">
+        <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+        <a href="/" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">🏠</a>
+      </div>
     </header>
 
-    <div class="p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
-      <h1 class="text-3xl font-bold text-yellow-600 mb-2">⚙️ Settings</h1>
-
-      <!-- Save -->
-      <div class="mb-4">
-        <button @click="saveSettings" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save Settings</button>
-        <span v-if="saveMessage" class="ml-2 text-sm text-green-700">✅ Saved</span>
-      </div>
+    <main class="flex-grow p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
+      <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
 
       <!-- Tournament -->
       <div>
@@ -47,39 +45,45 @@
         <label class="inline-flex items-center"><input type="radio" value="demo" v-model="settings.data_source" class="mr-1"> Demo</label>
       </div>
 
-      <!-- Scrape -->
-      <div>
-        <button @click="scrapeNow" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scrape Now</button>
-      </div>
-
-      <!-- Sliders -->
-      <div>
-        <label class="block font-semibold mb-1">Auto Refresh (seconds)</label>
-        <input type="range" min="10" max="120" step="5" v-model="settings.refresh_interval" class="w-full">
-        <div class="text-center">{{ settings.refresh_interval }}s</div>
-      </div>
-
+      <!-- Volume Controls -->
       <div>
         <label class="block font-semibold mb-1">Event Volume</label>
-        <input type="range" min="0" max="100" v-model="settings.event_volume" class="w-full">
+        <input type="range" min="0" max="100" v-model="settings.event_volume" class="w-full" />
         <div class="text-center">{{ settings.event_volume }}%</div>
       </div>
 
       <div>
         <label class="block font-semibold mb-1">VHF Volume</label>
-        <input type="range" min="0" max="100" v-model="settings.vhf_volume" class="w-full">
+        <input type="range" min="0" max="100" v-model="settings.vhf_volume" class="w-full" />
         <div class="text-center">{{ settings.vhf_volume }}%</div>
       </div>
 
+      <!-- Sounds -->
+      <div>
+        <label class="block font-semibold mb-1">Hooked Up Sound (Followed Boats)</label>
+        <select v-model="settings.hooked_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
+          <option disabled value="">-- Select Sound --</option>
+          <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">Boated Fish Sound (All Boats)</label>
+        <select v-model="settings.boated_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
+          <option disabled value="">-- Select Sound --</option>
+          <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
+        </select>
+      </div>
+
       <div class="flex items-center space-x-2">
-        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled">
+        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" />
         <label for="sounds" class="font-semibold">Play Event Sounds</label>
       </div>
 
       <!-- Wi-Fi -->
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
-        <div class="text-sm text-gray-700 mb-2">Currently Connected: <span class="font-semibold">{{ connectedSSID }}</span></div>
+        <div class="text-sm text-gray-700 mb-2">Connected: <span class="font-semibold">{{ connectedSSID }}</span></div>
         <button @click="openWifiPopup" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
       </div>
 
@@ -88,26 +92,10 @@
         <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
         <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Bluetooth</button>
       </div>
-
-      <!-- Cache Status -->
-      <div v-if="cacheStatus" class="pt-6">
-        <h2 class="text-xl font-semibold mb-2">Cache Status</h2>
-        <div class="bg-gray-50 p-4 rounded border border-gray-300 text-sm space-y-1">
-          <p><strong>Mode:</strong> {{ cacheStatus.mode }}</p>
-          <p><strong>Participants last scraped:</strong> {{ cacheStatus.participants_last_scraped || "Never" }}
-            <span v-if="cacheStatus.participants_cache_fresh" class="text-green-600 ml-2">✅ Fresh</span>
-            <span v-else class="text-red-600 ml-2">⚠️ Stale</span>
-          </p>
-          <p><strong>Events last scraped:</strong> {{ cacheStatus.events_last_scraped || "Never" }}
-            <span v-if="cacheStatus.events_cache_fresh" class="text-green-600 ml-2">✅ Fresh</span>
-            <span v-else class="text-red-600 ml-2">⚠️ Stale</span>
-          </p>
-        </div>
-      </div>
-    </div>
+    </main>
 
     <!-- Wi-Fi Modal -->
-    <div v-if="wifiPopup" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div v-if="wifiPopup" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center overflow-y-auto pt-10">
       <div class="bg-white p-6 rounded shadow-lg max-w-md w-full space-y-4">
         <h2 class="text-xl font-bold mb-2">Available Wi-Fi Networks</h2>
         <div v-if="wifiNetworks.length">
@@ -128,19 +116,16 @@
       </div>
     </div>
 
-    <!-- Password Prompt Modal -->
-    <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <!-- Password Prompt -->
+    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-10">
       <div class="bg-white p-6 rounded shadow-lg max-w-md w-full space-y-4">
         <h2 class="text-xl font-bold mb-2">Enter password for {{ modalSSID }}</h2>
-
         <input v-model="password" :type="showPassword ? 'text' : 'password'" placeholder="Wi-Fi Password"
-               class="w-full p-2 border rounded" @focus="launchKeyboard">
-
+               class="w-full p-2 border rounded" @focus="launchKeyboard" />
         <div class="flex items-center space-x-2">
-          <input type="checkbox" id="show-password" v-model="showPassword">
+          <input type="checkbox" id="show-password" v-model="showPassword" />
           <label for="show-password" class="text-sm text-gray-700">Show Password</label>
         </div>
-
         <div class="text-right space-x-2">
           <button @click="connectWifi" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Connect</button>
           <button @click="cancelPassword" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
@@ -149,7 +134,7 @@
     </div>
   </div>
 
-  <!-- Vue App -->
+  <!-- Vue Logic -->
   <script>
     const { createApp } = Vue;
     createApp({
@@ -161,19 +146,20 @@
             refresh_interval: 30,
             event_volume: 80,
             vhf_volume: 70,
-            sounds_enabled: true
+            sounds_enabled: true,
+            hooked_sound: '',
+            boated_sound: ''
           },
           tournaments: {},
-          saveMessage: false,
           wifiNetworks: [],
           modalSSID: '',
           password: '',
           showPassword: false,
           showModal: false,
-          bluetoothDevices: [],
           wifiPopup: false,
           bluetoothPopup: false,
-          cacheStatus: null
+          tournamentLogo: '',
+          soundLibrary: ['default.mp3', 'alert.mp3', 'marlin.mp3', 'airhorn.mp3']
         };
       },
       computed: {
@@ -181,25 +167,15 @@
           return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
         },
         connectedSSID() {
-          const connected = this.wifiNetworks.find(n => n.connected);
-          return connected ? connected.ssid : 'Not connected';
-        },
-        tournamentLogo() {
-          const t = this.settings.tournament;
-          return this.tournaments[t]?.logo || '';
+          const net = this.wifiNetworks.find(n => n.connected);
+          return net ? net.ssid : 'Not connected';
         }
       },
       methods: {
         saveSettings() {
           axios.post('/api/settings', this.settings).then(() => {
-            this.saveMessage = true;
-            setTimeout(() => this.saveMessage = false, 1500);
+            window.location.href = '/';
           }).catch(err => alert("Failed to save settings: " + err));
-        },
-        scrapeNow() {
-          axios.get('/scrape/participants');
-          axios.get('/scrape/events');
-          alert('Scraping started');
         },
         openWifiPopup() {
           this.wifiPopup = true;
@@ -223,78 +199,31 @@
             password: this.password
           }).then(res => {
             if (res.data?.status === 'ok') {
-              alert("✅ Connected to Wi-Fi!");
               this.showModal = false;
-              axios.post('/hide_keyboard');
               this.scanWifi();
+              axios.post('/hide_keyboard');
             } else {
-              alert("⚠️ " + (res.data.message || "Unknown issue"));
+              alert(res.data.message || "Failed to connect.");
             }
-          }).catch(err => {
-            alert("❌ Failed to connect: " + (err?.response?.data?.message || err.message));
-          });
+          }).catch(err => alert("Connection error: " + err));
         },
         cancelPassword() {
-          this.modalSSID = '';
-          this.password = '';
           this.showModal = false;
           axios.post('/hide_keyboard');
         },
         disconnectWifi() {
-          axios.post('/wifi/disconnect').then(() => {
-            this.scanWifi();
-          }).catch(err => alert("Failed to disconnect: " + err));
-        },
-        scanBluetooth() {
-          axios.get('/bluetooth/scan').then(res => {
-            this.bluetoothDevices = res.data.devices;
-          });
-        },
-        connectBluetooth(mac) {
-          axios.post('/bluetooth/connect', { mac }).then(() => {
-            this.scanBluetooth();
-          }).catch(err => alert("Failed to connect to device: " + err));
-        },
-        disconnectBluetooth(mac) {
-          axios.post('/bluetooth/disconnect', { mac }).then(() => {
-            this.scanBluetooth();
-          }).catch(err => alert("Failed to disconnect device: " + err));
+          axios.post('/wifi/disconnect').then(() => this.scanWifi());
         },
         launchKeyboard() {
           axios.post('/launch_keyboard');
-        },
-        hideKeyboard() {
-          axios.post('/hide_keyboard');
         }
       },
       mounted() {
-        axios.get('/api/settings').then(res => {
-          this.settings = { ...this.settings, ...res.data };
-        });
-        axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-          this.tournaments = res.data;
-        });
-        axios.get('/status').then(res => {
-          this.cacheStatus = res.data;
-        });
+        axios.get('/api/settings').then(res => this.settings = { ...this.settings, ...res.data });
+        axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => this.tournaments = res.data);
         this.scanWifi();
-        this.scanBluetooth();
       }
     }).mount('#app');
-  </script>
-
-  <!-- Global keyboard listener -->
-  <script>
-    document.addEventListener('focusin', (e) => {
-      if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
-        axios.post('/launch_keyboard');
-      }
-    });
-    document.addEventListener('focusout', (e) => {
-      if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
-        axios.post('/hide_keyboard');
-      }
-    });
   </script>
 </body>
 </html>

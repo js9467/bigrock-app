@@ -316,11 +316,16 @@ createApp({
       }
     },
 
-    playSound(name) {
-      const audio = new Audio(`/static/sounds/${name}.mp3`);
-      audio.volume = this.settings.event_volume / 100;
-      audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
-    },
+   playSound(name) {
+  // Prefer the latest value from localStorage
+  const override = localStorage.getItem('followed_sound');
+  const usedName = name === this.settings.followed_sound && override ? override : name;
+
+  const audio = new Audio(`/static/sounds/${usedName}.mp3`);
+  audio.volume = this.settings.event_volume / 100;
+  audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
+}
+,
 
     loadParticipants() {
       fetch('/participants_data?limit=1000&offset=0')

@@ -80,7 +80,7 @@
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
         <div class="text-sm text-gray-700 mb-2">Currently Connected: <span class="font-semibold">{{ connectedSSID }}</span></div>
-        <button @click="wifiPopup = true; scanWifi()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
+        <button @click="openWifiPopup" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Wi-Fi</button>
       </div>
 
       <!-- Bluetooth -->
@@ -110,7 +110,6 @@
     <div v-if="wifiPopup" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div class="bg-white p-6 rounded shadow-lg max-w-md w-full space-y-4">
         <h2 class="text-xl font-bold mb-2">Available Wi-Fi Networks</h2>
-
         <div v-if="wifiNetworks.length">
           <div v-for="net in wifiNetworks" :key="net.ssid" class="flex justify-between items-center border p-3 rounded mb-2">
             <div>
@@ -123,7 +122,6 @@
           </div>
         </div>
         <div v-else class="text-gray-600">No networks found.</div>
-
         <div class="text-right">
           <button @click="wifiPopup = false" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Close</button>
         </div>
@@ -144,6 +142,7 @@
     </div>
   </div>
 
+  <!-- Vue app -->
   <script>
     const { createApp } = Vue;
     createApp({
@@ -193,6 +192,10 @@
           axios.get('/scrape/participants');
           axios.get('/scrape/events');
           alert('Scraping started');
+        },
+        openWifiPopup() {
+          this.wifiPopup = true;
+          this.scanWifi();
         },
         scanWifi() {
           axios.get('/wifi/scan').then(res => {
@@ -264,14 +267,13 @@
     }).mount('#app');
   </script>
 
-  <!-- Global keyboard trigger -->
+  <!-- Global keyboard listener -->
   <script>
     document.addEventListener('focusin', (e) => {
       if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
         axios.post('/launch_keyboard');
       }
     });
-
     document.addEventListener('focusout', (e) => {
       if (e.target.tagName === 'INPUT' && ['text', 'password'].includes(e.target.type)) {
         axios.post('/hide_keyboard');

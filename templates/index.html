@@ -164,17 +164,18 @@ const app = createApp({
     return;
   }
 
+  // Fetch settings
   fetch('/api/settings')
     .then(res => res.json())
-    .then(settings => {
-      const tournament = settings.tournament;
+    .then(localSettings => {
+      const tournament = localSettings.tournament;
       return fetch('https://js9467.github.io/Brtourney/settings.json')
         .then(res => res.json())
-        .then(all => {
-          const primary = all[tournament]?.stream;
-          const fallback = all[tournament]?.fallback_stream;
+        .then(remote => {
+          const streamURL = remote[tournament]?.stream;
+          const fallbackURL = remote[tournament]?.fallback_stream;
 
-          const tryPlay = (url, isFallback = false) => {
+          const tryPlay = (url) => {
             return new Promise((resolve, reject) => {
               if (!url) return reject("No stream URL");
 
@@ -195,18 +196,20 @@ const app = createApp({
                 reject("HLS not supported");
               }
 
-              // Timeout fallback
+              // Fallback after 5 seconds
               setTimeout(() => reject("Stream timeout"), 5000);
             });
           };
 
-          tryPlay(primary)
+          // Try primary → fallback
+          tryPlay(streamURL)
             .then(() => {
               this.radioPlaying = true;
               localStorage.setItem('radioPlaying', 'true');
+              this.error = null;
             })
             .catch(() => {
-              tryPlay(fallback, true)
+              tryPlay(fallbackURL)
                 .then(() => {
                   this.radioPlaying = true;
                   localStorage.setItem('radioPlaying', 'true');
@@ -214,6 +217,7 @@ const app = createApp({
                   this.enqueueMessage(this.error);
                 })
                 .catch(err => {
+                  this.radioPlaying = false;
                   this.error = "🔇 Failed to play VHF stream.";
                   this.enqueueMessage(this.error);
                   console.error("Stream play failed:", err);
@@ -221,9 +225,8 @@ const app = createApp({
             });
         });
     });
-}
+},
 
-,
 fetchSettings() {
       return fetch('/api/settings')
         .then(res => res.json())

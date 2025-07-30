@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import subprocess
 from threading import Thread
+from PIL import Image
 
 
 
@@ -36,6 +37,20 @@ def fetch_with_scraperapi(url):
     except Exception as e:
         print(f"❌ Error fetching via ScraperAPI: {e}")
     return ""
+
+def resize_image(path, max_width=800):
+    try:
+        with Image.open(path) as img:
+            width, height = img.size
+            if width <= max_width:
+                return  # Already small enough
+
+            new_height = int((max_width / width) * height)
+            resized = img.resize((max_width, new_height), Image.LANCZOS)
+            resized.save(path, optimize=True, quality=85)
+            print(f"🔧 Resized {os.path.basename(path)} to {max_width}x{new_height}")
+    except Exception as e:
+        print(f"❌ Resize failed for {path}: {e}")
 
 def get_cache_path(tournament, filename):
     folder = os.path.join("cache", normalize_boat_name(tournament))
@@ -115,24 +130,27 @@ def cache_boat_image(boat_name, image_url):
             os.remove(file_path)  # Remove corrupted file
 
     # Download image if it doesn't exist
-    try:
-        if not image_url:
-            print(f"⚠️ No image URL for {boat_name}")
-            return "/static/images/boats/default.jpg"  # Fallback to default image
-        response = requests.get(image_url, timeout=10)
-        if response.status_code == 200:
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
-            print(f"✅ Downloaded image for {boat_name}: {file_path}")
-            return f"/{file_path}"  # Return relative path
-        else:
-            print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
-            return "/static/images/boats/default.jpg"
-    except Exception as e:
-        print(f"⚠️ Error downloading image for {boat_name}: {e}")
-        if os.path.exists(file_path):
-            os.remove(file_path)  # Clean up failed download
+    # Download image if it doesn't exist
+try:
+    if not image_url:
+        print(f"⚠️ No image URL for {boat_name}")
         return "/static/images/boats/default.jpg"  # Fallback to default image
+
+    response = requests.get(image_url, timeout=10)
+    if response.status_code == 200:
+        with open(file_path, 'wb') as f:
+            f.write(response.content)
+        print(f"✅ Downloaded image for {boat_name}: {file_path}")
+
+        resize_image(file_path)  # ✅ Resize immediately after saving
+        return f"/{file_path}"  # Return relative path
+    else:
+        print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
+        return "/static/images/boats/default.jpg"
+except Exception as e:
+    print(f"❌ Error downloading image for {boat_name}: {e}")
+    return "/static/images/boats/default.jpg"
+"  # Fallback to default image
 
 def fetch_page_html(url, wait_selector=None, timeout=60000):
     proxy_url = f"http://api.scraperapi.com?api_key=e6f354c9c073ceba04c0fe82e4243ebd&url={url}"

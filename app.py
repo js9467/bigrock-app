@@ -141,16 +141,18 @@ try:
         with open(file_path, 'wb') as f:
             f.write(response.content)
         print(f"✅ Downloaded image for {boat_name}: {file_path}")
-
-        resize_image(file_path)  # ✅ Resize immediately after saving
+        resize_image(file_path)  # Resize after saving
         return f"/{file_path}"  # Return relative path
     else:
         print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
         return "/static/images/boats/default.jpg"
 except Exception as e:
-    print(f"❌ Error downloading image for {boat_name}: {e}")
+    print(f"⚠️ Error downloading image for {boat_name}: {e}")
+    if os.path.exists(file_path):
+        os.remove(file_path)  # Clean up failed download
     return "/static/images/boats/default.jpg"
-"  # Fallback to default image
+
+  # Fallback to default image
 
 def fetch_page_html(url, wait_selector=None, timeout=60000):
     proxy_url = f"http://api.scraperapi.com?api_key=e6f354c9c073ceba04c0fe82e4243ebd&url={url}"

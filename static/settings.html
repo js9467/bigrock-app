@@ -19,11 +19,11 @@
       </div>
       <div class="flex items-center gap-3">
         <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-        <a href="/" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">🏠</a>
+        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">← Back</a>
       </div>
     </header>
 
-    <main class="flex-grow p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
+    <main class="flex-grow p-6 w-full max-w-screen-xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
       <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
 
       <!-- Tournament -->
@@ -134,7 +134,7 @@
     </div>
   </div>
 
-  <!-- Vue Logic -->
+  <!-- Vue App -->
   <script>
     const { createApp } = Vue;
     createApp({
@@ -151,6 +151,7 @@
             boated_sound: ''
           },
           tournaments: {},
+          tournamentLogo: '',
           wifiNetworks: [],
           modalSSID: '',
           password: '',
@@ -158,7 +159,6 @@
           showModal: false,
           wifiPopup: false,
           bluetoothPopup: false,
-          tournamentLogo: '',
           soundLibrary: ['default.mp3', 'alert.mp3', 'marlin.mp3', 'airhorn.mp3']
         };
       },
@@ -172,11 +172,6 @@
         }
       },
       methods: {
-        saveSettings() {
-          axios.post('/api/settings', this.settings).then(() => {
-            window.location.href = '/';
-          }).catch(err => alert("Failed to save settings: " + err));
-        },
         openWifiPopup() {
           this.wifiPopup = true;
           this.scanWifi();
@@ -216,12 +211,39 @@
         },
         launchKeyboard() {
           axios.post('/launch_keyboard');
+        },
+        updateLogo() {
+          const t = this.settings.tournament;
+          if (this.tournaments[t]) {
+            this.tournamentLogo = this.tournaments[t].logo;
+          }
         }
       },
       mounted() {
-        axios.get('/api/settings').then(res => this.settings = { ...this.settings, ...res.data });
-        axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => this.tournaments = res.data);
+        axios.get('/api/settings').then(res => {
+          this.settings = { ...this.settings, ...res.data };
+          this.updateLogo();
+        });
+
+        axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
+          this.tournaments = res.data;
+          this.updateLogo();
+        });
+
         this.scanWifi();
+      },
+      watch: {
+        settings: {
+          handler(newSettings) {
+            axios.post('/api/settings', newSettings).catch(err => {
+              console.error("Auto-save failed:", err);
+            });
+          },
+          deep: true
+        },
+        'settings.tournament'(newVal) {
+          this.updateLogo();
+        }
       }
     }).mount('#app');
   </script>

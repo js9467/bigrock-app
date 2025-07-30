@@ -152,7 +152,7 @@ const app = createApp({
     window.addEventListener('offline', this.setupMessages);
   },
   methods: {
-    toggleRadio() {
+   toggleRadio() {
   const player = document.getElementById('radio-player');
   if (!player) return;
 
@@ -164,20 +164,19 @@ const app = createApp({
     return;
   }
 
-  // Fetch settings
   fetch('/api/settings')
     .then(res => res.json())
-    .then(localSettings => {
-      const tournament = localSettings.tournament;
+    .then(settings => {
+      const tournament = settings.tournament;
       return fetch('https://js9467.github.io/Brtourney/settings.json')
         .then(res => res.json())
-        .then(remote => {
-          const streamURL = remote[tournament]?.stream;
-          const fallbackURL = remote[tournament]?.fallback_stream;
+        .then(all => {
+          const primary = all[tournament]?.stream;
+          const fallback = all[tournament]?.fallback_stream || all.fallback_stream;  // ✅ Try global fallback
 
-          const tryPlay = (url) => {
+          const tryPlay = (url, label = 'Primary') => {
             return new Promise((resolve, reject) => {
-              if (!url) return reject("No stream URL");
+              if (!url) return reject(`${label} stream URL is missing.`);
 
               if (Hls.isSupported()) {
                 if (this.hls) this.hls.destroy();
@@ -193,39 +192,40 @@ const app = createApp({
                 player.volume = this.settings.radio_volume / 100;
                 player.play().then(resolve).catch(reject);
               } else {
-                reject("HLS not supported");
+                reject(`${label} stream unsupported.`);
               }
 
-              // Fallback after 5 seconds
-              setTimeout(() => reject("Stream timeout"), 5000);
+              // Timeout protection
+              setTimeout(() => reject(`${label} stream timed out.`), 5000);
             });
           };
 
-          // Try primary → fallback
-          tryPlay(streamURL)
+          tryPlay(primary, 'Primary')
             .then(() => {
               this.radioPlaying = true;
-              localStorage.setItem('radioPlaying', 'true');
               this.error = null;
+              localStorage.setItem('radioPlaying', 'true');
             })
-            .catch(() => {
-              tryPlay(fallbackURL)
+            .catch(primaryErr => {
+              console.warn("Primary stream failed:", primaryErr);
+              tryPlay(fallback, 'Fallback')
                 .then(() => {
                   this.radioPlaying = true;
-                  localStorage.setItem('radioPlaying', 'true');
                   this.error = "Primary stream failed. Using fallback.";
                   this.enqueueMessage(this.error);
+                  localStorage.setItem('radioPlaying', 'true');
                 })
-                .catch(err => {
+                .catch(fallbackErr => {
+                  console.error("Both streams failed:", fallbackErr);
                   this.radioPlaying = false;
                   this.error = "🔇 Failed to play VHF stream.";
                   this.enqueueMessage(this.error);
-                  console.error("Stream play failed:", err);
                 });
             });
         });
     });
-},
+}
+,
 
 fetchSettings() {
       return fetch('/api/settings')

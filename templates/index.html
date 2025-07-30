@@ -318,11 +318,13 @@ const app = createApp({
     },
 
    playSound(name) {
-  const cleanName = name.replace(/\.mp3$/, '');
+  const cleanName = name.replace(/\.mp3$/i, '');
+  console.log("🧪 Playing sound:", cleanName);
   const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
   audio.volume = this.settings.event_volume / 100;
   audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
 }
+
 
 ,
 

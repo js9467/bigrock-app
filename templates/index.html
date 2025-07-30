@@ -28,42 +28,44 @@
     <div v-if="error" class="toast">{{ error }}</div>
 
     <!-- Header -->
-<header class="bg-brand-blue text-white flex justify-between items-start px-4 py-3 shadow-md">
-  <!-- Left: Logo + VHF status -->
-  <div class="flex items-center space-x-4">
-    <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-    <span v-else class="text-white text-base">Loading Logo...</span>
-    <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-4">🎧 VHF Playing</span>
-  </div>
-
-  <!-- Right: Controls -->
-  <div class="flex flex-col items-end space-y-2">
-    <!-- VHF Button -->
-    <button @click="toggleRadio"
-            class="w-40 px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-      {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-    </button>
-
-    <!-- Volume Slider -->
-    <div class="flex items-center justify-between text-sm w-40">
-      <span class="whitespace-nowrap">🔊 Volume</span>
-      <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
-             class="w-full ml-2 h-1 bg-white rounded-lg appearance-none cursor-pointer" />
-      <span class="ml-2">{{ settings.radio_volume }}%</span>
+<header class="bg-brand-blue text-white px-4 py-3 shadow-md">
+  <div class="flex items-center justify-between flex-wrap gap-4">
+    
+    <!-- Logo and VHF status -->
+    <div class="flex items-center gap-4">
+      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+      <span v-else class="text-white text-base">Loading Logo...</span>
+      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
     </div>
 
-    <!-- Navigation Buttons -->
-    <div class="flex gap-2 pt-1">
+    <!-- Button Row -->
+    <div class="flex items-end gap-3 flex-wrap">
+      
+      <!-- VHF Button + Volume -->
+      <div class="flex flex-col items-center">
+        <button @click="toggleRadio"
+                class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36">
+          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+        </button>
+        <div class="mt-1 flex items-center text-sm text-white gap-2 w-36">
+          <span>🔊</span>
+          <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
+                 class="flex-1 h-1 bg-white rounded-lg appearance-none cursor-pointer">
+          <span class="w-8 text-right">{{ settings.radio_volume }}%</span>
+        </div>
+      </div>
+
+      <!-- Other Buttons -->
       <a href="/participants"
-         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36 text-center">
         Participants
       </a>
       <a href="/leaderboard"
-         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36 text-center">
         Leaderboard
       </a>
       <a href="/catch-summary"
-         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-36 text-center">
         Catch Summary
       </a>
       <a href="/settings-page"
@@ -73,6 +75,7 @@
     </div>
   </div>
 </header>
+
 
 
 

@@ -28,56 +28,52 @@
     <div v-if="error" class="toast">{{ error }}</div>
 
     <!-- Header -->
-<header class="bg-brand-blue text-white px-4 py-3 shadow-md">
-  <div class="flex items-center justify-between">
-    <div class="flex items-center space-x-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-4">🎧 VHF Playing</span>
+<header class="bg-brand-blue text-white flex justify-between items-start px-4 py-3 shadow-md">
+  <!-- Left: Logo + VHF status -->
+  <div class="flex items-center space-x-4">
+    <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+    <span v-else class="text-white text-base">Loading Logo...</span>
+    <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-4">🎧 VHF Playing</span>
+  </div>
+
+  <!-- Right: Controls -->
+  <div class="flex flex-col items-end space-y-2">
+    <!-- VHF Button -->
+    <button @click="toggleRadio"
+            class="w-40 px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+      {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+    </button>
+
+    <!-- Volume Slider -->
+    <div class="flex items-center justify-between text-sm w-40">
+      <span class="whitespace-nowrap">🔊 Volume</span>
+      <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
+             class="w-full ml-2 h-1 bg-white rounded-lg appearance-none cursor-pointer" />
+      <span class="ml-2">{{ settings.radio_volume }}%</span>
     </div>
-    <div class="flex items-center gap-3">
-      <div class="flex flex-col items-start space-y-1">
-  <button @click="toggleRadio"
-          class="w-32 px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-    {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-  </button>
-  <input type="range" min="0" max="100" step="1"
-         v-model="settings.radio_volume"
-         @change="saveRadioVolume"
-         class="h-2 w-32 accent-yellow-400 cursor-pointer" />
-</div>
 
-
-      <a href="/leaderboard"
-         class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Leaderboard
-      </a>
-
-      <a href="/summary"
-         class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Catch Summary
-      </a>
-
+    <!-- Navigation Buttons -->
+    <div class="flex gap-2 pt-1">
       <a href="/participants"
-         class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
         Participants
       </a>
-
+      <a href="/leaderboard"
+         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+        Leaderboard
+      </a>
+      <a href="/catch-summary"
+         class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+        Catch Summary
+      </a>
       <a href="/settings-page"
          class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">
         ⚙
       </a>
     </div>
   </div>
-
-  <!-- VHF Volume Slider -->
-  <div class="mt-2 flex items-center gap-2 text-white text-sm">
-    <span>🔊 VHF Volume</span>
-    <input type="range" min="0" max="100" v-model="settings.radio_volume" @change="saveRadioVolume"
-           class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
-    <span>{{ settings.radio_volume }}%</span>
-  </div>
 </header>
+
 
 
     <div class="flex h-screen overflow-hidden">

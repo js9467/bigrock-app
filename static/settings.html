@@ -17,10 +17,7 @@
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <div class="flex items-center gap-3">
-        <a href="/participants" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">← Back</a>
-      </div>
+      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">← Back</a>
     </header>
 
     <main class="flex-grow p-6 w-full max-w-screen-xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
@@ -29,13 +26,10 @@
       <!-- Tournament -->
       <div>
         <label class="block font-semibold mb-1">Tournament</label>
-        <div v-if="Object.keys(validTournaments).length">
-          <select v-model="settings.tournament" class="w-full p-2 rounded border border-gray-400 bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option disabled value="">-- Select Tournament --</option>
-            <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
-          </select>
-        </div>
-        <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
+        <select v-model="settings.tournament" class="w-full p-2 rounded border border-gray-400 bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option disabled value="">-- Select Tournament --</option>
+          <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
+        </select>
       </div>
 
       <!-- Data Source -->
@@ -59,20 +53,26 @@
       </div>
 
       <!-- Sounds -->
-      <div>
-        <label class="block font-semibold mb-1">Hooked Up Sound (Followed Boats)</label>
-        <select v-model="settings.hooked_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
-          <option disabled value="">-- Select Sound --</option>
-          <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
-        </select>
+      <div class="flex items-center space-x-3">
+        <div class="w-full">
+          <label class="block font-semibold mb-1">Hooked Up Sound (Followed Boats)</label>
+          <select v-model="settings.hooked_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
+            <option disabled value="">-- Select Sound --</option>
+            <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
+          </select>
+        </div>
+        <button @click="playSound(settings.hooked_sound)" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">▶</button>
       </div>
 
-      <div>
-        <label class="block font-semibold mb-1">Boated Fish Sound (All Boats)</label>
-        <select v-model="settings.boated_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
-          <option disabled value="">-- Select Sound --</option>
-          <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
-        </select>
+      <div class="flex items-center space-x-3">
+        <div class="w-full">
+          <label class="block font-semibold mb-1">Boated Fish Sound (All Boats)</label>
+          <select v-model="settings.boated_sound" class="w-full p-2 rounded border border-gray-400 bg-white">
+            <option disabled value="">-- Select Sound --</option>
+            <option v-for="sound in soundLibrary" :key="sound" :value="sound">{{ sound }}</option>
+          </select>
+        </div>
+        <button @click="playSound(settings.boated_sound)" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">▶</button>
       </div>
 
       <div class="flex items-center space-x-2">
@@ -90,7 +90,21 @@
       <!-- Bluetooth -->
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
-        <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Manage Bluetooth</button>
+        <button @click="scanBluetooth" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-3">Scan Devices</button>
+        <div v-if="bluetoothDevices.length">
+          <div v-for="device in bluetoothDevices" :key="device.mac" class="flex justify-between items-center border p-3 rounded mb-2">
+            <div>
+              <div class="font-semibold">{{ device.name || 'Unnamed Device' }}</div>
+              <div class="text-sm text-gray-500">{{ device.mac }}</div>
+              <div v-if="device.connected" class="text-green-600 text-sm">Connected</div>
+            </div>
+            <div>
+              <button v-if="!device.connected" @click="connectBluetooth(device.mac)" class="text-blue-600 hover:underline">Connect</button>
+              <button v-if="device.connected" @click="disconnectBluetooth(device.mac)" class="text-red-600 hover:underline">Disconnect</button>
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-sm text-gray-500">No Bluetooth devices found.</div>
       </div>
     </main>
 
@@ -158,7 +172,7 @@
           showPassword: false,
           showModal: false,
           wifiPopup: false,
-          bluetoothPopup: false,
+          bluetoothDevices: [],
           soundLibrary: ['default.mp3', 'alert.mp3', 'marlin.mp3', 'airhorn.mp3']
         };
       },
@@ -172,6 +186,10 @@
         }
       },
       methods: {
+        playSound(file) {
+          if (!file) return;
+          new Audio(`/static/sounds/${file}`).play();
+        },
         openWifiPopup() {
           this.wifiPopup = true;
           this.scanWifi();
@@ -217,6 +235,17 @@
           if (this.tournaments[t]) {
             this.tournamentLogo = this.tournaments[t].logo;
           }
+        },
+        scanBluetooth() {
+          axios.get('/bluetooth/scan').then(res => {
+            this.bluetoothDevices = res.data.devices;
+          });
+        },
+        connectBluetooth(mac) {
+          axios.post('/bluetooth/connect', { mac }).then(() => this.scanBluetooth());
+        },
+        disconnectBluetooth(mac) {
+          axios.post('/bluetooth/disconnect', { mac }).then(() => this.scanBluetooth());
         }
       },
       mounted() {
@@ -231,6 +260,7 @@
         });
 
         this.scanWifi();
+        this.scanBluetooth();
       },
       watch: {
         settings: {

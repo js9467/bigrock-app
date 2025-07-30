@@ -118,17 +118,23 @@
           },
           radioPlaying: false,
           hls: null,
-          error: null
+          error: null,
+          userInteracted: false
         }
       },
       mounted() {
-        this.loadParticipants()
-        this.loadTournamentLogo()
+        this.loadParticipants();
+        this.loadTournamentLogo();
         this.fetchSettings().then(() => {
-          this.fetchAll()
-          setInterval(this.fetchAll, 30000)
-        })
-        this.radioPlaying = localStorage.getItem('radioPlaying') === 'true'
+          this.fetchAll();
+          setInterval(this.fetchAll, 30000);
+        });
+        this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
+
+        // Enable sound playback after first user interaction
+        document.body.addEventListener('click', () => {
+          this.userInteracted = true;
+        }, { once: true });
       },
       methods: {
         toggleRadio() {
@@ -244,7 +250,7 @@
             const key = event.timestamp + event.uid
             if (!this.lastEventTimestamps.has(key)) {
               this.lastEventTimestamps.add(key)
-              if (this.settings.sounds_enabled) {
+              if (this.settings.sounds_enabled && this.userInteracted) {
                 const isFollowed = this.isFollowed(event.uid)
                 const isBoated = event.details.toLowerCase().includes('boated')
                 if (isBoated) this.playSound(this.settings.boated_sound)
@@ -254,9 +260,9 @@
           }
         },
         playSound(name) {
-          const audio = new Audio(`/static/sounds/${name}.mp3`)
-          audio.volume = this.settings.event_volume / 100
-          audio.play().catch(e => console.warn("🔇 Sound failed to play:", e))
+          const audio = new Audio(`/static/sounds/${name}.mp3`);
+          audio.volume = this.settings.event_volume / 100;
+          audio.play().catch(e => console.warn("🔇 Sound failed to play:", e));
         },
         loadParticipants() {
           fetch('/participants_data?limit=1000&offset=0')

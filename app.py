@@ -732,23 +732,6 @@ def bluetooth_connect():
     print(f"Connecting to: {data['mac']}")
     return jsonify({"status": "ok"})
 
-@app.route('/wifi/disconnect', methods=['POST'])
-def wifi_disconnect():
-    try:
-        # Find the active Wi-Fi connection name
-        result = subprocess.check_output(['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'con', 'show', '--active'], text=True)
-        lines = result.strip().split('\n')
-        for line in lines:
-            name, ctype, device = line.strip().split(':')
-            if ctype == 'wifi':
-                print(f"🚫 Disconnecting Wi-Fi connection: {name}")
-                subprocess.check_call(['nmcli', 'con', 'down', name])
-                return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
-        return jsonify({'status': 'error', 'message': 'No active Wi-Fi connection found'}), 400
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Wi-Fi disconnect error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
 
 
 @app.route('/wifi/connect', methods=['POST'])
@@ -788,11 +771,16 @@ def wifi_connect():
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():
     try:
-        print("🚫 Disconnecting Wi-Fi")
-        subprocess.run(['nmcli', 'networking', 'off'], check=True)
-        time.sleep(1)
-        subprocess.run(['nmcli', 'networking', 'on'], check=True)
-        return jsonify({'status': 'ok'})
+        # Find the active Wi-Fi connection name
+        result = subprocess.check_output(['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'con', 'show', '--active'], text=True)
+        lines = result.strip().split('\n')
+        for line in lines:
+            name, ctype, device = line.strip().split(':')
+            if ctype == 'wifi':
+                print(f"🚫 Disconnecting Wi-Fi connection: {name}")
+                subprocess.check_call(['nmcli', 'con', 'down', name])
+                return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
+        return jsonify({'status': 'error', 'message': 'No active Wi-Fi connection found'}), 400
     except subprocess.CalledProcessError as e:
         print(f"❌ Wi-Fi disconnect error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500

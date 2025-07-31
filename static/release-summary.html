@@ -13,24 +13,16 @@
 
 <div id="app">
   <!-- Header -->
-  <header class="bg-brand-blue text-white px-4 py-3 shadow-md flex justify-between items-center relative">
-    <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-    </div>
-    <div class="flex gap-4 flex-wrap">
-      <a href="/" class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Events Feed</a>
-      <a href="/participants" class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-      <a href="/leaderboard" class="px-3 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
-      <a href="/release-summary" class="px-3 py-2 text-white font-semibold border border-white rounded bg-white text-blue-900 cursor-default">Release Summary</a>
-      <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
-    </div>
+  <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
+  <div class="flex items-center space-x-4">
+    <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
+    <span v-else class="text-white text-base">Loading Logo...</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
+  </div>
+</header>
 
-    <!-- Version -->
-    <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
-      v{{ version }}
-    </div>
-  </header>
 
   <!-- Demo Banner -->
   <div v-if="demoMode" class="bg-yellow-400 text-black font-semibold p-2 text-center">

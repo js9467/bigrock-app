@@ -176,9 +176,24 @@ const app = createApp({
       setInterval(this.fetchAll, 30000);
     });
 
-    this.radioPlaying = localStorage.getItem('radioPlaying') === 'true';
     const player = document.getElementById('radio-player');
-    if (player) player.volume = this.settings.radio_volume / 100;
+if (player) player.volume = this.settings.radio_volume / 100;
+
+// Restore actual playback state
+const storedPlaying = localStorage.getItem('radioPlaying') === 'true';
+if (storedPlaying) {
+  // Only mark as playing if audio is already playing
+  this.radioPlaying = !player.paused && !player.ended && player.currentTime > 0;
+
+  // If localStorage says playing but audio is paused, fix UI
+  if (!this.radioPlaying) {
+    console.log('🔄 Auto-fix: forcing VHF to off because player is paused.');
+    localStorage.setItem('radioPlaying', 'false');
+  }
+} else {
+  this.radioPlaying = false;
+},
+
 
     window.addEventListener('online', this.setupMessages);
     window.addEventListener('offline', this.setupMessages);

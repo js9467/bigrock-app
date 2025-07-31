@@ -15,7 +15,7 @@
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
 <div id="app">
 
-  <!-- Header: Logo + Back -->
+  <!-- Header -->
   <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
     <div class="flex items-center space-x-4">
       <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
@@ -27,11 +27,11 @@
   </header>
 
   <!-- Demo Banner -->
-  <div v-if="demoMode" class="bg-yellow-400 text-black font-semibold p-2 text-center">
-    DEMO MODE — Data is simulated from a previous tournament
+  <div v-if="demoMode" class="bg-yellow-400 text-black font-bold py-2 text-center animate-pulse">
+    🎣 DEMO MODE — Randomized Tournament Activity
   </div>
 
-  <!-- Summary Table + Charts -->
+  <!-- Summary -->
   <div class="p-6 max-w-6xl mx-auto w-full">
     <h1 class="text-2xl font-bold text-brand-blue mb-4">Release Summary</h1>
 
@@ -61,23 +61,23 @@
 
       <!-- Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Stacked Bar Chart -->
+        <!-- Stacked Bar -->
         <div class="bg-white rounded shadow-md p-4">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Daily Releases by Species</h2>
           <canvas id="releaseChart" height="200"></canvas>
         </div>
 
-        <!-- Line Chart -->
+        <!-- Line Trend -->
         <div class="bg-white rounded shadow-md p-4">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Total Releases Trend</h2>
           <canvas id="trendChart" height="200"></canvas>
         </div>
 
-        <!-- Smaller Doughnut Chart -->
+        <!-- Cumulative Doughnut -->
         <div class="bg-white rounded shadow-md p-4 lg:col-span-2">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Cumulative Species Distribution</h2>
           <div class="flex justify-center">
-            <canvas id="speciesChart" class="max-w-[200px]" height="120" width="120"></canvas>
+            <canvas id="speciesChart" class="max-w-[180px]" height="120" width="120"></canvas>
           </div>
         </div>
       </div>
@@ -116,7 +116,6 @@ createApp({
       loading: true,
       tournamentLogo: '',
       demoMode: false,
-      version: '',
       charts: {},
       showModal: false,
       selectedDate: '',
@@ -126,9 +125,8 @@ createApp({
   },
   mounted() {
     this.fetchSummary();
-    this.fetchVersion();
     this.loadTournamentLogo();
-    setInterval(this.fetchSummary, 30000); // Auto-refresh
+    setInterval(this.fetchSummary, 30000);
   },
   methods: {
     fetchSummary() {
@@ -138,12 +136,33 @@ createApp({
           this.summary = data.summary || [];
           this.demoMode = data.demo_mode || false;
           this.loading = false;
+
+          // ✅ Fabricate demo data if demoMode
+          if (this.demoMode) {
+            const today = new Date();
+            this.summary = [];
+            for (let i = 4; i >= 0; i--) {
+              const day = new Date(today);
+              day.setDate(day.getDate() - i);
+
+              const blue = Math.floor(Math.random() * 5) + 2;
+              const white = Math.floor(Math.random() * 3);
+              const sail = Math.floor(Math.random() * 4);
+              const total = blue + white + sail;
+
+              this.summary.push({
+                date: day.toISOString().slice(0, 10),
+                blue_marlins: blue,
+                white_marlins: white,
+                sailfish: sail,
+                total_releases: total
+              });
+            }
+          }
+
           this.renderCharts();
         })
         .catch(err => { console.error('❌ Failed to load release summary:', err); this.loading = false; });
-    },
-    fetchVersion() {
-      fetch('/api/version').then(res => res.json()).then(data => { this.version = data.version; });
     },
     loadTournamentLogo() {
       fetch('/api/settings')
@@ -161,8 +180,7 @@ createApp({
     },
     renderCharts() {
       if (!this.summary.length) return;
-      // Destroy old charts
-      for (const key in this.charts) { this.charts[key].destroy(); }
+      for (const key in this.charts) this.charts[key].destroy();
 
       const labels = this.summary.map(day => this.formatDate(day.date)).reverse();
       const blue = this.summary.map(day => day.blue_marlins).reverse();
@@ -172,7 +190,6 @@ createApp({
 
       const anim = { duration: 800, easing: 'easeOutQuart' };
 
-      // Stacked bar chart
       this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
         type: 'bar',
         data: { labels, datasets: [
@@ -183,27 +200,46 @@ createApp({
         options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
       });
 
-      // Line chart
       this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
         type: 'line',
         data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
         options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
       });
 
-      // Doughnut chart
       const totalBlue = blue.reduce((a,b)=>a+b,0);
       const totalWhite = white.reduce((a,b)=>a+b,0);
       const totalSail = sail.reduce((a,b)=>a+b,0);
       this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
         type: 'doughnut',
         data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
-        options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
       });
     },
     openDrilldown(date) {
       this.selectedDate = date;
       this.showModal = true;
       this.drilldownLoading = true;
+
+      if (this.demoMode) {
+        setTimeout(() => {
+          const fakeBoats = [
+            "Sea Boss", "Blue Horizon", "Reel Crazy", "Lucky Strike", 
+            "Miss Adventure", "Hooked Up", "Ocean Spirit"
+          ];
+          this.drilldownBoats = fakeBoats.map(name => ({
+            uid: name.toLowerCase().replace(/\s+/g, "_"),
+            name,
+            image: `/static/images/boats/default.jpg`,
+            fishLines: [
+              `Blue Marlin = ${Math.floor(Math.random()*2)}`,
+              `White Marlin = ${Math.floor(Math.random()*2)}`,
+              `Sailfish = ${Math.floor(Math.random()*2)}`
+            ]
+          })).sort((a,b)=>a.name.localeCompare(b.name));
+          this.drilldownLoading = false;
+        }, 600);
+        return;
+      }
 
       fetch('/scrape/events')
         .then(res => res.json())
@@ -229,19 +265,12 @@ createApp({
               image: b.image,
               fishLines: Object.entries(b.fishCounts).map(([k,v]) => `${k} = ${v}`)
             }))
-            .sort((a,b) => a.name.localeCompare(b.name));  // Alphabetical sort
-
+            .sort((a,b) => a.name.localeCompare(b.name));
           this.drilldownLoading = false;
         });
     },
-    closeModal() {
-      this.showModal = false;
-      this.selectedDate = '';
-      this.drilldownBoats = [];
-    },
-    getBoatImage(uid) {
-      return `/static/images/boats/${uid}.jpg`; // Adjust if cache path differs
-    },
+    closeModal() { this.showModal = false; this.selectedDate = ''; this.drilldownBoats = []; },
+    getBoatImage(uid) { return `/static/images/boats/${uid}.jpg`; },
     extractFishType(details) {
       details = details.toLowerCase();
       if (details.includes('blue')) return 'Blue Marlin';

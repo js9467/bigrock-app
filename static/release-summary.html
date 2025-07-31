@@ -94,7 +94,7 @@
       <div v-if="drilldownLoading" class="text-gray-500 italic">Loading boat details...</div>
       <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
-          <img :src="boat.image" class="w-24 h-24 object-cover rounded mb-2" onerror="this.style.display='none'"/>
+          <img :src="boat.image" class="w-24 h-24 object-cover rounded mb-2" onerror="this.src='/static/images/boats/default.jpg'"/>
           <div class="font-bold text-center mb-1">{{ boat.name }}</div>
           <div class="text-sm text-gray-700 text-center leading-tight">
             <div v-for="line in boat.fishLines" :key="line">{{ line }}</div>
@@ -121,7 +121,9 @@ createApp({
       selectedDate: '',
       drilldownBoats: [],
       drilldownLoading: false,
-      boatImages: {}
+      boatImages: {},
+      allEvents: [],
+      participants: []
     };
   },
   mounted() {
@@ -131,47 +133,84 @@ createApp({
     setInterval(this.fetchSummary, 30000);
   },
   methods: {
-    fetchSummary() {
-      fetch('/release-summary-data')
-        .then(res => res.json())
-        .then(data => {
-          this.summary = data.summary || [];
-          this.demoMode = data.demo_mode || false;
+    async fetchSummary() {
+      try {
+        const summaryData = await fetch('/release-summary-data').then(r=>r.json());
+        this.summary = summaryData.summary || [];
+        this.demoMode = summaryData.demo_mode || false;
 
-          // ✅ Fabricate extra demo data if in demo mode
-          if (this.demoMode) {
-            const existingDates = this.summary.map(s => s.date);
-            const today = new Date();
-            for (let i = 1; i <= 3; i++) {
-              const dt = new Date(today.getTime() - i*86400000);
-              const ds = dt.toISOString().slice(0,10);
-              if (!existingDates.includes(ds)) {
-                this.summary.push({
-                  date: ds,
-                  blue_marlins: Math.floor(Math.random()*10),
-                  white_marlins: Math.floor(Math.random()*6),
-                  sailfish: Math.floor(Math.random()*5),
-                  total_releases: 0
-                });
-                const added = this.summary[this.summary.length-1];
-                added.total_releases = added.blue_marlins + added.white_marlins + added.sailfish;
-              }
-            }
-            this.summary.sort((a,b)=>a.date.localeCompare(b.date));
+        const eventsData = await fetch('/scrape/events').then(r=>r.json());
+        this.allEvents = eventsData.events || [];
+
+        if (this.demoMode) {
+          this.fabricateDemoData();
+        }
+
+        this.loading = false;
+        this.renderCharts();
+      } catch (err) {
+        console.error('❌ Failed to load release summary:', err);
+        this.loading = false;
+      }
+    },
+    fabricateDemoData() {
+      if (!this.summary.length) return;
+
+      const lastDateStr = this.summary.map(s=>s.date).sort().slice(-1)[0];
+      const lastDate = new Date(lastDateStr);
+      const fakeDays = 3;
+      const existingDates = new Set(this.summary.map(s=>s.date));
+
+      for (let i=1;i<=fakeDays;i++) {
+        const d = new Date(lastDate.getTime() + i*86400000);
+        const iso = d.toISOString().slice(0,10);
+
+        if (!existingDates.has(iso)) {
+          const blue = Math.floor(Math.random()*5)+1;
+          const white = Math.floor(Math.random()*4);
+          const sail = Math.floor(Math.random()*3);
+          const total = blue+white+sail;
+
+          this.summary.push({
+            date: iso,
+            blue_marlins: blue,
+            white_marlins: white,
+            sailfish: sail,
+            total_releases: total
+          });
+
+          // Pick random participants for fake events
+          for (let b=0;b<total;b++) {
+            const species = this.pickSpeciesWeighted(blue,white,sail);
+            const randBoat = this.participants.length
+              ? this.participants[Math.floor(Math.random()*this.participants.length)]
+              : { uid:`demo_boat_${b}`, boat:`Demo Boat ${b}` };
+
+            this.allEvents.push({
+              timestamp: `${iso}T${String(9+b).padStart(2,'0')}:0${Math.floor(Math.random()*6)}:00`,
+              event: "Released",
+              boat: randBoat.boat,
+              uid: randBoat.uid,
+              details: `Released a ${species.toLowerCase()}.`
+            });
           }
+        }
+      }
 
-          this.loading = false;
-          this.renderCharts();
-        })
-        .catch(err => { 
-          console.error('❌ Failed to load release summary:', err); 
-          this.loading = false; 
-        });
+      this.summary.sort((a,b)=>a.date.localeCompare(b.date));
+    },
+    pickSpeciesWeighted(blue,white,sail){
+      const pool=[];
+      pool.push(...Array(blue).fill('Blue Marlin'));
+      pool.push(...Array(white).fill('White Marlin'));
+      pool.push(...Array(sail).fill('Sailfish'));
+      return pool[Math.floor(Math.random()*pool.length)] || 'Blue Marlin';
     },
     loadParticipants() {
       fetch('/participants_data?limit=1000&offset=0')
         .then(res => res.json())
         .then(data => {
+          this.participants = data.participants || [];
           const images = {};
           for (const p of data.participants) {
             images[p.uid] = p.image_path;
@@ -197,11 +236,11 @@ createApp({
       if (!this.summary.length) return;
       for (const key in this.charts) { this.charts[key].destroy(); }
 
-      const labels = this.summary.map(day => this.formatDate(day.date)).reverse();
-      const blue = this.summary.map(day => day.blue_marlins).reverse();
-      const white = this.summary.map(day => day.white_marlins).reverse();
-      const sail = this.summary.map(day => day.sailfish).reverse();
-      const totals = this.summary.map(day => day.total_releases).reverse();
+      const labels = this.summary.map(day => this.formatDate(day.date));
+      const blue = this.summary.map(day => day.blue_marlins);
+      const white = this.summary.map(day => day.white_marlins);
+      const sail = this.summary.map(day => day.sailfish);
+      const totals = this.summary.map(day => day.total_releases);
 
       const anim = { duration: 800, easing: 'easeOutQuart' };
 
@@ -235,34 +274,29 @@ createApp({
       this.showModal = true;
       this.drilldownLoading = true;
 
-      fetch('/scrape/events')
-        .then(res => res.json())
-        .then(data => {
-          const events = data.events || [];
-          const filtered = events.filter(e =>
-            e.event.toLowerCase() === 'released' && e.timestamp.startsWith(date)
-          );
+      const filtered = this.allEvents.filter(e =>
+        e.event.toLowerCase() === 'released' && e.timestamp.startsWith(date)
+      );
 
-          const boatMap = {};
-          for (const e of filtered) {
-            if (!boatMap[e.uid]) {
-              boatMap[e.uid] = { uid: e.uid, name: e.boat, image: this.getBoatImage(e.uid), fishCounts: {} };
-            }
-            const type = this.extractFishType(e.details);
-            boatMap[e.uid].fishCounts[type] = (boatMap[e.uid].fishCounts[type] || 0) + 1;
-          }
+      const boatMap = {};
+      for (const e of filtered) {
+        if (!boatMap[e.uid]) {
+          boatMap[e.uid] = { uid: e.uid, name: e.boat, image: this.getBoatImage(e.uid), fishCounts: {} };
+        }
+        const type = this.extractFishType(e.details);
+        boatMap[e.uid].fishCounts[type] = (boatMap[e.uid].fishCounts[type] || 0) + 1;
+      }
 
-          this.drilldownBoats = Object.values(boatMap)
-            .map(b => ({
-              uid: b.uid,
-              name: b.name,
-              image: b.image,
-              fishLines: Object.entries(b.fishCounts).map(([k,v]) => `${k} = ${v}`)
-            }))
-            .sort((a,b) => a.name.localeCompare(b.name));
+      this.drilldownBoats = Object.values(boatMap)
+        .map(b => ({
+          uid: b.uid,
+          name: b.name,
+          image: b.image,
+          fishLines: Object.entries(b.fishCounts).map(([k,v]) => `${k} = ${v}`)
+        }))
+        .sort((a,b) => a.name.localeCompare(b.name));
 
-          this.drilldownLoading = false;
-        });
+      this.drilldownLoading = false;
     },
     closeModal() {
       this.showModal = false;

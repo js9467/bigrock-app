@@ -8,6 +8,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
+  <style>
+    .modal-bg { background-color: rgba(0, 0, 0, 0.6); }
+    .modal-enter { opacity: 0; transform: scale(0.95); }
+    .modal-enter-active { transition: all 0.2s ease-out; opacity: 1; transform: scale(1); }
+  </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
 <div id="app">
@@ -46,7 +51,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="day in summary" :key="day.date" class="border-b hover:bg-gray-50">
+          <tr v-for="day in summary" :key="day.date" class="border-b hover:bg-gray-50 cursor-pointer" @click="openDrilldown(day.date)">
             <td class="p-2 font-semibold">{{ formatDate(day.date) }}</td>
             <td class="p-2 text-center">{{ day.blue_marlins }}</td>
             <td class="p-2 text-center">{{ day.white_marlins }}</td>
@@ -80,6 +85,25 @@
       </div>
     </div>
   </div>
+
+  <!-- Drilldown Modal -->
+  <div v-if="showModal" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
+    <div class="bg-white rounded-lg p-6 w-11/12 max-w-4xl shadow-lg overflow-y-auto max-h-[90vh]">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-brand-blue">Releases for {{ formatDate(selectedDate) }}</h2>
+        <button @click="closeModal" class="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
+      </div>
+      <div v-if="drilldownLoading" class="text-gray-500 italic">Loading boat details...</div>
+      <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
+          <img :src="boat.image" class="w-24 h-24 object-cover rounded mb-2" onerror="this.style.display='none'"/>
+          <div class="font-bold text-center">{{ boat.name }}</div>
+          <div class="text-sm text-gray-600 text-center">{{ boat.fishSummary }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -93,15 +117,18 @@ createApp({
       tournamentLogo: '',
       demoMode: false,
       version: '',
-      charts: {}
+      charts: {},
+      showModal: false,
+      selectedDate: '',
+      drilldownBoats: [],
+      drilldownLoading: false
     };
   },
   mounted() {
     this.fetchSummary();
     this.fetchVersion();
     this.loadTournamentLogo();
-    // Auto-refresh every 30 seconds
-    setInterval(this.fetchSummary, 30000);
+    setInterval(this.fetchSummary, 30000); // Auto-refresh
   },
   methods: {
     fetchSummary() {
@@ -113,15 +140,10 @@ createApp({
           this.loading = false;
           this.renderCharts();
         })
-        .catch(err => {
-          console.error('❌ Failed to load release summary:', err);
-          this.loading = false;
-        });
+        .catch(err => { console.error('❌ Failed to load release summary:', err); this.loading = false; });
     },
     fetchVersion() {
-      fetch('/api/version')
-        .then(res => res.json())
-        .then(data => { this.version = data.version; });
+      fetch('/api/version').then(res => res.json()).then(data => { this.version = data.version; });
     },
     loadTournamentLogo() {
       fetch('/api/settings')
@@ -139,7 +161,7 @@ createApp({
     },
     renderCharts() {
       if (!this.summary.length) return;
-      // Destroy existing charts
+      // Destroy old charts
       for (const key in this.charts) { this.charts[key].destroy(); }
 
       const labels = this.summary.map(day => this.formatDate(day.date)).reverse();
@@ -147,6 +169,8 @@ createApp({
       const white = this.summary.map(day => day.white_marlins).reverse();
       const sail = this.summary.map(day => day.sailfish).reverse();
       const totals = this.summary.map(day => day.total_releases).reverse();
+
+      const anim = { duration: 800, easing: 'easeOutQuart' };
 
       // Stacked bar chart
       this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
@@ -156,32 +180,69 @@ createApp({
           { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
           { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
         ] },
-        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+        options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
       });
 
-      // Line chart for total releases
+      // Line chart
       this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
         type: 'line',
-        data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', fill: false, tension: 0.2 }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
+        options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
       });
 
-      // Doughnut chart for cumulative species distribution
+      // Doughnut chart
       const totalBlue = blue.reduce((a,b)=>a+b,0);
       const totalWhite = white.reduce((a,b)=>a+b,0);
       const totalSail = sail.reduce((a,b)=>a+b,0);
-
       this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
         type: 'doughnut',
-        data: {
-          labels: ['Blue Marlin', 'White Marlin', 'Sailfish'],
-          datasets: [{
-            data: [totalBlue, totalWhite, totalSail],
-            backgroundColor: ['#3b82f6','#a78bfa','#22c55e']
-          }]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
+        options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
       });
+    },
+    openDrilldown(date) {
+      this.selectedDate = date;
+      this.showModal = true;
+      this.drilldownLoading = true;
+      fetch('/scrape/events')
+        .then(res => res.json())
+        .then(data => {
+          const events = data.events || [];
+          // Filter for releases on selected day
+          const filtered = events.filter(e => e.event.toLowerCase() === 'released' && e.timestamp.startsWith(date));
+          // Group by boat
+          const boatMap = {};
+          for (const e of filtered) {
+            if (!boatMap[e.uid]) {
+              boatMap[e.uid] = { name: e.boat, image: this.getBoatImage(e.uid), fishCounts: {} };
+            }
+            const type = this.extractFishType(e.details);
+            boatMap[e.uid].fishCounts[type] = (boatMap[e.uid].fishCounts[type] || 0) + 1;
+          }
+          // Convert to array for display
+          this.drilldownBoats = Object.values(boatMap).map(b => ({
+            uid: b.uid,
+            name: b.name,
+            image: b.image,
+            fishSummary: Object.entries(b.fishCounts).map(([k,v]) => `${k} ×${v}`).join(', ')
+          }));
+          this.drilldownLoading = false;
+        });
+    },
+    closeModal() {
+      this.showModal = false;
+      this.selectedDate = '';
+      this.drilldownBoats = [];
+    },
+    getBoatImage(uid) {
+      return `/static/images/boats/${uid}.jpg`; // Adjust if your cache differs
+    },
+    extractFishType(details) {
+      details = details.toLowerCase();
+      if (details.includes('blue')) return 'Blue Marlin';
+      if (details.includes('white')) return 'White Marlin';
+      if (details.includes('sail')) return 'Sailfish';
+      return 'Billfish';
     }
   }
 }).mount('#app');

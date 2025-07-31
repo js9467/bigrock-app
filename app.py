@@ -900,7 +900,7 @@ from collections import defaultdict
 
 @app.route("/release-summary")
 def release_summary_page():
-    return send_from_directory('static', 'release_summary.html')
+    return send_from_directory('static', 'release-summary.html')
 
 @app.route("/release-summary-data")
 def release_summary_data():

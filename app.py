@@ -896,55 +896,56 @@ def api_version():
     except:
         return jsonify({"version": "Unknown"})
 
+from collections import defaultdict
+
 @app.route("/release-summary")
 def release_summary():
-    """Return today's count of released blue, white, and sailfish."""
+    """Return per-day release counts for Blue, White, and Sailfish."""
     try:
         tournament = get_current_tournament()
         events_file = get_cache_path(tournament, "events.json")
 
         if not os.path.exists(events_file):
-            return jsonify({"status": "ok", "summary": {}})
+            return jsonify({"status": "ok", "summary": []})
 
         with open(events_file, "r") as f:
             events = json.load(f)
 
-        today = datetime.now().date()
-        summary = {
-            "blue_marlins": 0,
-            "white_marlins": 0,
-            "sailfish": 0,
-            "total_releases": 0
-        }
+        summary = defaultdict(lambda: {"blue_marlins": 0, "white_marlins": 0, "sailfish": 0, "total_releases": 0})
 
         for e in events:
             if e["event"].lower() != "released":
                 continue
 
-            # Only count today's releases
+            # Parse date only
             try:
-                ts = date_parser.parse(e["timestamp"]).date()
+                dt = date_parser.parse(e["timestamp"])
+                day = dt.strftime("%Y-%m-%d")
             except:
-                continue
-            if ts != today:
                 continue
 
             details = e.get("details", "").lower()
-
             if "blue marlin" in details:
-                summary["blue_marlins"] += 1
+                summary[day]["blue_marlins"] += 1
             elif "white marlin" in details:
-                summary["white_marlins"] += 1
+                summary[day]["white_marlins"] += 1
             elif "sailfish" in details:
-                summary["sailfish"] += 1
+                summary[day]["sailfish"] += 1
 
-            summary["total_releases"] += 1
+            summary[day]["total_releases"] += 1
 
-        return jsonify({"status": "ok", "summary": summary})
+        # Convert to sorted list by date descending
+        result = [
+            {"date": k, **v}
+            for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)
+        ]
+
+        return jsonify({"status": "ok", "summary": result})
 
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
 
 
 if __name__ == '__main__':

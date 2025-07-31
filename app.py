@@ -540,7 +540,7 @@ def get_events():
         return jsonify({
             "status": "ok",
             "count": len(filtered),
-            "events": filtered[:1000]
+            "events": filtered 
         })
 
     force = request.args.get("force", "false").lower() == "true"
@@ -554,7 +554,7 @@ def get_events():
     return jsonify({
         "status": "ok" if events else "error",
         "count": len(events),
-        "events": events[:10]
+        "events": events[:100]
     })
 
 

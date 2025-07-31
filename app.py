@@ -899,7 +899,11 @@ def api_version():
 from collections import defaultdict
 
 @app.route("/release-summary")
-def release_summary():
+def release_summary_page():
+    return send_from_directory('static', 'release_summary.html')
+
+@app.route("/release-summary-data")
+def release_summary_data():
     """Return per-day release counts for Blue, White, and Sailfish, supports demo mode."""
     try:
         tournament = get_current_tournament()
@@ -911,7 +915,7 @@ def release_summary():
             data = load_demo_data(tournament)
             all_events = data.get("events", [])
             now = datetime.now()
-            # ✅ Filter out future events in demo mode
+            # Filter out future events in demo mode
             events = [
                 e for e in all_events
                 if date_parser.parse(e["timestamp"]).time() <= now.time()
@@ -923,7 +927,7 @@ def release_summary():
             with open(events_file, "r") as f:
                 events = json.load(f)
 
-        # ✅ Group by date
+        # Group by date
         from collections import defaultdict
         summary = defaultdict(lambda: {
             "blue_marlins": 0,
@@ -936,7 +940,6 @@ def release_summary():
             if e["event"].lower() != "released":
                 continue
 
-            # Parse date only
             try:
                 dt = date_parser.parse(e["timestamp"])
                 day = dt.strftime("%Y-%m-%d")
@@ -953,21 +956,19 @@ def release_summary():
 
             summary[day]["total_releases"] += 1
 
-        # Convert to list sorted by date
+        # Convert to sorted list
         result = [
             {"date": k, **v}
             for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)
         ]
 
-        return jsonify({
-            "status": "ok",
-            "demo_mode": demo_mode,
-            "summary": result
-        })
+        return jsonify({"status": "ok", "demo_mode": demo_mode, "summary": result})
 
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
+
 
 
 

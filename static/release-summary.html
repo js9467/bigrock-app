@@ -28,8 +28,8 @@
     DEMO MODE — Data is simulated from a previous tournament
   </div>
 
-  <!-- Summary Table + Chart -->
-  <div class="p-6 max-w-5xl mx-auto w-full">
+  <!-- Summary Table + Charts -->
+  <div class="p-6 max-w-6xl mx-auto w-full">
     <h1 class="text-2xl font-bold text-brand-blue mb-4">Release Summary</h1>
 
     <div v-if="loading" class="text-gray-500 italic">Loading release summary...</div>
@@ -56,10 +56,27 @@
         </tbody>
       </table>
 
-      <!-- Chart -->
-      <div class="bg-white rounded shadow-md p-4">
-        <h2 class="text-lg font-bold text-brand-blue mb-4">Daily Release Totals</h2>
-        <canvas id="releaseChart" height="120"></canvas>
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Stacked Bar Chart -->
+        <div class="bg-white rounded shadow-md p-4">
+          <h2 class="text-lg font-bold text-brand-blue mb-4">Daily Releases by Species</h2>
+          <canvas id="releaseChart" height="200"></canvas>
+        </div>
+
+        <!-- Line Chart -->
+        <div class="bg-white rounded shadow-md p-4">
+          <h2 class="text-lg font-bold text-brand-blue mb-4">Total Releases Trend</h2>
+          <canvas id="trendChart" height="200"></canvas>
+        </div>
+
+        <!-- Doughnut Chart -->
+        <div class="bg-white rounded shadow-md p-4 lg:col-span-2">
+          <h2 class="text-lg font-bold text-brand-blue mb-4">Cumulative Species Distribution</h2>
+          <div class="flex justify-center">
+            <canvas id="speciesChart" height="200" width="200"></canvas>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -76,7 +93,7 @@ createApp({
       tournamentLogo: '',
       demoMode: false,
       version: '',
-      chart: null
+      charts: {}
     };
   },
   mounted() {
@@ -94,7 +111,7 @@ createApp({
           this.summary = data.summary || [];
           this.demoMode = data.demo_mode || false;
           this.loading = false;
-          this.renderChart();
+          this.renderCharts();
         })
         .catch(err => {
           console.error('❌ Failed to load release summary:', err);
@@ -120,39 +137,50 @@ createApp({
       const d = new Date(dateStr);
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     },
-    renderChart() {
+    renderCharts() {
       if (!this.summary.length) return;
-      const ctx = document.getElementById('releaseChart').getContext('2d');
-
-      // Destroy old chart if exists
-      if (this.chart) this.chart.destroy();
+      // Destroy existing charts
+      for (const key in this.charts) { this.charts[key].destroy(); }
 
       const labels = this.summary.map(day => this.formatDate(day.date)).reverse();
       const blue = this.summary.map(day => day.blue_marlins).reverse();
       const white = this.summary.map(day => day.white_marlins).reverse();
       const sail = this.summary.map(day => day.sailfish).reverse();
+      const totals = this.summary.map(day => day.total_releases).reverse();
 
-      this.chart = new Chart(ctx, {
+      // Stacked bar chart
+      this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
         type: 'bar',
+        data: { labels, datasets: [
+          { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
+          { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
+          { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
+        ] },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+      });
+
+      // Line chart for total releases
+      this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', fill: false, tension: 0.2 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      // Doughnut chart for cumulative species distribution
+      const totalBlue = blue.reduce((a,b)=>a+b,0);
+      const totalWhite = white.reduce((a,b)=>a+b,0);
+      const totalSail = sail.reduce((a,b)=>a+b,0);
+
+      this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
+        type: 'doughnut',
         data: {
-          labels,
-          datasets: [
-            { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
-            { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
-            { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
-          ]
+          labels: ['Blue Marlin', 'White Marlin', 'Sailfish'],
+          datasets: [{
+            data: [totalBlue, totalWhite, totalSail],
+            backgroundColor: ['#3b82f6','#a78bfa','#22c55e']
+          }]
         },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'bottom' },
-            tooltip: { mode: 'index', intersect: false }
-          },
-          scales: {
-            x: { stacked: true },
-            y: { stacked: true, beginAtZero: true }
-          }
-        }
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
       });
     }
   }

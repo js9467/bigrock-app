@@ -407,10 +407,16 @@ const app = createApp({
     },
 
     playSound(filename) {
-      const audio = new Audio(`/static/sounds/${filename}`);
-      audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play().catch(err => console.warn('🔇 Sound failed:', err));
-    }
+  if (!filename) return;
+
+  // Remove any trailing .mp3 to avoid double extension
+  const cleanName = filename.replace(/\.mp3$/i, '');
+
+  const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
+  audio.volume = (this.settings.event_volume || 80) / 100;
+  audio.play().catch(err => console.warn('🔇 Sound failed:', err));
+}
+
   }
 
 }).mount('#app');

@@ -161,7 +161,8 @@ const app = createApp({
       error: null,
       messageQueue: [],
       currentMessage: '',
-      messageTimer: null
+      messageTimer: null,
+      firstLoad: true   // ✅ Prevents sound spam on initial load
     };
   },
 
@@ -333,22 +334,25 @@ const app = createApp({
           const newEvents = eventsData.events || [];
           const newHooked = hookedData.events || [];
 
-          // 🔊 Play sounds for new events
+          // 🔊 Play sounds for *new* events only, skip on first load
           for (const event of newEvents) {
             const key = event.timestamp + event.uid;
-            if (!this.lastEventTimestamps.has(key)) {
-              this.lastEventTimestamps.add(key);
+            const isNew = !this.lastEventTimestamps.has(key);
 
-              if (this.settings.sounds_enabled) {
-                if (this.isFollowed(event.uid)) {
-                  this.playSound(this.settings.followed_sound);
-                }
-                if (event.event.toLowerCase().includes('boated')) {
-                  this.playSound(this.settings.boated_sound);
-                }
+            this.lastEventTimestamps.add(key);
+
+            if (isNew && !this.firstLoad && this.settings.sounds_enabled) {
+              // ✅ Boated overrides followed
+              if (event.event.toLowerCase().includes('boated')) {
+                this.playSound(this.settings.boated_sound);
+              } else if (this.isFollowed(event.uid)) {
+                this.playSound(this.settings.followed_sound);
               }
             }
           }
+
+          // ✅ After first fetch, disable firstLoad
+          this.firstLoad = false;
 
           this.events = newEvents;
           this.hooked = newHooked;
@@ -427,5 +431,6 @@ window.injectTestEvent = function () {
   app.playSound(app.settings.boated_sound);
 };
 </script>
+
 </body>
 </html>

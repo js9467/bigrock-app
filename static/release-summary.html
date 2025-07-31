@@ -10,8 +10,6 @@
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
     .modal-bg { background-color: rgba(0, 0, 0, 0.6); }
-    .modal-enter { opacity: 0; transform: scale(0.95); }
-    .modal-enter-active { transition: all 0.2s ease-out; opacity: 1; transform: scale(1); }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
@@ -75,11 +73,11 @@
           <canvas id="trendChart" height="200"></canvas>
         </div>
 
-        <!-- Doughnut Chart -->
+        <!-- Smaller Doughnut Chart -->
         <div class="bg-white rounded shadow-md p-4 lg:col-span-2">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Cumulative Species Distribution</h2>
           <div class="flex justify-center">
-            <canvas id="speciesChart" height="200" width="200"></canvas>
+            <canvas id="speciesChart" class="max-w-[200px]" height="120" width="120"></canvas>
           </div>
         </div>
       </div>
@@ -88,7 +86,7 @@
 
   <!-- Drilldown Modal -->
   <div v-if="showModal" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
-    <div class="bg-white rounded-lg p-6 w-11/12 max-w-4xl shadow-lg overflow-y-auto max-h-[90vh]">
+    <div class="bg-white rounded-lg p-6 w-11/12 max-w-5xl shadow-lg overflow-y-auto max-h-[90vh]">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold text-brand-blue">Releases for {{ formatDate(selectedDate) }}</h2>
         <button @click="closeModal" class="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
@@ -97,8 +95,10 @@
       <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
           <img :src="boat.image" class="w-24 h-24 object-cover rounded mb-2" onerror="this.style.display='none'"/>
-          <div class="font-bold text-center">{{ boat.name }}</div>
-          <div class="text-sm text-gray-600 text-center">{{ boat.fishSummary }}</div>
+          <div class="font-bold text-center mb-1">{{ boat.name }}</div>
+          <div class="text-sm text-gray-700 text-center leading-tight">
+            <div v-for="line in boat.fishLines" :key="line">{{ line }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -204,28 +204,33 @@ createApp({
       this.selectedDate = date;
       this.showModal = true;
       this.drilldownLoading = true;
+
       fetch('/scrape/events')
         .then(res => res.json())
         .then(data => {
           const events = data.events || [];
-          // Filter for releases on selected day
-          const filtered = events.filter(e => e.event.toLowerCase() === 'released' && e.timestamp.startsWith(date));
-          // Group by boat
+          const filtered = events.filter(e =>
+            e.event.toLowerCase() === 'released' && e.timestamp.startsWith(date)
+          );
+
           const boatMap = {};
           for (const e of filtered) {
             if (!boatMap[e.uid]) {
-              boatMap[e.uid] = { name: e.boat, image: this.getBoatImage(e.uid), fishCounts: {} };
+              boatMap[e.uid] = { uid: e.uid, name: e.boat, image: this.getBoatImage(e.uid), fishCounts: {} };
             }
             const type = this.extractFishType(e.details);
             boatMap[e.uid].fishCounts[type] = (boatMap[e.uid].fishCounts[type] || 0) + 1;
           }
-          // Convert to array for display
-          this.drilldownBoats = Object.values(boatMap).map(b => ({
-            uid: b.uid,
-            name: b.name,
-            image: b.image,
-            fishSummary: Object.entries(b.fishCounts).map(([k,v]) => `${k} ×${v}`).join(', ')
-          }));
+
+          this.drilldownBoats = Object.values(boatMap)
+            .map(b => ({
+              uid: b.uid,
+              name: b.name,
+              image: b.image,
+              fishLines: Object.entries(b.fishCounts).map(([k,v]) => `${k} = ${v}`)
+            }))
+            .sort((a,b) => a.name.localeCompare(b.name));  // Alphabetical sort
+
           this.drilldownLoading = false;
         });
     },
@@ -235,7 +240,7 @@ createApp({
       this.drilldownBoats = [];
     },
     getBoatImage(uid) {
-      return `/static/images/boats/${uid}.jpg`; // Adjust if your cache differs
+      return `/static/images/boats/${uid}.jpg`; // Adjust if cache path differs
     },
     extractFishType(details) {
       details = details.toLowerCase();

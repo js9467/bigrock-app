@@ -900,18 +900,37 @@ from collections import defaultdict
 
 @app.route("/release-summary")
 def release_summary():
-    """Return per-day release counts for Blue, White, and Sailfish."""
+    """Return per-day release counts for Blue, White, and Sailfish, supports demo mode."""
     try:
         tournament = get_current_tournament()
-        events_file = get_cache_path(tournament, "events.json")
+        settings = load_settings()
+        demo_mode = settings.get("data_source") == "demo"
 
-        if not os.path.exists(events_file):
-            return jsonify({"status": "ok", "summary": []})
+        # Load events from demo or cache
+        if demo_mode:
+            data = load_demo_data(tournament)
+            all_events = data.get("events", [])
+            now = datetime.now()
+            # ✅ Filter out future events in demo mode
+            events = [
+                e for e in all_events
+                if date_parser.parse(e["timestamp"]).time() <= now.time()
+            ]
+        else:
+            events_file = get_cache_path(tournament, "events.json")
+            if not os.path.exists(events_file):
+                return jsonify({"status": "ok", "summary": []})
+            with open(events_file, "r") as f:
+                events = json.load(f)
 
-        with open(events_file, "r") as f:
-            events = json.load(f)
-
-        summary = defaultdict(lambda: {"blue_marlins": 0, "white_marlins": 0, "sailfish": 0, "total_releases": 0})
+        # ✅ Group by date
+        from collections import defaultdict
+        summary = defaultdict(lambda: {
+            "blue_marlins": 0,
+            "white_marlins": 0,
+            "sailfish": 0,
+            "total_releases": 0
+        })
 
         for e in events:
             if e["event"].lower() != "released":
@@ -934,17 +953,22 @@ def release_summary():
 
             summary[day]["total_releases"] += 1
 
-        # Convert to sorted list by date descending
+        # Convert to list sorted by date
         result = [
             {"date": k, **v}
             for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)
         ]
 
-        return jsonify({"status": "ok", "summary": result})
+        return jsonify({
+            "status": "ok",
+            "demo_mode": demo_mode,
+            "summary": result
+        })
 
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
 
 
 

@@ -54,45 +54,36 @@
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
   <!-- Header -->
-  <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
-  <div class="flex items-center justify-between gap-4 flex-wrap w-full">
-    <!-- Left: Logo + VHF playing -->
-    <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
+<header class="bg-brand-blue text-white px-4 py-3 shadow-md">
+  <div class="flex flex-wrap items-center justify-between gap-4 w-full">
+    <!-- Left: Logo + VHF -->
+    <div class="flex items-center gap-3 min-w-[150px] flex-shrink">
+      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-12 md:h-14 drop-shadow">
+      <span v-else class="text-white text-sm md:text-base">Loading Logo...</span>
+      <span v-if="radioPlaying" class="text-xs md:text-sm text-green-300 animate-pulse ml-2 whitespace-nowrap">🎧 VHF Playing</span>
     </div>
 
     <!-- Right: Buttons -->
-    <div class="flex gap-4 items-start flex-wrap justify-end ml-auto">
-      <div class="flex flex-col items-center">
+    <div class="flex flex-wrap gap-2 justify-end ml-auto">
+      <div class="flex flex-col items-center w-full sm:w-auto">
         <button @click="toggleRadio"
-                class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+                class="px-3 py-2 w-full sm:w-32 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
           {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
         </button>
-        <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
-          <span class="text-lg">🔊</span>
+        <div class="mt-1 flex items-center text-xs sm:text-sm text-white gap-1 w-full sm:w-32 justify-center">
+          <span>🔊</span>
           <input type="range" min="0" max="100" v-model="settings.radio_volume"
                  @input="applyRadioVolume" @change="saveRadioVolume"
-                 class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
-          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
+                 class="w-full h-1 bg-white rounded-lg appearance-none cursor-pointer">
+          <span class="w-6 text-right">{{ settings.radio_volume }}%</span>
         </div>
       </div>
-      <a href="/participants" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-      <a href="/leaderboard" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
-      <a href="/release-summary" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Releases</a>
-      <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
+
+      <a href="/participants" class="px-2 py-1 sm:px-3 sm:py-2 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-full sm:w-32">Participants</a>
+      <a href="/leaderboard" class="px-2 py-1 sm:px-3 sm:py-2 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-full sm:w-32">Leaderboard</a>
+      <a href="/release-summary" class="px-2 py-1 sm:px-3 sm:py-2 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition w-full sm:w-32">Releases</a>
+      <a href="/settings-page" class="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-white text-lg sm:text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
     </div>
-  </div>
-
-  <!-- Rotating Message -->
-  <div v-if="messageQueue.length > 0" class="w-full bg-brand-blue py-1">
-    <div class="text-white text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
-  </div>
-
-  <!-- Version -->
-  <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
-    v{{ version }}
   </div>
 </header>
 

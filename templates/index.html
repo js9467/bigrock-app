@@ -248,7 +248,6 @@ const app = createApp({
         });
     },
 
-    // 🔹 Fetch hooked feed separately for auto-refresh
     fetchHooked() {
       fetch('/hooked')
         .then(res => res.json())
@@ -260,8 +259,27 @@ const app = createApp({
         .catch(err => console.error('❌ Hooked fetch error:', err));
     },
 
-    getBoatImage(uid) { return this.boatImages[uid] || ''; },
-    loadParticipants() { /* unchanged */ },
+    // 🔹 Fixed image lookup with normalization + fallback
+    getBoatImage(uid) {
+      if (!uid) return '/static/images/boats/default.jpg';
+      const norm = uid.toLowerCase().replace(/\s+/g, '_').replace(/'/g, '').replace(/\//g, '_');
+      return this.boatImages[norm] || this.boatImages[uid] || '/static/images/boats/default.jpg';
+    },
+
+    loadParticipants() {
+      fetch('/participants_data?limit=1000&offset=0')
+        .then(res => res.json())
+        .then(data => {
+          const images = {};
+          for (const p of data.participants) {
+            images[p.uid] = p.image_path;
+          }
+          // Include Palmer Lou for demo
+          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
+          this.boatImages = images;
+        });
+    },
+
     loadTournamentLogo() { /* unchanged */ },
     formatTime(ts) { /* unchanged */ },
     isFollowed(uid) { return this.followed.includes(uid); },

@@ -735,10 +735,11 @@ def generate_demo():
 
 from flask import render_template
 
-# Serve the HTML page
+from flask import send_from_directory
+
 @app.route("/leaderboard")
 def leaderboard_page():
-    return render_template("leaderboard.html")
+    return send_from_directory('static', 'leaderboard.html')
 
 # Serve JSON data
 @app.route("/api/leaderboard/<tournament>")

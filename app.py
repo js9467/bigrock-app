@@ -433,13 +433,67 @@ def scrape_events(force=False, tournament=None):
         return []
 
 
-def scrape_leaderboard(force=False):
-    print("⚠️ scrape_leaderboard not implemented yet.")
-    return []
+import requests, os, json
+from bs4 import BeautifulSoup
 
-def scrape_gallery(force=False):
-    print("⚠️ scrape_gallery not implemented yet.")
-    return []
+CACHE_DIR = "cache"
+
+def scrape_leaderboard(tournament):
+    # Load settings.json from your GitHub
+    settings_url = "https://js9467.github.io/Brtourney/settings.json"
+    try:
+        settings = requests.get(settings_url, timeout=10).json()
+    except:
+        print("⚠️ Could not fetch settings.json")
+        return []
+
+    t_info = settings.get(tournament)
+    if not t_info or not t_info.get("leaderboard"):
+        print(f"⚠️ No leaderboard URL for {tournament}")
+        return []
+
+    url = t_info["leaderboard"]
+    print(f"🔄 Scraping leaderboard for {tournament}: {url}")
+    try:
+        r = requests.get(url, timeout=10, verify=False)
+        r.raise_for_status()
+        html = r.text
+    except Exception as e:
+        print(f"❌ Failed to fetch leaderboard: {e}")
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Example parsing: adapt to actual HTML
+    leaderboard = []
+    for row in soup.select("article.m-b-20")[:10]:  # Top 10
+        name = row.select_one("h4.montserrat")
+        if not name:
+            continue
+        boat_name = name.get_text(strip=True)
+        # Optional: weight or points
+        points_tag = row.select_one("p.pull-right")
+        points = points_tag.get_text(strip=True) if points_tag else ""
+        
+        uid = boat_name.lower().replace(" ", "_").replace("'", "")
+        image_path = f"/static/images/boats/{uid}.jpg"
+        leaderboard.append({
+            "boat": boat_name,
+            "uid": uid,
+            "points": points,
+            "image": image_path
+        })
+
+    # Cache results
+    t_dir = os.path.join(CACHE_DIR, tournament)
+    os.makedirs(t_dir, exist_ok=True)
+    lb_file = os.path.join(t_dir, "leaderboard.json")
+    with open(lb_file, "w") as f:
+        json.dump(leaderboard, f, indent=2)
+
+    print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
+    return leaderboard
+
 
 # Routes
 @app.route('/')
@@ -505,6 +559,24 @@ def participants_data():
 
 
 
+
+@app.route("/leaderboard/<tournament>")
+def get_leaderboard(tournament):
+    t_dir = os.path.join(CACHE_DIR, tournament)
+    lb_file = os.path.join(t_dir, "leaderboard.json")
+
+    # Serve cache if available
+    if os.path.exists(lb_file):
+        with open(lb_file) as f:
+            leaderboard = json.load(f)
+    else:
+        leaderboard = scrape_leaderboard(tournament)
+
+    return jsonify({"status": "ok", "leaderboard": leaderboard})
+
+def scrape_gallery(force=False):
+    print("⚠️ scrape_gallery not implemented yet.")
+    return []
 
 
 

@@ -829,32 +829,50 @@ def wifi_connect():
         data = request.get_json()
         ssid = data.get('ssid')
         password = data.get('password', '')
+
         if not ssid:
             return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
 
-        print(f"🔌 Attempting connection to '{ssid}'")
+        print(f"🔌 Connecting to SSID: {ssid}")
 
-        # Build nmcli connect command
+        # Check if this network has a saved profile
+        saved_profiles = subprocess.check_output(
+            ['nmcli', '-t', '-f', 'NAME', 'connection', 'show'],
+            text=True
+        ).splitlines()
+
+        is_known = ssid in saved_profiles
+
+        # Case 1: New network with no password
+        if not is_known and not password:
+            print(f"⚠️ SSID {ssid} requires a password (new network).")
+            return jsonify({
+                'status': 'error',
+                'message': 'Password required for new network',
+                'code': 'password_required'
+            }), 400
+
+        # Step 1: Disconnect current Wi-Fi (safe, avoids busy errors)
+        subprocess.run(['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'], check=False)
+
+        # Step 2: Attempt to connect (with password if provided)
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             cmd += ['password', password]
 
-        print(f"➡️ Running: {' '.join(cmd)}")
         result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-
         print(f"✅ Connection successful: {result}")
+
         return jsonify({'status': 'ok', 'message': result})
 
     except subprocess.CalledProcessError as e:
-        # Check if already connected or already activating
-        if 'New connection activation was enqueued' in e.output or 'already active' in e.output:
-            print("ℹ️ Already connected or pending activation, treating as success")
-            return jsonify({'status': 'ok', 'message': e.output.strip()})
+        # Log raw nmcli output for debugging
         print(f"❌ nmcli error: {e.output}")
         return jsonify({'status': 'error', 'message': e.output.strip()}), 500
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 
 @app.route('/wifi/disconnect', methods=['POST'])

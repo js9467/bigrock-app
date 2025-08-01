@@ -169,7 +169,7 @@ const app = createApp({
       this.setupMessages();
       this.startMessageRotation();
       this.fetchVersion();
-      this.loadTournamentLogo();
+      this.loadTournamentLogo();  // ✅ Original behavior restored
       this.loadParticipants();
       this.fetchAll();
       setInterval(this.fetchAll, 30000);
@@ -280,7 +280,26 @@ const app = createApp({
         });
     },
 
-    loadTournamentLogo() { /* unchanged */ },
+    // ✅ Restored original GitHub JSON lookup for logo
+    loadTournamentLogo() {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              if (all[tournament] && all[tournament].logo) {
+                this.tournamentLogo = all[tournament].logo;
+              } else {
+                console.warn('⚠️ No logo found for tournament key:', tournament);
+              }
+            })
+            .catch(err => console.error('❌ Failed to load GitHub JSON for logo:', err));
+        })
+        .catch(err => console.error('❌ Failed to load /api/settings for logo:', err));
+    },
+
     formatTime(ts) { /* unchanged */ },
     isFollowed(uid) { return this.followed.includes(uid); },
     playSound(filename) { /* unchanged */ }

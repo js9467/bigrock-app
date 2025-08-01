@@ -681,8 +681,11 @@ def generate_demo():
 def get_hooked_up_events():
     settings = load_settings()
     tournament = settings.get("tournament", "Big Rock")
+    data_source = settings.get("data_source", "live")
+    now = datetime.now()
 
-    if settings.get("data_source") == "demo":
+    # Load events
+    if data_source == "demo":
         data = load_demo_data(tournament)
         events = data.get("events", [])
     else:
@@ -692,45 +695,71 @@ def get_hooked_up_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    now = datetime.now()
+    # Sort by timestamp ascending to process sequentially
+    try:
+        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
+    except:
+        pass
 
-    resolution_lookup = set()
-    for e in events:
-        if e["event"] in ["Released", "Boated"] or \
-           "pulled hook" in e.get("details", "").lower() or \
-           "wrong species" in e.get("details", "").lower():
+    unresolved = []
+
+    if data_source == "demo":
+        # Existing demo logic (hookup_id based)
+        resolution_lookup = set()
+        for e in events:
+            if e["event"] in ["Released", "Boated"] or \
+               "pulled hook" in e.get("details", "").lower() or \
+               "wrong species" in e.get("details", "").lower():
+                try:
+                    ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                    if ts.time() > now.time():  # future events in demo mode are ignored
+                        continue
+                    resolution_lookup.add((e["uid"], ts.isoformat()))
+                except:
+                    continue
+
+        for e in events:
+            if e["event"] != "Hooked Up":
+                continue
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if settings.get("data_source") == "demo" and ts.time() > now.time():
+                if ts.time() > now.time():
                     continue
-                resolution_lookup.add((e["uid"], ts.isoformat()))
             except:
                 continue
 
-    unresolved = []
-    for e in events:
-        if e["event"] != "Hooked Up":
-            continue
-
-        # Filter future Hooked Up timestamps in demo mode
-        try:
-            hookup_ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-            if settings.get("data_source") == "demo" and hookup_ts.time() > now.time():
+            try:
+                uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
+                target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+            except:
+                unresolved.append(e)
                 continue
-        except Exception as ex:
-            print(f"⚠️ Failed to parse hookup timestamp in demo mode: {ex}")
-            continue
 
-        # Attempt to extract resolution timestamp from hookup_id
-        try:
-            uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
-            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-        except:
-            unresolved.append(e)
-            continue
+            if (uid, target_ts) not in resolution_lookup:
+                unresolved.append(e)
 
-        if (uid, target_ts) not in resolution_lookup:
-            unresolved.append(e)
+    else:
+        # 🔹 Live mode: sequential clearing logic
+        boat_hooks = {}  # uid -> list of unresolved hooked events
+
+        for e in events:
+            uid = e.get("uid")
+            if not uid:
+                continue
+
+            if e["event"] == "Hooked Up":
+                # Add this hooked event to unresolved list for that boat
+                boat_hooks.setdefault(uid, []).append(e)
+
+            else:
+                # This is a resolution event: Boated / Released / Pulled Hook / Wrong Species
+                if uid in boat_hooks and boat_hooks[uid]:
+                    # Remove oldest unresolved hooked event for that boat
+                    boat_hooks[uid].pop(0)
+
+        # Collect all unresolved events in chronological order
+        for hooks in boat_hooks.values():
+            unresolved.extend(hooks)
 
     return jsonify({
         "status": "ok",

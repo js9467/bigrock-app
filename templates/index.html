@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
-/* 🔹 Scrolling marquee styling */
+/* 🔹 Fluid continuous marquee */
 .message-strip-wrapper {
   position: relative;
   overflow: hidden;
@@ -22,15 +22,18 @@
   font-size: 1.2rem;
   font-weight: 600;
   color: white;
-  animation: marquee 40s linear infinite;
+  animation: marquee 25s linear infinite;
   will-change: transform;
   padding-left: 100%;
+}
+.message-strip span {
+  margin-right: 3rem; /* spacing between messages */
 }
 .message-strip a {
   color: #facc15;
   text-decoration: underline;
   font-weight: bold;
-  padding: 0 0.5rem;
+  padding: 0 0.25rem;
 }
 .message-strip-wrapper:hover .message-strip {
   animation-play-state: paused;
@@ -97,9 +100,11 @@
       </div>
     </div>
 
-    <!-- 🔹 Scrolling Warning / Info Messages -->
+    <!-- 🔹 Continuous Scrolling Messages -->
     <div v-if="messageQueue.length > 0" class="message-strip-wrapper w-full mt-2">
-      <div class="message-strip" v-html="currentMessage"></div>
+      <div class="message-strip">
+        <span v-for="(msg, i) in messageQueue" :key="i" v-html="msg"></span>
+      </div>
     </div>
 
     <!-- Version Number -->
@@ -172,9 +177,7 @@ const app = createApp({
       radioPlaying: false,
       hls: null,
       error: null,
-      messageQueue: ["🔥 Test scrolling marquee message 🔥"], // ✅ Preloaded test
-      currentMessage: '',
-      messageTimer: null,
+      messageQueue: [],
       firstLoad: true
     };
   },
@@ -215,7 +218,7 @@ const app = createApp({
       const player = document.getElementById('radio-player');
       if (player) player.volume = this.settings.radio_volume / 100;
     },
-    toggleRadio() { /* unchanged from prior */ },
+    toggleRadio() { /* unchanged */ },
     fetchSettings() {
       return fetch('/api/settings')
         .then(res => res.json())
@@ -227,6 +230,7 @@ const app = createApp({
         .then(data => { this.version = data.version; });
     },
     setupMessages() {
+      this.messageQueue = [];
       if (!navigator.onLine) {
         this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a> for live event updates.`);
       }
@@ -236,25 +240,9 @@ const app = createApp({
       if (this.radioPlaying && this.error) {
         this.enqueueMessage(this.error);
       }
-
-      // 🔹 Ensure marquee always starts
-      if (this.messageQueue.length > 0) {
-        this.currentMessage = this.messageQueue[0];
-        this.startMessageRotation();
-      }
     },
     enqueueMessage(msg) {
       if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg);
-    },
-    startMessageRotation() {
-      if (this.messageQueue.length === 0) return;
-      let i = 0;
-      this.currentMessage = this.messageQueue[i];
-      if (this.messageTimer) clearInterval(this.messageTimer);
-      this.messageTimer = setInterval(() => {
-        i = (i + 1) % this.messageQueue.length;
-        this.currentMessage = this.messageQueue[i];
-      }, 7000);
     },
 
     fetchAll() {

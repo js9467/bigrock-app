@@ -9,23 +9,13 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-
-.text-center a {
-  color: #facc15;
-  text-decoration: underline;
-  font-weight: bold;
-}
+/* 🔹 Scrolling marquee styling */
 .message-strip-wrapper {
   position: relative;
   overflow: hidden;
   height: 2.25rem;
   background-color: #002855;
 }
-
 .message-strip {
   display: inline-block;
   white-space: nowrap;
@@ -36,85 +26,91 @@
   will-change: transform;
   padding-left: 100%;
 }
-
 .message-strip a {
   color: #facc15;
   text-decoration: underline;
   font-weight: bold;
   padding: 0 0.5rem;
 }
-
 .message-strip-wrapper:hover .message-strip {
   animation-play-state: paused;
   cursor: pointer;
 }
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
 </style>
-
 </head>
+
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
+
   <!-- Header -->
-<header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
-  <div class="flex items-center justify-between w-full gap-4 flex-wrap">
-    
-    <!-- Left: Logo + VHF Playing -->
-    <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
-    </div>
-
-    <!-- Right: Buttons Row -->
-    <div class="flex items-center gap-3 ml-auto flex-wrap justify-end">
-
-      <!-- VHF Button -->
-      <button @click="toggleRadio"
-              class="flex items-center justify-center px-4 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition text-center">
-        {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-      </button>
-
-      <!-- Volume Slider -->
-      <div class="flex items-center gap-2 text-sm text-white w-36 h-12">
-        <span class="text-lg">🔊</span>
-        <input type="range" min="0" max="100" v-model="settings.radio_volume"
-               @input="applyRadioVolume" @change="saveRadioVolume"
-               class="flex-1 h-1 bg-white rounded-lg appearance-none cursor-pointer">
-        <span class="w-8 text-xs text-right">{{ settings.radio_volume }}%</span>
+  <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
+    <div class="flex items-center justify-between w-full gap-4 flex-wrap">
+      
+      <!-- Left: Logo + VHF Playing -->
+      <div class="flex items-center gap-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+        <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
       </div>
 
-      <!-- Navigation Buttons -->
-      <a href="/participants" 
-         class="flex items-center justify-center px-3 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Participants
-      </a>
-      <a href="/leaderboard" 
-         class="flex items-center justify-center px-3 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Leaderboard
-      </a>
-      <a href="/release-summary" 
-         class="flex items-center justify-center px-3 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        Releases
-      </a>
+      <!-- Right: Buttons Row -->
+      <div class="flex items-center gap-3 ml-auto flex-wrap justify-end">
 
-      <!-- Settings Button -->
-      <a href="/settings-page" 
-         class="flex items-center justify-center w-36 h-12 text-white text-xl font-bold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-        ⚙ Settings
-      </a>
+        <!-- VHF Button -->
+        <button @click="toggleRadio"
+                class="flex items-center justify-center px-4 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition text-center">
+          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+        </button>
+
+        <!-- Volume Slider -->
+        <div class="flex items-center gap-2 text-sm text-white w-36 h-12">
+          <span class="text-lg">🔊</span>
+          <input type="range" min="0" max="100" v-model="settings.radio_volume"
+                 @input="applyRadioVolume" @change="saveRadioVolume"
+                 class="flex-1 h-1 bg-white rounded-lg appearance-none cursor-pointer">
+          <span class="w-8 text-xs text-right">{{ settings.radio_volume }}%</span>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <a href="/participants" 
+           class="flex items-center justify-center px-3 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          Participants
+        </a>
+        <a href="/leaderboard" 
+           class="flex items-center justify-center px-3 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          Leaderboard
+        </a>
+        <a href="/release-summary" 
+           class="flex items-center justify-center px-3 py-2 w-36 h-12 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          Releases
+        </a>
+
+        <!-- Settings Button -->
+        <a href="/settings-page" 
+           class="flex items-center justify-center w-36 h-12 text-white text-xl font-bold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+          ⚙
+        </a>
+      </div>
     </div>
-  </div>
 
-  <!-- 🔹 Scrolling Warning / Info Messages -->
-  <div v-if="messageQueue.length > 0" class="message-strip-wrapper w-full mt-2">
-    <div class="message-strip" v-html="currentMessage"></div>
-  </div>
+    <!-- 🔹 Scrolling Warning / Info Messages -->
+    <div v-if="messageQueue.length > 0" class="message-strip-wrapper w-full mt-2">
+      <div class="message-strip" v-html="currentMessage"></div>
+    </div>
 
-  <!-- Version Number -->
-  <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
-    v{{ version }}
-  </div>
-</header>
+    <!-- Version Number -->
+    <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
+      v{{ version }}
+    </div>
+  </header>
+
+  <!-- Main Content: Hooked & Events -->
   <div class="flex h-screen overflow-hidden">
+    <!-- Hooked Feed -->
     <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
       <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
       <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
@@ -128,6 +124,7 @@
       </div>
     </div>
 
+    <!-- Event Feed -->
     <div class="w-2/3 overflow-y-auto">
       <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
         Event Feed
@@ -175,7 +172,7 @@ const app = createApp({
       radioPlaying: false,
       hls: null,
       error: null,
-      messageQueue: [],
+      messageQueue: ["🔥 Test scrolling marquee message 🔥"], // ✅ Preloaded test
       currentMessage: '',
       messageTimer: null,
       firstLoad: true
@@ -187,7 +184,7 @@ const app = createApp({
       this.setupMessages();
       this.startMessageRotation();
       this.fetchVersion();
-      this.loadTournamentLogo();  // ✅ Original behavior restored
+      this.loadTournamentLogo();
       this.loadParticipants();
       this.fetchAll();
       setInterval(this.fetchAll, 30000);
@@ -215,8 +212,11 @@ const app = createApp({
   },
 
   methods: {
-    applyRadioVolume() { /* unchanged */ },
-    toggleRadio() { /* unchanged */ },
+    applyRadioVolume() {
+      const player = document.getElementById('radio-player');
+      if (player) player.volume = this.settings.radio_volume / 100;
+    },
+    toggleRadio() { /* unchanged from prior */ },
     fetchSettings() {
       return fetch('/api/settings')
         .then(res => res.json())
@@ -227,9 +227,30 @@ const app = createApp({
         .then(res => res.json())
         .then(data => { this.version = data.version; });
     },
-    setupMessages() { /* unchanged */ },
-    enqueueMessage(msg) { /* unchanged */ },
-    startMessageRotation() { /* unchanged */ },
+    setupMessages() {
+      if (!navigator.onLine) {
+        this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a> for live event updates.`);
+      }
+      if (this.settings.data_source === 'demo') {
+        this.enqueueMessage(`You are in demo mode. Events are emulated from a previous tournament. <a href='#' onclick='injectTestEvent()'>Simulate a boated event.</a>`);
+      }
+      if (this.radioPlaying && this.error) {
+        this.enqueueMessage(this.error);
+      }
+    },
+    enqueueMessage(msg) {
+      if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg);
+    },
+    startMessageRotation() {
+      if (this.messageQueue.length === 0) return;
+      let i = 0;
+      this.currentMessage = this.messageQueue[i];
+      if (this.messageTimer) clearInterval(this.messageTimer);
+      this.messageTimer = setInterval(() => {
+        i = (i + 1) % this.messageQueue.length;
+        this.currentMessage = this.messageQueue[i];
+      }, 7000);
+    },
 
     fetchAll() {
       this.loading = true;
@@ -240,12 +261,10 @@ const app = createApp({
         .then(([eventsData, hookedData]) => {
           const newEvents = eventsData.events || [];
           const newHooked = hookedData.events || [];
-
           for (const event of newEvents) {
             const key = event.timestamp + event.uid;
             const isNew = !this.lastEventTimestamps.has(key);
             this.lastEventTimestamps.add(key);
-
             if (isNew && !this.firstLoad && this.settings.sounds_enabled) {
               if (event.event.toLowerCase().includes('boated')) {
                 this.playSound(this.settings.boated_sound);
@@ -254,7 +273,6 @@ const app = createApp({
               }
             }
           }
-
           this.firstLoad = false;
           this.events = newEvents;
           this.hooked = newHooked;
@@ -269,15 +287,10 @@ const app = createApp({
     fetchHooked() {
       fetch('/hooked')
         .then(res => res.json())
-        .then(data => {
-          if (data.status === 'ok') {
-            this.hooked = data.events || [];
-          }
-        })
+        .then(data => { if (data.status === 'ok') this.hooked = data.events || []; })
         .catch(err => console.error('❌ Hooked fetch error:', err));
     },
 
-    // 🔹 Fixed image lookup with normalization + fallback
     getBoatImage(uid) {
       if (!uid) return '/static/images/boats/default.jpg';
       const norm = uid.toLowerCase().replace(/\s+/g, '_').replace(/'/g, '').replace(/\//g, '_');
@@ -289,16 +302,12 @@ const app = createApp({
         .then(res => res.json())
         .then(data => {
           const images = {};
-          for (const p of data.participants) {
-            images[p.uid] = p.image_path;
-          }
-          // Include Palmer Lou for demo
-          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
+          for (const p of data.participants) images[p.uid] = p.image_path;
+          images["palmer_lou"] = "/static/images/palmer_lou.jpg"; // demo
           this.boatImages = images;
         });
     },
 
-    // ✅ Restored original GitHub JSON lookup for logo
     loadTournamentLogo() {
       fetch('/api/settings')
         .then(res => res.json())
@@ -312,20 +321,35 @@ const app = createApp({
               } else {
                 console.warn('⚠️ No logo found for tournament key:', tournament);
               }
-            })
-            .catch(err => console.error('❌ Failed to load GitHub JSON for logo:', err));
-        })
-        .catch(err => console.error('❌ Failed to load /api/settings for logo:', err));
+            });
+        });
     },
 
-    formatTime(ts) { /* unchanged */ },
+    formatTime(ts) {
+      const dt = new Date(ts);
+      return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    },
     isFollowed(uid) { return this.followed.includes(uid); },
     playSound(filename) { /* unchanged */ }
   }
 
 }).mount('#app');
 
-window.injectTestEvent = function () { /* unchanged */ };
+// Demo Palmer Lou inject
+window.injectTestEvent = function () {
+  const now = new Date();
+  const future = new Date(now.getTime() + 10000).toISOString();
+  const injected = {
+    boat: "Palmer Lou",
+    event: "Boated",
+    details: "Palmer Lou boated a massive Blue Marlin!",
+    timestamp: future,
+    uid: "palmer_lou"
+  };
+  app.events.unshift(injected);
+  app.lastEventTimestamps.add(injected.timestamp + injected.uid);
+  app.playSound(app.settings.boated_sound);
+};
 </script>
 </body>
 </html>

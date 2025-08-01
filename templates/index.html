@@ -92,7 +92,7 @@
         <!-- Settings Button -->
         <a href="/settings-page" 
            class="flex items-center justify-center w-36 h-12 text-white text-xl font-bold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          ⚙
+          ⚙ Settings
         </a>
       </div>
     </div>
@@ -182,7 +182,6 @@ const app = createApp({
   mounted() {
     this.fetchSettings().then(() => {
       this.setupMessages();
-      this.startMessageRotation();
       this.fetchVersion();
       this.loadTournamentLogo();
       this.loadParticipants();
@@ -236,6 +235,12 @@ const app = createApp({
       }
       if (this.radioPlaying && this.error) {
         this.enqueueMessage(this.error);
+      }
+
+      // 🔹 Ensure marquee always starts
+      if (this.messageQueue.length > 0) {
+        this.currentMessage = this.messageQueue[0];
+        this.startMessageRotation();
       }
     },
     enqueueMessage(msg) {

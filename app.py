@@ -560,23 +560,6 @@ def participants_data():
 
 
 
-@app.route("/leaderboard/<tournament>")
-def get_leaderboard(tournament):
-    t_dir = os.path.join(CACHE_DIR, tournament)
-    lb_file = os.path.join(t_dir, "leaderboard.json")
-
-    # Serve cache if available
-    if os.path.exists(lb_file):
-        with open(lb_file) as f:
-            leaderboard = json.load(f)
-    else:
-        leaderboard = scrape_leaderboard(tournament)
-
-    return jsonify({"status": "ok", "leaderboard": leaderboard})
-
-def scrape_gallery(force=False):
-    print("⚠️ scrape_gallery not implemented yet.")
-    return []
 
 
 
@@ -749,6 +732,30 @@ def generate_demo():
         print(f"❌ Error generating demo data: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
+
+from flask import render_template
+
+# Serve the HTML page
+@app.route("/leaderboard")
+def leaderboard_page():
+    return render_template("leaderboard.html")
+
+# Serve JSON data
+@app.route("/api/leaderboard/<tournament>")
+def get_leaderboard(tournament):
+    t_dir = os.path.join(CACHE_DIR, tournament)
+    lb_file = os.path.join(t_dir, "leaderboard.json")
+
+    # Serve cache if available
+    if os.path.exists(lb_file):
+        with open(lb_file) as f:
+            leaderboard = json.load(f)
+    else:
+        leaderboard = scrape_leaderboard(tournament)
+
+    return jsonify({"status": "ok", "leaderboard": leaderboard})
+    
+    
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()

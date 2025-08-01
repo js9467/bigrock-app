@@ -32,8 +32,9 @@
             placeholder="Search boats..."
             class="px-4 py-2 border rounded w-full sm:w-64"
             @focus="launchKeyboard"
+            @blur="hideKeyboard"
           />
-         
+        </div>
       </header>
 
       <!-- Grid of Participants -->
@@ -111,7 +112,10 @@
           return this.followed.includes(uid);
         },
         launchKeyboard() {
-          fetch('/launch-keyboard');
+          fetch('/launch_keyboard').catch(() => {});
+        },
+        hideKeyboard() {
+          fetch('/hide_keyboard').catch(() => {});
         }
       },
       async mounted() {

@@ -9,15 +9,13 @@
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
     body { touch-action: manipulation; }
-    .leaderboard-tile {
-      transition: transform 0.2s;
-    }
-    .leaderboard-tile:hover {
-      transform: scale(1.05);
-    }
-    .scroll-container {
-      max-height: 65vh;
-      overflow-y: auto;
+    .leaderboard-tile { transition: transform 0.2s; }
+    .leaderboard-tile:hover { transform: scale(1.05); }
+    .scroll-container { max-height: 65vh; overflow-y: auto; }
+    .placeholder {
+      text-align: center; 
+      color: #888; 
+      margin-top: 1rem;
     }
   </style>
 </head>
@@ -35,20 +33,21 @@
     <div class="p-6">
       <!-- Top 3 -->
       <h2 class="text-xl font-bold mb-4">Top 3 Leaderboard</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+      <div v-if="top3.length" class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         <div v-for="(entry, idx) in top3" :key="entry.uid || idx"
              class="bg-white rounded-lg shadow-md p-4 flex flex-col items-center leaderboard-tile">
           <img :src="getBoatImage(entry)" :alt="entry.boat"
                class="w-32 h-32 object-cover rounded-full border-4"
                :class="idx===0 ? 'border-yellow-400' : idx===1 ? 'border-gray-400' : 'border-orange-400'">
-          <h3 class="mt-3 text-lg font-semibold text-center">{{ entry.boat }}</h3>
-          <p class="text-sm text-gray-600">{{ entry.points }} pts</p>
+          <h3 class="mt-3 text-lg font-semibold text-center">{{ entry.boat || 'Unknown Boat' }}</h3>
+          <p class="text-sm text-gray-600">{{ entry.points || 0 }} pts</p>
         </div>
       </div>
+      <div v-else class="placeholder">No leaderboard data available.</div>
 
       <!-- Full Leaderboard -->
       <h2 class="text-xl font-bold mb-4">Full Leaderboard</h2>
-      <div class="scroll-container">
+      <div v-if="leaderboard.length" class="scroll-container">
         <div v-for="(entry, idx) in leaderboard" :key="entry.uid || idx"
              class="bg-white rounded-lg shadow-md p-4 flex items-center space-x-4 mb-3 leaderboard-tile">
           <div class="flex-shrink-0">
@@ -57,11 +56,12 @@
                  :class="getBorderClass(idx)">
           </div>
           <div class="flex-1">
-            <h3 class="text-lg font-semibold">{{ idx+1 }}. {{ entry.boat }}</h3>
-            <p class="text-sm text-gray-600">{{ entry.points }} pts</p>
+            <h3 class="text-lg font-semibold">{{ idx+1 }}. {{ entry.boat || 'Unknown Boat' }}</h3>
+            <p class="text-sm text-gray-600">{{ entry.points || 0 }} pts</p>
           </div>
         </div>
       </div>
+      <div v-else class="placeholder">No leaderboard data available.</div>
     </div>
   </div>
 
@@ -93,9 +93,10 @@
           try {
             const res = await fetch(`/participants/${this.tournament}`);
             const data = await res.json();
+            console.log("Participants data:", data);
             const images = {};
-            (data.participants || []).forEach(p => {
-              const uid = (p.uid || p.boat).toLowerCase();
+            (data.participants || data || []).forEach(p => {
+              const uid = (p.uid || p.boat || '').toLowerCase();
               images[uid] = p.image_path || `/static/images/boats/${uid}.jpg`;
             });
             this.boatImages = images;
@@ -105,17 +106,29 @@
         }
       },
       async mounted() {
-        // Load logo
-        const settings = await fetch('https://js9467.github.io/Brtourney/settings.json').then(r => r.json());
-        this.tournamentLogo = settings[this.tournament]?.logo || '';
+        console.log("Tournament selected:", this.tournament);
 
-        // Load boat images first
+        // Load logo with fallback
+        try {
+          const settings = await fetch('https://js9467.github.io/Brtourney/settings.json').then(r => r.json());
+          this.tournamentLogo = settings[this.tournament]?.logo || '/static/images/logo.png';
+        } catch (e) {
+          console.warn("Logo fetch failed, using local fallback");
+          this.tournamentLogo = '/static/images/logo.png';
+        }
+
+        // Load boat images
         await this.loadBoatImages();
 
-        // Load leaderboard
-        const data = await fetch(`/leaderboard/${this.tournament}`).then(r => r.json());
-        this.leaderboard = data.leaderboard || data || [];
-        this.top3 = this.leaderboard.slice(0, 3);
+        // Load leaderboard with fallback handling
+        try {
+          const data = await fetch(`/leaderboard/${this.tournament}`).then(r => r.json());
+          console.log("Leaderboard data:", data);
+          this.leaderboard = data.leaderboard || data || [];
+          this.top3 = this.leaderboard.slice(0, 3);
+        } catch (e) {
+          console.error("Failed to load leaderboard:", e);
+        }
       }
     }).mount("#app");
   </script>

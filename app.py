@@ -1539,6 +1539,47 @@ def release_summary_data():
 
 
 
+import threading
+
+def background_event_emailer():
+    """Continuously watch the feed and send emails for followed/boated events."""
+    print("📡 Email watcher started.")
+    while True:
+        try:
+            settings = load_settings()
+            tournament = get_current_tournament()
+
+            # Load current feed (live or demo)
+            if settings.get("data_source") == "demo":
+                events = load_demo_data(tournament).get("events", [])
+                now = datetime.now().time()
+                events = [
+                    e for e in events
+                    if date_parser.parse(e["timestamp"]).time() <= now
+                ]
+            else:
+                events_file = get_cache_path(tournament, "events.json")
+                if not os.path.exists(events_file):
+                    time.sleep(5)
+                    continue
+                with open(events_file) as f:
+                    events = json.load(f)
+
+            # Sort latest first
+            events.sort(key=lambda e: e["timestamp"], reverse=True)
+
+            # Process top 50 events for email
+            for e in events[:50]:
+                process_new_event(e)
+
+        except Exception as e:
+            print(f"⚠️ Email watcher error: {e}")
+
+        # Check every 30 seconds
+        time.sleep(30)
+
+# 🔹 Launch background email watcher
+threading.Thread(target=background_event_emailer, daemon=True).start()
 
 
 

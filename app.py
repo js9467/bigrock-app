@@ -1056,6 +1056,10 @@ def list_sounds():
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500
 
+@app.route('/alerts/list', methods=['GET'])
+def list_alerts():
+    return jsonify(load_alerts())
+
 @app.route('/api/version')
 def api_version():
     try:

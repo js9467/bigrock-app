@@ -399,11 +399,11 @@ const vm = createApp({
     },
 
     getBoatImage(uid) {
-      return this.boatImages[uid] || '/static/images/default_boat.jpg';
+      return this.boatImages[uid] || '/static/images/bigrock.webp';
     },
 
     onImageError(e) {
-      e.target.src = '/static/images/default_boat.jpg';
+      e.target.src = '/static/images/bigrock.webp';
     },
 
     loadParticipants() {

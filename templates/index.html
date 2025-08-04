@@ -52,6 +52,7 @@
 <div id="app">
 <!--<!-- Header -->
 <!-- Header -->
+<!-- Header -->
 <header class="relative bg-brand-blue text-white px-4 py-3 shadow-lg">
   <div class="flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
 
@@ -99,20 +100,20 @@
   </div>
 
   <!-- Live Alert Bar -->
-  <div v-if="messageQueue.length > 0" class="w-full mt-3 relative">
+  <div v-if="messageQueue.length > 0" class="w-full mt-3">
     <div class="bg-yellow-400 text-blue-900 font-extrabold px-4 py-2 text-center text-lg leading-snug break-words whitespace-normal rounded shadow-inner shadow-yellow-500/50 animate-pulse-slow" v-html="currentMessage"></div>
-
-    <!-- Version badge stays visible -->
-    <div class="absolute bottom-0 left-2 mb-1 text-xs text-white/80 bg-blue-900/80 px-2 py-0.5 rounded">
-      v{{ version }}
-    </div>
 
     <!-- Demo injection button (only visible in demo mode) -->
     <button v-if="settings.data_source === 'demo'" 
             @click="injectTestEvent" 
-            class="absolute bottom-0 right-2 mb-1 text-xs font-bold text-blue-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded shadow">
+            class="absolute top-2 right-2 text-xs font-bold text-blue-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded shadow">
       + Demo Event
     </button>
+  </div>
+
+  <!-- Subtle Version in Corner -->
+  <div class="absolute bottom-1 right-3 text-xs text-white/50 italic" v-if="version">
+    v{{ version }}
   </div>
 </header>
 
@@ -124,39 +125,6 @@
 }
 .animate-pulse-slow {
   animation: pulse-slow 3s ease-in-out infinite;
-}
-</style>
-<!-- Extra Styles -->
-<style>
-/* Smooth pulsing for logo, VHF pill, and alert bar */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-.animate-pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
-}
-
-/* Followed boat flash effect */
-@keyframes flash-highlight {
-  0% { background-color: #fef08a; }   /* Tailwind yellow-200 */
-  50% { background-color: #facc15; }  /* Tailwind yellow-400 */
-  100% { background-color: #fef08a; }
-}
-.flash-followed {
-  animation: flash-highlight 1.5s ease-in-out 2;
-}
-</style>
-<!-- Tailwind Extra Animation -->
-<style>
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-.animate-marquee {
-  display: inline-block;
-  min-width: 100%;
-  animation: marquee 15s linear infinite;
 }
 </style>
 

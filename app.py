@@ -1580,44 +1580,48 @@ def background_event_emailer():
     emailed_events = load_emailed_events()
     print(f"📡 Email watcher started. Loaded {len(emailed_events)} previous notifications.")
 
-    # 🔹 PRELOAD newest events to avoid flood on first run
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
+
+    # ✅ Preload recent events to prevent flood on startup
     try:
-        tournament = get_current_tournament()
-        events_file = get_cache_path(tournament, "events.json")
         if os.path.exists(events_file):
             with open(events_file) as f:
                 events = json.load(f)
-            for e in events[-50:]:  # last 50 events
+            events.sort(key=lambda e: e["timestamp"], reverse=True)
+
+            # Preload the newest 50 events so they won't email immediately
+            for e in events[:50]:
                 uid = f"{e.get('timestamp')}_{e.get('uid')}_{e.get('event')}"
                 emailed_events.add(uid)
+
             save_emailed_events()
-            print(f"⏩ Preloaded {len(events[-50:])} events to prevent email flood")
+            print(f"⏩ Preloaded {min(50, len(events))} events as already emailed to prevent flood")
     except Exception as e:
         print(f"⚠️ Failed to preload events: {e}")
 
-    # 🔹 Start watching for new events
+    # ✅ Continuous watch loop
     while True:
         try:
             settings = load_settings()
             tournament = get_current_tournament()
 
-            # Load events
+            # Load events from demo or live
             if settings.get("data_source") == "demo":
                 events = load_demo_data(tournament).get("events", [])
                 now = datetime.now().time()
                 events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
             else:
-                events_file = get_cache_path(tournament, "events.json")
                 if not os.path.exists(events_file):
                     time.sleep(5)
                     continue
                 with open(events_file) as f:
                     events = json.load(f)
 
-            # Only check the newest 50 events
+            # Check only the newest 50 events
             events.sort(key=lambda e: e["timestamp"], reverse=True)
             for e in events[:50]:
-                process_new_event(e)
+                process_new_event(e)  # Will only email if not in emailed_events
 
         except Exception as e:
             print(f"⚠️ Email watcher error: {e}")

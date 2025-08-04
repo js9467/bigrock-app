@@ -582,33 +582,44 @@ def participants_data():
     participants = []
 
     try:
-        if not os.path.exists(participants_file):
-            raise FileNotFoundError("🚫 No participants cache found")
+        if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
+            with open(participants_file) as f:
+                participants = json.load(f)
+        else:
+            raise FileNotFoundError("🚫 No valid participants cache found")
 
-        with open(participants_file) as f:
-            participants = json.load(f)
-
-        # Check if image paths are missing or broken
-        missing_images = 0
+        # Fix broken image paths
         for p in participants:
             path = p.get("image_path", "")
             local_path = path[1:] if path.startswith("/") else path
-            if not path or not os.path.exists(local_path):
-                missing_images += 1
-
-        if missing_images > 0:
-            print(f"🚨 Detected {missing_images} missing or broken images — rescraping...")
-            participants = scrape_participants(force=True)
+            if not os.path.exists(local_path):
+                p["image_path"] = "/static/images/boats/bigrock.png"
 
     except Exception as e:
-        print(f"⚠️ Error loading participants, rescraping: {e}")
-        participants = scrape_participants(force=True)
+        print(f"⚠️ Error loading participants: {e}")
+        participants = []
+
+    # 🔹 Fallback: scan static folder if participants is empty
+    if not participants:
+        folder = "static/images/boats"
+        os.makedirs(folder, exist_ok=True)
+        for fname in os.listdir(folder):
+            if fname.lower().endswith((".jpg", ".png", ".jpeg", ".webp")):
+                uid = os.path.splitext(fname)[0]
+                participants.append({
+                    "uid": uid,
+                    "boat": uid.replace("_", " ").title(),
+                    "type": "",
+                    "image_path": f"/static/images/boats/{fname}"
+                })
+        print(f"🛟 Fallback loaded {len(participants)} participants from images")
 
     return jsonify({
         "status": "ok",
         "participants": participants,
         "count": len(participants)
     })
+
 
 
 

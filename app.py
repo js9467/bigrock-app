@@ -1628,4 +1628,10 @@ def should_email(event):
 if __name__ == '__main__':
     print("🚀 Optimizing boat images on startup...")
     optimize_all_boat_images()
+
+    # ✅ Start email watcher
+    Thread(target=background_event_emailer, daemon=True).start()
+
+    # ✅ Start Flask
     app.run(host='0.0.0.0', port=5000, debug=True)
+

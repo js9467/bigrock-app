@@ -94,28 +94,26 @@
         <label for="sounds" class="font-semibold">Play Event Sounds</label>
       </div>
 
-      <!-- SMS Alerts Section -->
-      <div class="pt-6">
-        <h2 class="text-xl font-semibold mb-2">📱 SMS Alerts</h2>
+     <!-- Email Alerts Section -->
+<div class="pt-6">
+  <h2 class="text-xl font-semibold mb-2">📧 Email Alerts</h2>
 
-        <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
-          <label class="block mb-1">Phone Number:</label>
-          <input type="text" v-model="recipient.phone" placeholder="5551234567"
-                 class="border px-2 py-1 rounded w-full mb-2" />
-          <label class="block mb-1">Carrier:</label>
-          <select v-model="recipient.carrier" class="border px-2 py-1 rounded w-full">
-            <option value="@vtext.com">Verizon</option>
-            <option value="@txt.att.net">AT&T</option>
-            <option value="@tmomail.net">T-Mobile</option>
-            <option value="@messaging.sprintpcs.com">Sprint</option>
-            <option value="@msg.fi.google.com">Google Fi</option>
-          </select>
-          <button v-if="recipients.length > 1"
-                  @click="removeRecipient(index)"
-                  class="text-red-600 mt-1 text-sm hover:underline">
-            Remove
-          </button>
-        </div>
+  <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
+    <label class="block mb-1">Email Address:</label>
+    <input type="email" v-model="recipient.email" placeholder="name@example.com"
+           class="border px-2 py-1 rounded w-full mb-2" />
+    <button v-if="recipients.length > 1"
+            @click="removeRecipient(index)"
+            class="text-red-600 mt-1 text-sm hover:underline">
+      Remove
+    </button>
+  </div>
+
+  <button @click="addRecipient" class="bg-green-500 text-white px-3 py-1 rounded mr-2">+ Add Email</button>
+  <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save All</button>
+  <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
+</div>
+
 
         <button @click="addRecipient" class="bg-green-500 text-white px-3 py-1 rounded mr-2">+ Add Recipient</button>
         <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save All</button>
@@ -148,7 +146,7 @@
     <!-- (Unchanged from your original) -->
   </div>
 
- <script>
+<script>
 const { createApp } = Vue;
 createApp({
   data() {
@@ -172,7 +170,7 @@ createApp({
       availableSounds: [],
       tournamentLogo: '',
       recipients: [
-        { phone: '', carrier: '@vtext.com' }
+        { email: '' }
       ]
     };
   },
@@ -191,12 +189,12 @@ createApp({
       setTimeout(() => this.toast.message = '', 3000);
     },
     saveSettings() {
-      // Always include sms_emails when saving
-      const smsEmails = this.recipients
-        .filter(r => r.phone.trim())
-        .map(r => r.phone + r.carrier);
+      // Always include email alerts in settings
+      const emails = this.recipients
+        .filter(r => r.email.trim())
+        .map(r => r.email);
 
-      this.settings.sms_emails = smsEmails;
+      this.settings.sms_emails = emails;
 
       localStorage.setItem('followed_sound', this.settings.hooked_sound);
       localStorage.setItem('event_volume', this.settings.event_volume);
@@ -208,30 +206,24 @@ createApp({
         this.showToast('❌ Failed to save settings.', 'error');
       });
     },
-    previewSound(file) {
-      if (!file) return;
-      const audio = new Audio(`/static/sounds/${file}`);
-      audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play().catch(() => {});
-    },
     addRecipient() {
-      this.recipients.push({ phone: '', carrier: '@vtext.com' });
+      this.recipients.push({ email: '' });
     },
     removeRecipient(index) {
       this.recipients.splice(index, 1);
     },
     saveAlerts() {
-      const smsEmails = this.recipients
-        .filter(r => r.phone.trim())
-        .map(r => r.phone + r.carrier);
+      const emails = this.recipients
+        .filter(r => r.email.trim())
+        .map(r => r.email);
 
-      // Save to alerts.json for backend SMS
-      axios.post('/alerts/subscribe', { sms_emails: smsEmails });
+      // Save to alerts.json
+      axios.post('/alerts/subscribe', { sms_emails: emails });
 
       // Save to settings.json for persistence
-      const updatedSettings = { ...this.settings, sms_emails: smsEmails };
+      const updatedSettings = { ...this.settings, sms_emails: emails };
       axios.post('/api/settings', updatedSettings).then(() => {
-        this.showToast('✅ Recipients saved.', 'success');
+        this.showToast('✅ Email recipients saved.', 'success');
       }).catch(() => {
         this.showToast('❌ Failed to save recipients.', 'error');
       });
@@ -243,10 +235,6 @@ createApp({
         this.showToast('❌ Failed to send test alert.', 'error');
       });
     },
-    connectWifi(ssid) { /* unchanged */ },
-    disconnectWifi() { /* unchanged */ },
-    connectBluetooth(mac) { /* unchanged */ },
-    fetchWifi() { axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; }); },
     onHookedSoundChange() { 
       const file = this.settings.hooked_sound;
       if (file) { this.previewSound(file); localStorage.setItem('followed_sound', file); this.saveSettings(); }
@@ -255,22 +243,22 @@ createApp({
     updateTournamentLogo() {
       const t = this.settings.tournament;
       this.tournamentLogo = this.tournaments[t]?.logo || '';
-    }
+    },
+    previewSound(file) {
+      if (!file) return;
+      const audio = new Audio(`/static/sounds/${file}`);
+      audio.volume = (this.settings.event_volume || 80) / 100;
+      audio.play().catch(() => {});
+    },
+    fetchWifi() { axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; }); }
   },
   mounted() {
-    // Load settings and populate recipients
     axios.get('/api/settings').then(res => {
       this.settings = { ...this.settings, ...res.data };
 
-      // ✅ Convert sms_emails -> recipients
+      // ✅ Populate recipients from sms_emails (now emails)
       if (res.data.sms_emails && Array.isArray(res.data.sms_emails)) {
-        this.recipients = res.data.sms_emails.map(email => {
-          const match = email.match(/^(\d+)(@.+)$/);
-          return {
-            phone: match ? match[1] : email,
-            carrier: match ? match[2] : '@vtext.com'
-          };
-        });
+        this.recipients = res.data.sms_emails.map(email => ({ email }));
       }
 
       // Restore local sound settings
@@ -298,6 +286,8 @@ createApp({
 }).mount('#app');
 </script>
 
+
 </body>
 </html>
+
 

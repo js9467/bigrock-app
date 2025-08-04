@@ -12,6 +12,17 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import subprocess
 from threading import Thread
+import smtplib
+from email.mime.text import MIMEText
+
+ALERTS_FILE = 'alerts.json'
+NOTIFIED_FILE = 'notified.json'
+
+SMTP_USER = "bigrockapp@gmail.com"        # use a Gmail account
+SMTP_PASS = "gie5Dieg!"          # must be a Gmail app password
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+
 
 
 
@@ -20,6 +31,37 @@ CACHE_FILE = 'cache.json'
 EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
+
+def load_alerts():
+    if os.path.exists(ALERTS_FILE):
+        with open(ALERTS_FILE) as f:
+            return json.load(f)
+    return []
+
+def save_alerts(alerts):
+    with open(ALERTS_FILE, 'w') as f:
+        json.dump(alerts, f, indent=2)
+
+def load_notified_events():
+    if os.path.exists(NOTIFIED_FILE):
+        with open(NOTIFIED_FILE) as f:
+            return set(json.load(f))
+    return set()
+
+def save_notified_events(notified):
+    with open(NOTIFIED_FILE, 'w') as f:
+        json.dump(list(notified), f)
+
+def send_sms_email(phone_email, message):
+    msg = MIMEText(message)
+    msg['From'] = SMTP_USER
+    msg['To'] = phone_email
+    msg['Subject'] = "Boat Alert"
+
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASS)
+        server.sendmail(SMTP_USER, [phone_email], msg.as_string())
 
 def fetch_with_scraperapi(url):
     api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
@@ -1081,6 +1123,33 @@ def release_summary_data():
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})
+@app.route('/alerts/subscribe', methods=['POST'])
+def subscribe_alerts():
+    data = request.get_json()
+    new_emails = data.get('sms_emails', [])
+    alerts = load_alerts()
+    for email in new_emails:
+        if email not in alerts:
+            alerts.append(email)
+    save_alerts(alerts)
+    return jsonify({"status": "subscribed", "count": len(alerts)})
+
+@app.route('/alerts/test', methods=['GET'])
+def test_alerts():
+    alerts = load_alerts()
+    if not alerts:
+        return jsonify({"status": "no_subscribers"}), 404
+
+    test_message = "🚤 Test Alert: Your Big Rock alerts are working!"
+    success = 0
+    for recipient in alerts:
+        try:
+            send_sms_email(recipient, test_message)
+            success += 1
+        except Exception as e:
+            print(f"⚠️ Failed to send to {recipient}: {e}")
+
+    return jsonify({"status": "sent", "success_count": success})
 
 
 

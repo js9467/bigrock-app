@@ -70,24 +70,28 @@ def send_sms_email(phone_email, message):
         server.sendmail(SMTP_USER, [phone_email], msg.as_string())
 
 def send_boat_email_alert(event):
-    """Send an inline email alert for a boat event with image."""
     boat = event.get('boat', 'Unknown')
     action = event.get('event', 'Activity')
     timestamp = event.get('timestamp', datetime.now().isoformat())
     uid = event.get('uid', 'unknown')
-    image_path = f"static/images/boats/{uid}.jpg"
+
+    # 🔹 Detect the real image file
+    base_path = f"static/images/boats/{uid}"
+    image_path = None
+    for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+        candidate = base_path + ext
+        if os.path.exists(candidate):
+            image_path = candidate
+            break
+
+    # 🔹 Fallback to Palmer Lou if missing
+    if not image_path and os.path.exists("static/images/palmer_lou.jpg"):
+        print(f"⚠️ No image for {boat}, using fallback Palmer Lou")
+        image_path = "static/images/palmer_lou.jpg"
 
     recipients = load_alerts()
     if not recipients:
         return 0
-
-    # Build the email
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from email.mime.image import MIMEImage
-    from email.utils import formataddr
-    import io
-    from PIL import Image
 
     success = 0
     for recipient in recipients:
@@ -112,19 +116,19 @@ def send_boat_email_alert(event):
             """
             msg_alt.attach(MIMEText(html_body, "html"))
 
-            if os.path.exists(image_path):
-                try:
-                    with Image.open(image_path) as img:
-                        img.thumbnail((600, 600))
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format="JPEG", quality=70)
-                        img_bytes.seek(0)
-                        image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
-                        image.add_header("Content-ID", "<boat_image>")
-                        image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
-                        msg.attach(image)
-                except Exception as e:
-                    print(f"⚠️ Could not resize/attach image for {boat}: {e}")
+            # 🔹 Attach image (convert WebP to JPEG for email)
+            if image_path and os.path.exists(image_path):
+                with Image.open(image_path) as img:
+                    if image_path.lower().endswith(".webp"):
+                        img = img.convert("RGB")  # WebP -> JPEG
+                    img.thumbnail((600, 600))
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format="JPEG", quality=70)
+                    img_bytes.seek(0)
+                    image = MIMEImage(img_bytes.read(), name=f"{uid}.jpg")
+                    image.add_header("Content-ID", "<boat_image>")
+                    image.add_header("Content-Disposition", "inline", filename=f"{uid}.jpg")
+                    msg.attach(image)
 
             with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
                 server.starttls()
@@ -138,6 +142,7 @@ def send_boat_email_alert(event):
             print(f"❌ Failed to send alert to {recipient}: {e}")
 
     return success
+
 
 def fetch_with_scraperapi(url):
     api_key = "e6f354c9c073ceba04c0fe82e4243ebd"

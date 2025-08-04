@@ -635,7 +635,7 @@ from bs4 import BeautifulSoup
 CACHE_DIR = "cache"
 
 def scrape_leaderboard(tournament):
-    # Load settings.json from GitHub
+    # Load settings.json from your GitHub
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
         settings = requests.get(settings_url, timeout=10).json()
@@ -643,19 +643,13 @@ def scrape_leaderboard(tournament):
         print("⚠️ Could not fetch settings.json")
         return []
 
-    # ✅ Use the tournament key exactly as in the JSON
-    if tournament not in settings:
-        print(f"⚠️ Tournament '{tournament}' not found in settings.json")
-        return []
-
-    t_info = settings[tournament]
-    url = t_info.get("leaderboard")
-    if not url:
+    t_info = settings.get(tournament)
+    if not t_info or not t_info.get("leaderboard"):
         print(f"⚠️ No leaderboard URL for {tournament}")
         return []
 
+    url = t_info["leaderboard"]
     print(f"🔄 Scraping leaderboard for {tournament}: {url}")
-
     try:
         r = requests.get(url, timeout=10, verify=False)
         r.raise_for_status()
@@ -666,19 +660,19 @@ def scrape_leaderboard(tournament):
 
     soup = BeautifulSoup(html, "html.parser")
 
+    # Example parsing: adapt to actual HTML
     leaderboard = []
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10 entries
-        name_tag = row.select_one("h4.montserrat")
-        if not name_tag:
+    for row in soup.select("article.m-b-20")[:10]:  # Top 10
+        name = row.select_one("h4.montserrat")
+        if not name:
             continue
-        boat_name = name_tag.get_text(strip=True)
-
+        boat_name = name.get_text(strip=True)
+        # Optional: weight or points
         points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
-
+        
         uid = boat_name.lower().replace(" ", "_").replace("'", "")
         image_path = f"/static/images/boats/{uid}.jpg"
-
         leaderboard.append({
             "boat": boat_name,
             "uid": uid,
@@ -695,6 +689,7 @@ def scrape_leaderboard(tournament):
 
     print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
     return leaderboard
+
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"
@@ -1150,66 +1145,47 @@ def leaderboard_page():
     return send_from_directory('static', 'leaderboard.html')
 
 # Serve JSON data
-@app.route("/api/leaderboard")
-def api_leaderboard():
-    tournament = get_current_tournament()  # ✅ Always use current tournament
-    print(f"📊 Fetching leaderboard for tournament: {tournament}")
-
-    # Load master settings.json
-    settings_url = "https://js9467.github.io/Brtourney/settings.json"
-    try:
-        settings = requests.get(settings_url, timeout=10).json()
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to fetch settings.json: {e}"}), 500
-
-    # Match the tournament key
-    matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
-    if not matching_key:
-        return jsonify({"status": "error", "message": f"Tournament '{tournament}' not in settings.json"}), 404
-
-    leaderboard_url = settings[matching_key].get("leaderboard")
-    if not leaderboard_url:
-        return jsonify({"status": "error", "message": f"No leaderboard URL for {tournament}"}), 404
-
-    # Fetch & parse leaderboard
-    print(f"🔄 Scraping leaderboard from: {leaderboard_url}")
-    try:
-        r = requests.get(leaderboard_url, timeout=15, verify=False)
-        r.raise_for_status()
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to fetch leaderboard page: {e}"}), 500
-
-    soup = BeautifulSoup(r.text, "html.parser")
-    leaderboard = []
-
-    # Example parsing — adapt if HTML structure changes
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10
-        name = row.select_one("h4.montserrat")
-        if not name:
-            continue
-        boat_name = name.get_text(strip=True)
-
-        points_tag = row.select_one("p.pull-right")
-        points = points_tag.get_text(strip=True) if points_tag else ""
-
-        uid = normalize_boat_name(boat_name)
-        image_path = f"/static/images/boats/{uid}.jpg"
-
-        leaderboard.append({
-            "boat": boat_name,
-            "uid": uid,
-            "points": points,
-            "image": image_path
-        })
-
-    # Cache result
+@app.route("/api/leaderboard/<tournament>")
+def get_leaderboard(tournament):
     t_dir = os.path.join(CACHE_DIR, tournament)
-    os.makedirs(t_dir, exist_ok=True)
     lb_file = os.path.join(t_dir, "leaderboard.json")
-    with open(lb_file, "w") as f:
-        json.dump(leaderboard, f, indent=2)
+
+    # Serve cache if available
+    if os.path.exists(lb_file):
+        with open(lb_file) as f:
+            leaderboard = json.load(f)
+    else:
+        leaderboard = scrape_leaderboard(tournament)
 
     return jsonify({"status": "ok", "leaderboard": leaderboard})
+    
+    
+# Global set to track which demo alerts were emailed
+sent_demo_alerts = set()  # (uid, timestamp, event_type)
+
+import json, os
+from datetime import datetime, timedelta
+from dateutil import parser as date_parser
+
+SENT_ALERTS_FILE = "sent_demo_alerts.json"
+sent_demo_alerts = set()
+
+# Load persistent sent alert history
+if os.path.exists(SENT_ALERTS_FILE):
+    try:
+        with open(SENT_ALERTS_FILE) as f:
+            sent_demo_alerts = set(tuple(x) for x in json.load(f))
+    except:
+        sent_demo_alerts = set()
+
+def save_sent_demo_alerts():
+    try:
+        with open(SENT_ALERTS_FILE, "w") as f:
+            json.dump([list(x) for x in sent_demo_alerts], f)
+    except Exception as e:
+        print(f"⚠️ Failed to save sent_demo_alerts: {e}")
+
+
 @app.route("/hooked")
 def get_hooked_up_events():
     """Return unresolved Hooked Up events for the current tournament."""
@@ -1571,27 +1547,16 @@ def save_emailed_events():
     with open(NOTIFIED_FILE, "w") as f:
         json.dump(list(emailed_events), f)
 
-def get_followed_boats():
-    """Read followed boats list from settings.json."""
-    settings = load_settings()
-    # Ensure they are normalized to match uids
-    return [normalize_boat_name(b) for b in settings.get("followed_boats", [])]
-
 def should_email(event):
-    """Only email if event is boated or boat is followed."""
+    """Decide which events should trigger an email."""
+    # ✅ Send email for all events OR filter types if needed
     etype = event.get("event", "").lower()
-    uid = event.get("uid", "")
-    
-    # Always send for boated events
-    if "boated" in etype:
-        return True
-
-    # Send for followed boats
-    followed_boats = get_followed_boats()
-    if uid in followed_boats:
-        return True
-
-    return False
+    details = event.get("details", "").lower()
+    return (
+        etype in ["released", "boated"]
+        or "pulled hook" in details
+        or "wrong species" in details
+    )
 
 def process_new_event(event):
     """Send email for any new event exactly once."""

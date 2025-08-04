@@ -157,7 +157,6 @@
 <script>
 const { createApp } = Vue;
 
-// ✅ Mount app and store reference in window.app
 const app = createApp({
   data() {
     return {
@@ -176,9 +175,7 @@ const app = createApp({
         radio_volume: 30,
         sounds_enabled: true,
         data_source: 'live',
-        tournament: '',
-        stream: '',
-        fallback_stream: ''
+        tournament: ''
       },
       radioPlaying: false,
       hls: null,
@@ -205,80 +202,114 @@ const app = createApp({
     if (player) player.volume = this.settings.radio_volume / 100;
 
     const storedPlaying = localStorage.getItem('radioPlaying') === 'true';
-    this.radioPlaying = storedPlaying;
-    if (storedPlaying) this.startRadio(); // Auto-resume if previously on
+    if (storedPlaying) {
+      this.radioPlaying = !player.paused && !player.ended && player.currentTime > 0;
+      if (!this.radioPlaying) {
+        console.log('🔄 Auto-fix: forcing VHF to off because player is paused.');
+        localStorage.setItem('radioPlaying', 'false');
+      }
+    } else {
+      this.radioPlaying = false;
+    }
+
+    window.addEventListener('online', this.setupMessages);
+    window.addEventListener('offline', this.setupMessages);
   },
 
   methods: {
-    onImageError(e) {
-      e.target.src = '/static/images/bigrock.png';
+    applyRadioVolume() {
+      const player = document.getElementById('radio-player');
+      if (player) {
+        player.volume = this.settings.radio_volume / 100;
+      }
     },
 
-    getBoatImage(uid) {
-      return this.boatImages[uid] || '/static/images/bigrock.png';
-    },
+    toggleRadio() {
+      const player = document.getElementById('radio-player');
+      if (!player) return;
 
-    loadParticipants() {
-      fetch('/participants_data?limit=1000&offset=0')
-        .then(res => res.json())
-        .then(data => {
-          const images = {};
-          for (const p of data.participants) {
-            images[p.uid] = p.image_path;
-          }
-          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
-          this.boatImages = images;
-          this.events = [...this.events];
-          this.hooked = [...this.hooked];
-        });
-    },
+      if (this.radioPlaying) {
+        if (this.hls) this.hls.destroy();
+        player.pause();
+        this.radioPlaying = false;
+        localStorage.setItem('radioPlaying', 'false');
+        return;
+      }
 
-    fetchAll() {
-      this.loading = true;
-      Promise.all([
-        fetch('/scrape/events').then(res => res.json()),
-        fetch('/hooked').then(res => res.json())
-      ])
-        .then(([eventsData, hookedData]) => {
-          this.events = eventsData.events || [];
-          this.hooked = hookedData.events || [];
-          this.loading = false;
-        })
-        .catch(err => {
-          console.error("❌ Fetch error:", err);
-          this.loading = false;
-        });
-    },
-
-    formatTime(ts) {
-      const dt = new Date(ts);
-      return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    },
-
-    isFollowed(uid) {
-      return this.followed.includes(uid);
-    },
-
-    fetchSettings() {
-      return fetch('/api/settings')
-        .then(res => res.json())
-        .then(data => { this.settings = { ...this.settings, ...data }; });
-    },
-
-    fetchVersion() {
-      fetch('/api/version')
-        .then(res => res.json())
-        .then(data => { this.version = data.version; });
-    },
-
-    loadTournamentLogo() {
       fetch('/api/settings')
         .then(res => res.json())
         .then(settings => {
           const tournament = settings.tournament;
           return fetch('https://js9467.github.io/Brtourney/settings.json')
             .then(res => res.json())
-            .then(all => { this.tournamentLogo = all[tournament]?.logo || ''; });
+            .then(all => {
+              const primary = all[tournament]?.stream;
+              const fallback = all[tournament]?.fallback_stream || all.fallback_stream;
+
+              const tryPlay = (url, label = 'Primary') => {
+                return new Promise((resolve, reject) => {
+                  if (!url) return reject(`${label} stream URL is missing.`);
+
+                  if (Hls.isSupported()) {
+                    if (this.hls) this.hls.destroy();
+                    this.hls = new Hls();
+                    this.hls.loadSource(url);
+                    this.hls.attachMedia(player);
+                    this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                      this.applyRadioVolume();
+                      player.play().then(resolve).catch(reject);
+                    });
+                  } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+                    player.src = url;
+                    this.applyRadioVolume();
+                    player.play().then(resolve).catch(reject);
+                  } else {
+                    reject(`${label} stream unsupported.`);
+                  }
+
+                  setTimeout(() => reject(`${label} stream timed out.`), 5000);
+                });
+              };
+
+              tryPlay(primary, 'Primary')
+                .then(() => {
+                  this.radioPlaying = true;
+                  this.error = null;
+                  localStorage.setItem('radioPlaying', 'true');
+                })
+                .catch(primaryErr => {
+                  console.warn("Primary stream failed:", primaryErr);
+                  tryPlay(fallback, 'Fallback')
+                    .then(() => {
+                      this.radioPlaying = true;
+                      this.error = "Your tournament VHF feed is currently unavailable. You are hearing sample audio.";
+                      this.enqueueMessage(this.error);
+                      localStorage.setItem('radioPlaying', 'true');
+                    })
+                    .catch(fallbackErr => {
+                      console.error("Both streams failed:", fallbackErr);
+                      this.radioPlaying = false;
+                      this.error = "🔇 Failed to play VHF stream.";
+                      this.enqueueMessage(this.error);
+                    });
+                });
+            });
+        });
+    },
+
+    fetchSettings() {
+      return fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => {
+          this.settings = { ...this.settings, ...data };
+        });
+    },
+
+    fetchVersion() {
+      fetch('/api/version')
+        .then(res => res.json())
+        .then(data => {
+          this.version = data.version;
         });
     },
 
@@ -310,68 +341,94 @@ const app = createApp({
       }, 7000);
     },
 
-    // ✅ New VHF toggle logic
-    toggleRadio() {
-      if (this.radioPlaying) {
-        this.stopRadio();
-      } else {
-        this.startRadio();
-      }
+    fetchAll() {
+      this.loading = true;
+      Promise.all([
+        fetch('/scrape/events').then(res => res.json()),
+        fetch('/hooked').then(res => res.json())
+      ])
+        .then(([eventsData, hookedData]) => {
+          const newEvents = eventsData.events || [];
+          const newHooked = hookedData.events || [];
+
+          // Track new events to avoid initial sound spam
+          for (const event of newEvents) {
+            const key = event.timestamp + event.uid;
+            const isNew = !this.lastEventTimestamps.has(key);
+            this.lastEventTimestamps.add(key);
+
+            if (isNew && !this.firstLoad && this.settings.sounds_enabled) {
+              if (event.event.toLowerCase().includes('boated')) {
+                this.playSound(this.settings.boated_sound);
+              } else if (this.isFollowed(event.uid)) {
+                this.playSound(this.settings.followed_sound);
+              }
+            }
+          }
+
+          this.firstLoad = false;
+          this.events = newEvents;
+          this.hooked = newHooked;
+          this.loading = false;
+        })
+        .catch(err => {
+          console.error("❌ Fetch error:", err);
+          this.loading = false;
+        });
     },
 
-    startRadio() {
-      const player = document.getElementById('radio-player');
-      if (!player) return;
-
-      const stream = this.settings.stream || this.settings.fallback_stream;
-      if (!stream) {
-        this.error = "❌ No stream URL configured";
-        console.warn(this.error);
-        return;
-      }
-
-      if (Hls.isSupported()) {
-        if (!this.hls) {
-          this.hls = new Hls();
-          this.hls.loadSource(stream);
-          this.hls.attachMedia(player);
-        } else {
-          this.hls.loadSource(stream);
-        }
-      } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-        player.src = stream;
-      } else {
-        this.error = "❌ Browser does not support HLS playback";
-        console.warn(this.error);
-        return;
-      }
-
-      player.volume = this.settings.radio_volume / 100;
-      player.play().catch(err => console.warn("VHF play error:", err));
-      this.radioPlaying = true;
-      localStorage.setItem('radioPlaying', 'true');
+    getBoatImage(uid) {
+      return this.boatImages[uid] || '';
     },
 
-    stopRadio() {
-      const player = document.getElementById('radio-player');
-      if (player) player.pause();
-      this.radioPlaying = false;
-      localStorage.setItem('radioPlaying', 'false');
+    loadParticipants() {
+      fetch('/participants_data?limit=1000&offset=0')
+        .then(res => res.json())
+        .then(data => {
+          const images = {};
+          for (const p of data.participants) {
+            images[p.uid] = p.image_path;
+          }
+          // Include Palmer Lou for demo
+          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
+          this.boatImages = images;
+        });
     },
 
-    applyRadioVolume(e) {
-      const player = document.getElementById('radio-player');
-      if (player) player.volume = this.settings.radio_volume / 100;
+    loadTournamentLogo() {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+            });
+        });
     },
 
-    saveRadioVolume() {
-      localStorage.setItem('radioVolume', this.settings.radio_volume);
+    formatTime(ts) {
+      const dt = new Date(ts);
+      return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    },
+
+    isFollowed(uid) {
+      return this.followed.includes(uid);
+    },
+
+    playSound(filename) {
+      if (!filename) return;
+      const cleanName = filename.replace(/\.mp3$/i, '');
+      const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
+      audio.volume = (this.settings.event_volume || 80) / 100;
+      audio.play().catch(err => console.warn('🔇 Sound failed:', err));
     }
   }
 
 }).mount('#app');
 
-window.app = app; // ✅ Make Vue accessible to injected events
+window.app = app; // ✅ Expose to injectTestEvent
 
 // ✅ Fixed simulated demo event
 window.injectTestEvent = function () {
@@ -380,13 +437,15 @@ window.injectTestEvent = function () {
     boat: "Palmer Lou",
     event: "Boated",
     details: "Palmer Lou has boated a massive Blue Marlin and will be heading to the scales.",
-    timestamp: new Date().toISOString(), // current time so it appears immediately
+    timestamp: new Date().toISOString(), // current time so it shows immediately
     uid: "palmer_lou"
   };
   window.app.events.unshift(injected);
   window.app.lastEventTimestamps.add(injected.timestamp + injected.uid);
+  window.app.playSound(window.app.settings.boated_sound);
 };
 </script>
+
 
 </body>
 </html>

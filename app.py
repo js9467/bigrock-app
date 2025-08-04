@@ -306,9 +306,8 @@ def cache_boat_image(boat_name, image_url):
 
 def inject_hooked_up_events(events, tournament=None):
     """
-    Creates synthetic Hooked Up events for demo mode.
-    - Ensures Hooked Up events appear immediately.
-    - Maintains future timestamps for resolution events.
+    Creates synthetic Hooked Up events for demo mode with
+    progressive timestamps to simulate live activity.
     """
     demo_events = []
     inserted_keys = set()
@@ -317,7 +316,7 @@ def inject_hooked_up_events(events, tournament=None):
     # Sort original events by timestamp
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-    except Exception:
+    except:
         pass
 
     for i, event in enumerate(events):
@@ -329,26 +328,26 @@ def inject_hooked_up_events(events, tournament=None):
         is_resolution = (
             event_type == "Boated"
             or (event_type == "Released" and not re.search(r"\b\w+\s+\w+\s+released\b", details))
-            or "pulled hook" in details
-            or "wrong species" in details
+            or ("pulled hook" in details)
+            or ("wrong species" in details)
         )
         if not is_resolution:
             continue
 
         try:
-            # Shift resolution event into demo timeline (future)
+            # Resolution event time
+            res_ts = date_parser.parse(event["timestamp"])
+
+            # Shift resolution into "future demo time"
             demo_res_time = now + timedelta(seconds=i * 45)
             event["timestamp"] = demo_res_time.isoformat()
 
-            # Inject Hooked Up 3–30 min before resolution
+            # Insert Hooked Up event 3–30 minutes before resolution in demo timeline
             delta_minutes = random.randint(3, 30)
             hookup_time = demo_res_time - timedelta(minutes=delta_minutes)
 
-            # ✅ Force hook to be in the past for immediate visibility
-            if hookup_time > now:
-                hookup_time = now - timedelta(seconds=1)
-
-            key = f"{event['uid']}_{event['timestamp']}"
+            # ✅ Use a pipe '|' to safely separate uid and timestamp
+            key = f"{event['uid']}|{event['timestamp']}"
             if key in inserted_keys:
                 continue
 
@@ -372,7 +371,7 @@ def inject_hooked_up_events(events, tournament=None):
     print(f"📦 Returning {len(all_events)} total events (including {len(demo_events)} injected)")
 
     return all_events
-
+    
 def save_demo_data_if_needed(settings, old_settings):
     if settings.get("data_source") == "demo":
         print("📦 [DEMO] Saving demo data...")
@@ -1261,7 +1260,7 @@ def get_hooked_up_events():
         unresolved = []
 
         if data_source == "demo":
-            # Track resolutions with timestamp
+            # Track resolution events with timestamp
             resolution_lookup = set()
             for e in events:
                 event_type = e.get("event", "")
@@ -1271,7 +1270,6 @@ def get_hooked_up_events():
                 if event_type in ["Released", "Boated"] or \
                    "pulled hook" in e.get("details", "").lower() or \
                    "wrong species" in e.get("details", "").lower():
-                    # Lookup key: uid + iso timestamp of the event
                     resolution_lookup.add((e["uid"], ts.isoformat()))
 
             for e in events:
@@ -1281,20 +1279,21 @@ def get_hooked_up_events():
                 if ts.time() > now.time():
                     continue
 
-                # Parse the intended resolution timestamp from hookup_id if present
+                # ✅ Parse the intended resolution timestamp from hookup_id with '|'
                 hook_id = e.get("hookup_id", "")
                 try:
-                    uid, ts_str = hook_id.rsplit("_", 1)
+                    uid, ts_str = hook_id.split("|", 1)
                     target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
                 except Exception:
                     unresolved.append(e)
                     continue
 
+                # Only keep Hooked Up if it is not resolved
                 if (uid, target_ts) not in resolution_lookup:
                     unresolved.append(e)
 
         else:
-            # Live mode: track hooks per boat and clear when resolved
+            # ✅ Live mode: track hooks per boat and clear ALL when resolved
             boat_hooks = {}  # uid -> list of unresolved hooked events
             for e in events:
                 uid = e.get("uid")
@@ -1307,9 +1306,8 @@ def get_hooked_up_events():
                 elif ev_type in ["Released", "Boated"] or \
                      "pulled hook" in e.get("details", "").lower() or \
                      "wrong species" in e.get("details", "").lower():
-                    if uid in boat_hooks and boat_hooks[uid]:
-                        # Pop the oldest unresolved hook for that boat
-                        boat_hooks[uid].pop(0)
+                    # ✅ Clear all unresolved hooks for that boat
+                    boat_hooks[uid] = []
 
             # Collect all remaining unresolved hooks
             for hooks in boat_hooks.values():
@@ -1325,7 +1323,7 @@ def get_hooked_up_events():
     except Exception as e:
         print(f"❌ Error in /hooked: {e}")
         return jsonify({"status": "error", "count": 0, "events": []})
-
+        
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

@@ -738,8 +738,55 @@ def get_status():
         print(f"❌ Error in /status: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ==========================================
+# Alerts + Settings Combined Persistence
+# ==========================================
+
+@app.route('/alerts/list', methods=['GET'])
+def list_alerts():
+    """Return all alert subscriber emails/SMS gateways."""
+    return jsonify(load_alerts())
+
+@app.route('/alerts/subscribe', methods=['POST'])
+def subscribe_alerts():
+    """Add new alert subscribers to alerts.json."""
+    data = request.get_json()
+    new_emails = data.get('sms_emails', [])
+    alerts = load_alerts()
+
+    for email in new_emails:
+        if email not in alerts:
+            alerts.append(email)
+
+    save_alerts(alerts)
+    return jsonify({"status": "subscribed", "count": len(alerts)})
+
+@app.route('/alerts/test', methods=['GET'])
+def test_alerts():
+    """Send a test message to all subscribers."""
+    alerts = load_alerts()
+    if not alerts:
+        return jsonify({"status": "no_subscribers"}), 404
+
+    test_message = "🚤 Test Alert: Your Big Rock alerts are working!"
+    success = 0
+    for recipient in alerts:
+        try:
+            send_sms_email(recipient, test_message)
+            success += 1
+        except Exception as e:
+            print(f"⚠️ Failed to send to {recipient}: {e}")
+
+    return jsonify({"status": "sent", "success_count": success})
+
+
+# ==========================================
+# Settings API with Alerts Integration
+# ==========================================
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
+    """Get or update app settings, including alert recipients."""
     if request.method == 'POST':
         settings_data = request.get_json()
         if not settings_data:
@@ -750,28 +797,44 @@ def api_settings():
         new_tournament = settings_data.get("tournament")
         new_mode = settings_data.get("data_source")
 
-        # Ensure sound fields exist in the saved file
-        settings_data.setdefault("followed_sound", old_settings.get("followed_sound", "1904_champagne-cork-pop-02"))
-        settings_data.setdefault("boated_sound", old_settings.get("boated_sound", "1804_doorbell-02"))
+        # ✅ Ensure sound fields exist
+        settings_data.setdefault(
+            "followed_sound",
+            old_settings.get("followed_sound", "1904_champagne-cork-pop-02")
+        )
+        settings_data.setdefault(
+            "boated_sound",
+            old_settings.get("boated_sound", "1804_doorbell-02")
+        )
 
+        # ✅ Save SMS/email alerts
+        sms_emails = settings_data.get("sms_emails", [])
+        save_alerts(sms_emails)
+
+        # ✅ Save settings.json
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings_data, f, indent=4)
 
+        # ✅ Trigger scrapes if tournament changed in live mode
         if new_tournament != old_tournament and new_mode == "live":
             print(f"🔄 Tournament changed: {old_tournament} → {new_tournament}")
             run_in_thread(lambda: scrape_events(force=True, tournament=new_tournament), "events")
             run_in_thread(lambda: scrape_participants(force=True), "participants")
 
+        # ✅ Handle demo mode data caching
         save_demo_data_if_needed(settings_data, old_settings)
 
         return jsonify({'status': 'success'})
 
-    # GET: ensure sound fields exist
+    # ----- GET Settings -----
     settings = load_settings()
     settings.setdefault("followed_sound", "1904_champagne-cork-pop-02")
     settings.setdefault("boated_sound", "1804_doorbell-02")
-    return jsonify(settings)
 
+    # ✅ Include alerts in GET response
+    settings["sms_emails"] = load_alerts()
+
+    return jsonify(settings)
 
 
 @app.route('/settings-page/')
@@ -1071,9 +1134,6 @@ def list_sounds():
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500
 
-@app.route('/alerts/list', methods=['GET'])
-def list_alerts():
-    return jsonify(load_alerts())
 
 @app.route('/api/version')
 def api_version():
@@ -1154,33 +1214,6 @@ def release_summary_data():
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})
-@app.route('/alerts/subscribe', methods=['POST'])
-def subscribe_alerts():
-    data = request.get_json()
-    new_emails = data.get('sms_emails', [])
-    alerts = load_alerts()
-    for email in new_emails:
-        if email not in alerts:
-            alerts.append(email)
-    save_alerts(alerts)
-    return jsonify({"status": "subscribed", "count": len(alerts)})
-
-@app.route('/alerts/test', methods=['GET'])
-def test_alerts():
-    alerts = load_alerts()
-    if not alerts:
-        return jsonify({"status": "no_subscribers"}), 404
-
-    test_message = "🚤 Test Alert: Your Big Rock alerts are working!"
-    success = 0
-    for recipient in alerts:
-        try:
-            send_sms_email(recipient, test_message)
-            success += 1
-        except Exception as e:
-            print(f"⚠️ Failed to send to {recipient}: {e}")
-
-    return jsonify({"status": "sent", "success_count": success})
 
 
 

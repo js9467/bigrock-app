@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2  # we only need a small history to check changed files
 
       - name: Generate dynamic version based on commit count
         run: |
@@ -23,10 +23,19 @@ jobs:
       - name: Get list of changed files
         id: changed
         run: |
-          git fetch origin main --depth=2
-          FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          FILES=$(git diff --name-only HEAD^ HEAD)
           echo "$FILES" > files.txt
-          echo "files=$(paste -sd "," files.txt)" >> $GITHUB_OUTPUT
+          echo "Changed files:"
+          cat files.txt
+          
+          # Always include version.txt
+          echo "version.txt" >> files.txt
+
+          # Convert to comma-separated list for scp-action
+          FILE_LIST=$(paste -sd "," files.txt)
+          echo "files=$FILE_LIST" >> $GITHUB_OUTPUT
+
+          # Check if any Python files changed
           if grep -Ei '\.py$' files.txt; then
             echo "py_changed=true" >> $GITHUB_ENV
           else
@@ -43,17 +52,13 @@ jobs:
             echo "🧹 Removing rogue /home/pi/app.py if it exists..."
             rm -f /home/pi/app.py
 
-      - name: Upload all source files to Raspberry Pi
+      - name: Upload changed files to Raspberry Pi
         uses: appleboy/scp-action@v0.1.4
         with:
           host: 64.99.148.73
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
-          source: |
-            ./*.py
-            ./static/
-            ./templates/
-            version.txt
+          source: ${{ steps.changed.outputs.files }}
           target: /home/pi/bigrock-app
           overwrite: true
 

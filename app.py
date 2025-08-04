@@ -771,7 +771,7 @@ def test_alerts():
     boat_name = "Palmer Lou"
     action = "Hooked Up"
     action_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    image_path = "static/images/boats/palmer_lou.jpg"
+    image_path = "static/images/palmer_lou.jpg"
 
     recipients = load_alerts()
     if not recipients:

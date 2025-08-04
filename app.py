@@ -654,7 +654,7 @@ def scrape_leaderboard(tournament):
         # Optional: weight or points
         points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
-
+        
         uid = boat_name.lower().replace(" ", "_").replace("'", "")
         image_path = f"/static/images/boats/{uid}.jpg"
         leaderboard.append({
@@ -678,12 +678,8 @@ MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"
 
-MAX_IMG_SIZE = (400, 400)  # Max width/height
-IMG_QUALITY = 70           # JPEG/WEBP quality
-BOAT_FOLDER = "static/images/boats"
-
 def optimize_boat_image(file_path):
-    """Auto-rotate, resize, compress, and create WebP for a single boat image."""
+    """Resize and compress a single boat image and save WebP version."""
     try:
         if not os.path.exists(file_path):
             return
@@ -692,34 +688,19 @@ def optimize_boat_image(file_path):
         if os.path.getsize(file_path) < 50_000:
             return
 
-        from PIL import ExifTags
-        orientation_key = next((k for k, v in ExifTags.TAGS.items() if v == 'Orientation'), None)
-
         with Image.open(file_path) as img:
-            # 🔹 Auto-rotate based on EXIF
-            try:
-                exif = img._getexif()
-                if exif and orientation_key in exif:
-                    orientation = exif[orientation_key]
-                    if orientation == 3:
-                        img = img.rotate(180, expand=True)
-                    elif orientation == 6:
-                        img = img.rotate(270, expand=True)
-                    elif orientation == 8:
-                        img = img.rotate(90, expand=True)
-            except Exception as e:
-                print(f"⚠️ EXIF rotation failed for {file_path}: {e}")
+            img_format = img.format or "JPEG"
 
-            # 🔹 Resize if larger than target
+            # Resize in-place if larger than target
             if img.width > MAX_IMG_SIZE[0] or img.height > MAX_IMG_SIZE[1]:
                 img.thumbnail(MAX_IMG_SIZE)
 
-            # 🔹 Overwrite original with optimized JPEG/PNG
+            # Overwrite original with optimized JPEG/PNG
             img.save(file_path, optimize=True, quality=IMG_QUALITY)
 
-            # 🔹 Create WebP version
+            # Create WebP version for faster browsers
             webp_path = os.path.splitext(file_path)[0] + ".webp"
-            img.convert("RGB").save(webp_path, format="WEBP", optimize=True, quality=IMG_QUALITY)
+            img.save(webp_path, format="WEBP", optimize=True, quality=IMG_QUALITY)
 
             print(f"✅ Optimized {os.path.basename(file_path)} ({img.width}x{img.height}) -> WebP saved")
     except Exception as e:
@@ -736,11 +717,7 @@ def optimize_all_boat_images():
             optimize_boat_image(fpath)
             optimized_count += 1
     print(f"🎉 Boat image optimization complete ({optimized_count} checked)")
-
-
-
-
-
+    
 # Routes
 @app.route('/')
 def homepage():
@@ -867,7 +844,7 @@ def get_events():
         return jsonify({
             "status": "ok",
             "count": len(filtered),
-            "events": filtered
+            "events": filtered 
         })
 
     force = request.args.get("force", "false").lower() == "true"
@@ -1154,8 +1131,8 @@ def get_leaderboard(tournament):
         leaderboard = scrape_leaderboard(tournament)
 
     return jsonify({"status": "ok", "leaderboard": leaderboard})
-
-
+    
+    
 # Global set to track which demo alerts were emailed
 sent_demo_alerts = set()  # (uid, timestamp, event_type)
 
@@ -1191,8 +1168,7 @@ def get_hooked_up_events():
 
     # Load events
     if data_source == "demo":
-        data = load_demo_data(tournament)
-        events = data.get("events", [])
+        events = load_demo_data(tournament).get("events", [])
     else:
         events_file = get_cache_path(tournament, "events.json")
         if not os.path.exists(events_file):
@@ -1200,7 +1176,7 @@ def get_hooked_up_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    # Sort by timestamp ascending to process sequentially
+    # Sort chronologically
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     except:
@@ -1209,60 +1185,97 @@ def get_hooked_up_events():
     unresolved = []
 
     if data_source == "demo":
-        # Existing demo logic (hookup_id based)
+        global sent_demo_alerts
+
+        # 1️⃣ Adjust demo timestamps to "play" in real time
+        start_time = datetime.now()
+        for i, e in enumerate(events):
+            try:
+                original_ts = date_parser.parse(e["timestamp"])
+                # offset events every 45 seconds
+                new_ts = start_time + timedelta(seconds=i * 45)
+                e["timestamp"] = new_ts.isoformat()
+            except:
+                e["timestamp"] = (start_time + timedelta(seconds=i * 45)).isoformat()
+
+        # 2️⃣ Build resolution lookup & send emails
         resolution_lookup = set()
+        new_emails = 0
+        MAX_EMAILS_PER_POLL = 3
+
         for e in events:
-            if e["event"] in ["Released", "Boated"] or \
-               "pulled hook" in e.get("details", "").lower() or \
-               "wrong species" in e.get("details", "").lower():
+            event_type = e.get("event", "")
+            details = e.get("details", "").lower()
+
+            # Check if event is past "now" in adjusted timeline
+            try:
+                ts = date_parser.parse(e["timestamp"])
+                if ts > now:
+                    continue
+            except:
+                continue
+
+            uid = e.get("uid", "unknown")
+            key_base = (uid, e["timestamp"], event_type)
+
+            # Resolution events
+            is_resolution = (
+                event_type in ["Released", "Boated"] or
+                "pulled hook" in details or
+                "wrong species" in details
+            )
+            if is_resolution:
+                resolution_lookup.add((uid, ts.isoformat()))
+                if key_base not in sent_demo_alerts and new_emails < MAX_EMAILS_PER_POLL:
+                    send_boat_email_alert(e)
+                    sent_demo_alerts.add(key_base)
+                    new_emails += 1
+
+        # 3️⃣ Process Hooked Up events
+        for e in events:
+            if e.get("event") != "Hooked Up":
+                continue
+
+            try:
+                ts = date_parser.parse(e["timestamp"])
+                if ts > now:
+                    continue
+            except:
+                continue
+
+            # Unresolved if no matching resolution
+            uid = e.get("uid", "unknown")
+            hookup_id = e.get("hookup_id", "")
+            target_ts = None
+            if hookup_id:
                 try:
-                    ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                    if ts.time() > now.time():  # future events in demo mode are ignored
-                        continue
-                    resolution_lookup.add((e["uid"], ts.isoformat()))
+                    _, ts_str = hookup_id.rsplit("_", 1)
+                    target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
                 except:
-                    continue
+                    pass
 
-        for e in events:
-            if e["event"] != "Hooked Up":
-                continue
-            try:
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if ts.time() > now.time():
-                    continue
-            except:
-                continue
-
-            try:
-                uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
-                target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-            except:
+            if not target_ts or (uid, target_ts) not in resolution_lookup:
                 unresolved.append(e)
-                continue
+                key_base = (uid, e["timestamp"], "Hooked Up")
+                if key_base not in sent_demo_alerts and new_emails < MAX_EMAILS_PER_POLL:
+                    send_boat_email_alert(e)
+                    sent_demo_alerts.add(key_base)
+                    new_emails += 1
 
-            if (uid, target_ts) not in resolution_lookup:
-                unresolved.append(e)
+        save_sent_demo_alerts()
 
     else:
-        # 🔹 Live mode: sequential clearing logic
-        boat_hooks = {}  # uid -> list of unresolved hooked events
-
+        # 🔹 Live mode logic (unchanged)
+        boat_hooks = {}
         for e in events:
             uid = e.get("uid")
             if not uid:
                 continue
-
             if e["event"] == "Hooked Up":
-                # Add this hooked event to unresolved list for that boat
                 boat_hooks.setdefault(uid, []).append(e)
-
             else:
-                # This is a resolution event: Boated / Released / Pulled Hook / Wrong Species
                 if uid in boat_hooks and boat_hooks[uid]:
-                    # Remove oldest unresolved hooked event for that boat
                     boat_hooks[uid].pop(0)
-
-        # Collect all unresolved events in chronological order
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
@@ -1515,5 +1528,4 @@ def release_summary_data():
 if __name__ == '__main__':
     print("🚀 Optimizing boat images on startup...")
     optimize_all_boat_images()
-    app.run(host='0.0.0.0', port=5000, debug=True)
     app.run(host='0.0.0.0', port=5000, debug=True)

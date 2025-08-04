@@ -635,48 +635,69 @@ from bs4 import BeautifulSoup
 CACHE_DIR = "cache"
 
 def scrape_leaderboard(tournament):
-    # Load settings.json from GitHub
+    # Load settings.json from your GitHub
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
         settings = requests.get(settings_url, timeout=10).json()
-    except:
-        print("⚠️ Could not fetch settings.json")
+    except Exception as e:
+        print(f"⚠️ Could not fetch settings.json: {e}")
         return []
 
-    # ✅ Use the tournament key exactly as in the JSON
-    if tournament not in settings:
-        print(f"⚠️ Tournament '{tournament}' not found in settings.json")
+    # Normalize the tournament name to match settings keys
+    key = next((k for k in settings if k.lower() == tournament.lower()), None)
+    if not key:
+        msg = f"No tournament key found for {tournament}"
+        print(f"❌ {msg}")
         return []
 
-    t_info = settings[tournament]
+    t_info = settings[key]
     url = t_info.get("leaderboard")
     if not url:
-        print(f"⚠️ No leaderboard URL for {tournament}")
+        msg = f"No leaderboard URL for {tournament}"
+        print(f"❌ {msg}")
         return []
 
     print(f"🔄 Scraping leaderboard for {tournament}: {url}")
-
     try:
-        r = requests.get(url, timeout=10, verify=False)
+        r = requests.get(url, timeout=15, verify=False)
         r.raise_for_status()
         html = r.text
     except Exception as e:
         print(f"❌ Failed to fetch leaderboard: {e}")
         return []
 
+    # 🔹 Save raw HTML for inspection
+    with open("debug_leaderboard.html", "w", encoding="utf-8") as f:
+        f.write(html)
+    print("📄 Saved debug_leaderboard.html for inspection")
+
     soup = BeautifulSoup(html, "html.parser")
 
     leaderboard = []
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10 entries
-        name_tag = row.select_one("h4.montserrat")
+
+    # 1️⃣ Try the original selector
+    rows = soup.select("article.m-b-20")
+    # 2️⃣ Try list items with 'team' or leaderboard rows
+    if not rows:
+        rows = soup.select("li.team, li.leaderboard-row, tr")
+    # 3️⃣ Fallback to any li in leaderboard containers
+    if not rows:
+        rows = soup.select("ul.leaderboard li, ol.leaderboard li")
+
+    for row in rows[:20]:  # Grab top 20 for safety
+        name_tag = row.select_one("h4.montserrat, h3, h2, span.team-name, td")
         if not name_tag:
             continue
-        boat_name = name_tag.get_text(strip=True)
 
-        points_tag = row.select_one("p.pull-right")
+        boat_name = name_tag.get_text(strip=True)
+        if not boat_name:
+            continue
+
+        # Optional points/weight
+        points_tag = row.select_one("p.pull-right, span.points, td.points")
         points = points_tag.get_text(strip=True) if points_tag else ""
 
-        uid = boat_name.lower().replace(" ", "_").replace("'", "")
+        uid = normalize_boat_name(boat_name)
         image_path = f"/static/images/boats/{uid}.jpg"
 
         leaderboard.append({
@@ -695,6 +716,7 @@ def scrape_leaderboard(tournament):
 
     print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
     return leaderboard
+    
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"

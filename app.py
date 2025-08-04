@@ -19,7 +19,7 @@ ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
 
 SMTP_USER = "bigrockapp@gmail.com"        # use a Gmail account
-SMTP_PASS = "zxdsxfgbabgdkrxt"          # must be a Gmail app password
+SMTP_PASS = "uxgjfdeajsyqlosw"          # must be a Gmail app password
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 

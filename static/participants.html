@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/static/css/base.css" />
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-  <div id="app">
+  <div id="app" v-cloak>
     <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
@@ -42,17 +42,18 @@
           :key="p.uid"
           class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col"
         >
-          <!-- Lazy loaded image with fade-in -->
+          <!-- Lazy loaded image -->
           <img
             class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
-            :data-src="p.image_path || '/static/images/bigrock.png'"
+            :data-src="p.image_path ? p.image_path : '/static/images/bigrock.png'"
             src="/static/images/bigrock.png"
+            loading="lazy"
             alt="Boat Image"
           />
           <div class="p-4 flex-1 flex flex-col justify-between">
             <div>
               <h2 class="text-xl font-semibold truncate">{{ p.boat }}</h2>
-              <p class="text-sm text-gray-600 mb-3 truncate">{{ p.type }}</p>
+              <p class="text-sm text-gray-600 mb-3 truncate">{{ p.type || '' }}</p>
             </div>
             <button
               @click="toggleFollow(p.uid)"
@@ -92,7 +93,7 @@
       filteredParticipants() {
         const q = this.search.toLowerCase();
         return this.participants.filter(p =>
-          p.boat.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
+          (p.boat || '').toLowerCase().includes(q) || (p.type || '').toLowerCase().includes(q)
         );
       }
     },
@@ -115,7 +116,7 @@
         this.participants = (data.participants || []).sort((a,b)=>a.boat.localeCompare(b.boat));
         this.loading = false;
 
-        // Wait for Vue to render the list, then attach lazy loader
+        // Lazy-load after DOM is ready
         this.$nextTick(() => this.initLazyLoading());
       },
       async loadLogo() {
@@ -131,8 +132,10 @@
       launchKeyboard() { fetch('/launch_keyboard').catch(()=>{}); },
       hideKeyboard() { fetch('/hide_keyboard').catch(()=>{}); },
 
-      // Initialize Intersection Observer for lazy images
       initLazyLoading() {
+        const images = document.querySelectorAll('img.lazy');
+        if (!images.length) return;
+
         const observer = new IntersectionObserver(entries => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -144,9 +147,7 @@
           });
         }, { threshold: 0.1 });
 
-        document.querySelectorAll('img.lazy').forEach(img => {
-          observer.observe(img);
-        });
+        images.forEach(img => observer.observe(img));
       }
     },
     mounted() {
@@ -156,5 +157,7 @@
   });
   app.mount('#app');
   </script>
+
+  <style>[v-cloak]{display:none}</style>
 </body>
 </html>

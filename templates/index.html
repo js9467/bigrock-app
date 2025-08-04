@@ -178,6 +178,13 @@
 <script>
 const { createApp } = Vue;
 
+// ✅ Unlock audio on first click for Chrome/Edge autoplay
+document.addEventListener('click', () => {
+  const unlock = new Audio();
+  unlock.muted = true;
+  unlock.play().catch(() => {});
+}, { once: true });
+
 const vm = createApp({
   data() {
     return {
@@ -204,7 +211,7 @@ const vm = createApp({
       messageQueue: [],
       currentMessage: '',
       messageTimer: null,
-      firstLoad: true // ✅ Prevents sound spam on initial load
+      firstLoad: true // ✅ prevents initial spam
     };
   },
 
@@ -219,30 +226,135 @@ const vm = createApp({
       setInterval(this.fetchAll, 30000);
     });
 
+    // Restore VHF state
     const player = document.getElementById('radio-player');
     if (player) player.volume = this.settings.radio_volume / 100;
 
     const storedPlaying = localStorage.getItem('radioPlaying') === 'true';
-    if (storedPlaying) {
-      this.radioPlaying = !player.paused && !player.ended && player.currentTime > 0;
-      if (!this.radioPlaying) {
-        console.log('🔄 Auto-fix: forcing VHF to off because player is paused.');
-        localStorage.setItem('radioPlaying', 'false');
-      }
-    } else {
-      this.radioPlaying = false;
-    }
+    this.radioPlaying = storedPlaying && player && !player.paused && !player.ended && player.currentTime > 0;
 
     window.addEventListener('online', this.setupMessages);
     window.addEventListener('offline', this.setupMessages);
   },
 
   methods: {
+    // =======================
+    // 🔊 SOUND LOGIC
+    // =======================
+    playSound(filename) {
+      if (!filename || !this.settings.sounds_enabled) return;
+
+      let cleanName = filename.trim();
+      if (!cleanName.toLowerCase().endsWith(".mp3")) {
+        cleanName += ".mp3";
+      }
+
+      const audio = new Audio(`/static/sounds/${cleanName}`);
+      audio.volume = (this.settings.event_volume || 80) / 100;
+      audio.play()
+        .then(() => console.log(`🔊 Played sound: ${cleanName}`))
+        .catch(err => console.warn('🔇 Sound play blocked or failed:', err));
+    },
+
+    // =======================
+    // 🔁 FETCH EVENTS + HOOKED
+    // =======================
+    fetchAll() {
+      this.loading = true;
+      Promise.all([
+        fetch('/scrape/events').then(res => res.json()),
+        fetch('/hooked').then(res => res.json())
+      ])
+        .then(([eventsData, hookedData]) => {
+          const newEvents = eventsData.events || [];
+          const newHooked = hookedData.events || [];
+
+          for (const event of newEvents) {
+            const key = event.timestamp + event.uid;
+            const isNew = !this.lastEventTimestamps.has(key);
+            this.lastEventTimestamps.add(key);
+
+            if (isNew && this.settings.sounds_enabled) {
+              const etype = (event.event || "").toLowerCase();
+              if (etype.includes("boated")) {
+                this.playSound(this.settings.boated_sound);
+              } else if (this.isFollowed(event.uid)) {
+                this.playSound(this.settings.followed_sound);
+              }
+            }
+          }
+
+          this.events = newEvents;
+          this.hooked = newHooked;
+          this.loading = false;
+          this.firstLoad = false;
+        })
+        .catch(err => {
+          console.error("❌ Fetch error:", err);
+          this.loading = false;
+        });
+    },
+
+    // =======================
+    // 📡 SETTINGS & LOGO
+    // =======================
+    fetchSettings() {
+      return fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => {
+          this.settings = { ...this.settings, ...data };
+        });
+    },
+
+    fetchVersion() {
+      fetch('/api/version')
+        .then(res => res.json())
+        .then(data => { this.version = data.version; });
+    },
+
+    loadTournamentLogo() {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+            });
+        });
+    },
+
+    // =======================
+    // 🖼 PARTICIPANTS IMAGES
+    // =======================
+    loadParticipants() {
+      fetch('/participants_data?limit=1000&offset=0')
+        .then(res => res.json())
+        .then(data => {
+          const images = {};
+          for (const p of data.participants) {
+            images[p.uid] = p.image_path;
+          }
+          images["palmer_lou"] = "/static/images/palmer_lou.jpg"; // demo fallback
+          this.boatImages = images;
+        });
+    },
+
+    getBoatImage(uid) {
+      return this.boatImages[uid] || '/static/images/bigrock.webp';
+    },
+
+    onImageError(e) {
+      e.target.src = '/static/images/bigrock.webp';
+    },
+
+    // =======================
+    // 🎧 VHF RADIO
+    // =======================
     applyRadioVolume() {
       const player = document.getElementById('radio-player');
-      if (player) {
-        player.volume = this.settings.radio_volume / 100;
-      }
+      if (player) player.volume = this.settings.radio_volume / 100;
     },
 
     toggleRadio() {
@@ -318,22 +430,9 @@ const vm = createApp({
         });
     },
 
-    fetchSettings() {
-      return fetch('/api/settings')
-        .then(res => res.json())
-        .then(data => {
-          this.settings = { ...this.settings, ...data };
-        });
-    },
-
-    fetchVersion() {
-      fetch('/api/version')
-        .then(res => res.json())
-        .then(data => {
-          this.version = data.version;
-        });
-    },
-
+    // =======================
+    // 🔔 MESSAGES & MARQUEE
+    // =======================
     setupMessages() {
       this.messageQueue = [];
       if (!navigator.onLine) {
@@ -362,77 +461,9 @@ const vm = createApp({
       }, 7000);
     },
 
-    fetchAll() {
-      this.loading = true;
-      Promise.all([
-        fetch('/scrape/events').then(res => res.json()),
-        fetch('/hooked').then(res => res.json())
-      ])
-        .then(([eventsData, hookedData]) => {
-          const newEvents = eventsData.events || [];
-          const newHooked = hookedData.events || [];
-
-          // Track new events to avoid initial sound spam
-          for (const event of newEvents) {
-            const key = event.timestamp + event.uid;
-            const isNew = !this.lastEventTimestamps.has(key);
-            this.lastEventTimestamps.add(key);
-
-            if (isNew && !this.firstLoad && this.settings.sounds_enabled) {
-              if (event.event.toLowerCase().includes('boated')) {
-                this.playSound(this.settings.boated_sound);
-              } else if (this.isFollowed(event.uid)) {
-                this.playSound(this.settings.followed_sound);
-              }
-            }
-          }
-
-          this.firstLoad = false;
-          this.events = newEvents;
-          this.hooked = newHooked;
-          this.loading = false;
-        })
-        .catch(err => {
-          console.error("❌ Fetch error:", err);
-          this.loading = false;
-        });
-    },
-
-    getBoatImage(uid) {
-      return this.boatImages[uid] || '/static/images/bigrock.webp';
-    },
-
-    onImageError(e) {
-      e.target.src = '/static/images/bigrock.webp';
-    },
-
-    loadParticipants() {
-      fetch('/participants_data?limit=1000&offset=0')
-        .then(res => res.json())
-        .then(data => {
-          const images = {};
-          for (const p of data.participants) {
-            images[p.uid] = p.image_path;
-          }
-          // Include Palmer Lou for demo
-          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
-          this.boatImages = images;
-        });
-    },
-
-    loadTournamentLogo() {
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(settings => {
-          const tournament = settings.tournament;
-          return fetch('https://js9467.github.io/Brtourney/settings.json')
-            .then(res => res.json())
-            .then(all => {
-              this.tournamentLogo = all[tournament]?.logo || '';
-            });
-        });
-    },
-
+    // =======================
+    // UTILS
+    // =======================
     formatTime(ts) {
       const dt = new Date(ts);
       return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -440,23 +471,15 @@ const vm = createApp({
 
     isFollowed(uid) {
       return this.followed.includes(uid);
-    },
-
-    playSound(filename) {
-      if (!filename) return;
-      const cleanName = filename.replace(/\.mp3$/i, '');
-      const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
-      audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play().catch(err => console.warn('🔇 Sound failed:', err));
     }
   }
 }).mount('#app');
 
-window.vm = vm;       // ✅ fixes "vm is not defined"
+window.vm = vm;
 window.app = vm;
 window.settings = vm.$data.settings;
 
-// ✅ Simulated demo event
+// ✅ Simulated demo event for testing sounds
 window.injectTestEvent = function () {
   if (!window.app) return;
   const injected = {

@@ -457,7 +457,9 @@ const app = createApp({
 
 }).mount('#app');
 
-window.app = app; // ✅ Expose to injectTestEvent
+window.app = vm;                    // Expose Vue instance
+window.settings = vm.$data.settings; // ✅ Direct reference for console
+
 
 // ✅ Simulated demo event
 window.injectTestEvent = function () {

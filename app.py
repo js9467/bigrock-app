@@ -878,15 +878,7 @@ def get_events():
         ]
         filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
 
-        # 🔹 Trigger email alerts for demo events
-        for e in filtered[:100]:
-            process_new_event(e)
-
-        return jsonify({
-            "status": "ok",
-            "count": len(filtered),
-            "events": filtered
-        })
+    
 
     # Live mode
     force = request.args.get("force", "false").lower() == "true"
@@ -897,10 +889,6 @@ def get_events():
             events = json.load(f)
 
     events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
-
-    # 🔹 Trigger email alerts for each new/recent event
-    for e in events[:100]:  # limit to recent events to prevent spam
-        process_new_event(e)
 
     return jsonify({
         "status": "ok" if events else "error",

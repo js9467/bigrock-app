@@ -1636,10 +1636,6 @@ def save_emailed_events():
     with open(NOTIFIED_FILE, "w") as f:
         json.dump(list(emailed_events), f)
 
-def should_email(event):
-    """Determine if this event should trigger an email."""
-    # You can filter types here if you only want certain events
-    return True  # ✅ Send email for ALL events
 
 
 

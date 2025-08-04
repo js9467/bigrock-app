@@ -102,13 +102,11 @@
       <div v-for="event in hooked" :key="event.timestamp + event.uid"
            :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-        <picture v-if="getBoatImage(event.uid).endsWith('.webp')">
-  <source :srcset="getBoatImage(event.uid)" type="image/webp">
-  <img :src="getBoatImage(event.uid).replace('.webp', '.jpg')"
-       loading="lazy"
-       class="w-20 h-20 object-cover rounded"
-       @error="onImageError($event)">
-</picture>
+        <img :src="getBoatImage(event.uid)"
+     loading="lazy"
+     class="w-20 h-20 object-cover rounded"
+     @error="onImageError($event)">
+
 <img v-else
      :src="getBoatImage(event.uid)"
      loading="lazy"

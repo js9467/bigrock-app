@@ -1095,6 +1095,9 @@ def get_leaderboard(tournament):
     return jsonify({"status": "ok", "leaderboard": leaderboard})
     
     
+# Global set to track which demo alerts were emailed
+sent_demo_alerts = set()  # (uid, timestamp, event_type)
+
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()
@@ -1112,7 +1115,7 @@ def get_hooked_up_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    # Sort chronologically to process in order
+    # Sort chronologically
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     except:
@@ -1123,22 +1126,53 @@ def get_hooked_up_events():
     if data_source == "demo":
         global sent_demo_alerts
 
-        # Step 1: Build resolution lookup
+        # Step 1: Build resolution lookup and send resolution emails
         resolution_lookup = set()
         for e in events:
-            if e["event"] in ["Released", "Boated"] or \
-               "pulled hook" in e.get("details", "").lower() or \
-               "wrong species" in e.get("details", "").lower():
-                try:
-                    ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                    if ts.time() <= now.time():  # ignore future demo events
-                        resolution_lookup.add((e["uid"], ts.isoformat()))
-                except:
+            event_type = e.get("event", "")
+            details = e.get("details", "").lower()
+
+            is_resolution = (
+                event_type in ["Released", "Boated"] or
+                "pulled hook" in details or
+                "wrong species" in details
+            )
+
+            if not is_resolution:
+                continue
+
+            try:
+                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                if ts.time() > now.time():  # ignore future demo events
                     continue
 
-        # Step 2: Process Hooked Up events
+                # Add to resolution lookup
+                resolution_lookup.add((e["uid"], ts.isoformat()))
+
+                # ✅ Send resolution email if not already sent
+                key = (e["uid"], ts.isoformat(), event_type)
+                if key not in sent_demo_alerts:
+                    sent_demo_alerts.add(key)
+
+                    # Include details in subject if available
+                    subject_event = f"{event_type}"
+                    if e.get("details"):
+                        subject_event += f" - {e['details']}"
+
+                    event_for_email = {
+                        "boat": e.get("boat", "Unknown"),
+                        "event": subject_event,
+                        "timestamp": e.get("timestamp"),
+                        "uid": e.get("uid"),
+                    }
+                    send_boat_email_alert(event_for_email)
+
+            except:
+                continue
+
+        # Step 2: Process Hooked Up events and send emails
         for e in events:
-            if e["event"] != "Hooked Up":
+            if e.get("event") != "Hooked Up":
                 continue
 
             try:
@@ -1152,18 +1186,19 @@ def get_hooked_up_events():
                 uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
                 target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
             except:
+                # Fallback if no hookup_id
                 unresolved.append(e)
-                continue
+                target_ts = ts.isoformat()
 
-            # Add unresolved events (no resolution yet)
+            # Unresolved means no matching resolution yet
             if (uid, target_ts) not in resolution_lookup:
                 unresolved.append(e)
 
-                # Step 3: Send email alert if not already sent
-                key = (uid, ts.isoformat())
+                # ✅ Send hooked up email if not already sent
+                key = (uid, ts.isoformat(), "Hooked Up")
                 if key not in sent_demo_alerts:
                     sent_demo_alerts.add(key)
-                    send_boat_email_alert(e)  # <- uses your inline image email helper
+                    send_boat_email_alert(e)
 
     else:
         # 🔹 Live mode: sequential clearing logic
@@ -1177,10 +1212,11 @@ def get_hooked_up_events():
             if e["event"] == "Hooked Up":
                 boat_hooks.setdefault(uid, []).append(e)
             else:
-                # Resolve oldest Hooked Up for that boat
+                # This is a resolution event
                 if uid in boat_hooks and boat_hooks[uid]:
                     boat_hooks[uid].pop(0)
 
+        # Collect all unresolved events
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
@@ -1189,7 +1225,6 @@ def get_hooked_up_events():
         "count": len(unresolved),
         "events": unresolved
     })
-
 
 
 @app.route('/bluetooth/status')

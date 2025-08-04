@@ -258,11 +258,12 @@ def run_in_thread(target, name):
     Thread(target=wrapper).start()
 
 def scrape_participants(force=False):
+    """Scrape participants for the current tournament, keeping boats only."""
     cache = load_cache()
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
 
-    # Check cache freshness
+    # ✅ Use cache if fresh
     if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
         if os.path.exists(participants_file):
@@ -271,6 +272,7 @@ def scrape_participants(force=False):
         return []
 
     try:
+        # Load tournament URLs from remote settings.json
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
         settings = requests.get(settings_url, timeout=30).json()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
@@ -283,13 +285,17 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
-        # Load existing participants
+        # Load existing participants to preserve images
         existing_participants = {}
         if os.path.exists(participants_file):
-            with open(participants_file, "r") as f:
-                for p in json.load(f):
-                    existing_participants[p["uid"]] = p
+            try:
+                with open(participants_file, "r") as f:
+                    for p in json.load(f):
+                        existing_participants[p["uid"]] = p
+            except Exception as e:
+                print(f"⚠️ Existing participants file unreadable, ignoring: {e}")
 
+        # Fetch and parse HTML
         html = fetch_with_scraperapi(participants_url)
         if not html:
             raise Exception("No HTML returned from ScraperAPI")
@@ -297,59 +303,48 @@ def scrape_participants(force=False):
         with open("debug_participants.html", "w", encoding="utf-8") as f:
             f.write(html)
 
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
         updated_participants = {}
         seen_boats = set()
         download_tasks = []
-        queued_uids = set()  # Prevent duplicate downloads
-
-        # Keywords that identify human entries
-        skip_keywords = ["captain", "mate", "angler", "crew", "team", "junior", "lady"]
 
         for article in soup.select("article.post.format-image"):
             name_tag = article.select_one("h2.post-title")
             type_tag = article.select_one("ul.post-meta li")
             img_tag = article.select_one("img")
-
             if not name_tag:
                 continue
 
             boat_name = name_tag.get_text(strip=True)
-            boat_type = type_tag.get_text(strip=True) if type_tag else ""
 
-            # 🔹 Skip non-boat entries (crew/people)
-            if any(word in boat_type.lower() for word in skip_keywords):
-                print(f"⏩ Skipping non-boat entry: {boat_name} ({boat_type})")
+            # ❌ Skip duplicates
+            if boat_name.lower() in seen_boats:
+                continue
+
+            # ❌ Skip anglers: no boat type or looks like "John Smith"
+            boat_type = type_tag.get_text(strip=True) if type_tag else ""
+            if not boat_type or re.match(r'^[A-Z][a-z]+\s[A-Z][a-z]+$', boat_name):
                 continue
 
             uid = normalize_boat_name(boat_name)
-
-            # Deduplicate boats
-            if uid in seen_boats:
-                continue
-            seen_boats.add(uid)
+            seen_boats.add(boat_name.lower())
 
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
             image_path = existing_participants.get(uid, {}).get("image_path", "")
-
             local_path = image_path[1:] if image_path.startswith('/') else image_path
+
             force_download = (
                 uid not in existing_participants or
                 not image_path or
                 not os.path.exists(local_path)
             )
 
-            # Queue download if needed
-            if force_download and image_url and uid not in queued_uids:
-                # Skip known blank/default placeholder images
-                if "placeholder" in image_url.lower() or "default" in image_url.lower():
-                    image_path = "/static/images/boats/default.jpg"
-                else:
-                    queued_uids.add(uid)
+            if force_download:
+                if image_url:
                     download_tasks.append((uid, boat_name, image_url))
                     image_path = ""
-            elif not image_url:
-                image_path = "/static/images/boats/default.jpg"
+                else:
+                    image_path = "/static/images/boats/default.jpg"
 
             updated_participants[uid] = {
                 "uid": uid,
@@ -358,10 +353,7 @@ def scrape_participants(force=False):
                 "image_path": image_path
             }
 
-        # Ensure the folder exists before threading
-        os.makedirs("static/images/boats", exist_ok=True)
-
-        # Download queued images in threads
+        # Download missing images in parallel
         if download_tasks:
             print(f"📸 Downloading {len(download_tasks)} new boat images...")
             with ThreadPoolExecutor(max_workers=6) as executor:
@@ -378,23 +370,26 @@ def scrape_participants(force=False):
                         print(f"❌ Error downloading image for {uid}: {e}")
                         updated_participants[uid]["image_path"] = "/static/images/boats/default.jpg"
 
-        # Save participants if updated
         updated_list = list(updated_participants.values())
-        if updated_list != list(existing_participants.values()):
-            with open(participants_file, "w") as f:
-                json.dump(updated_list, f, indent=2)
-            print(f"✅ Updated and saved {len(updated_list)} participants")
-        else:
-            print(f"✅ No changes detected — {len(updated_list)} participants up-to-date")
 
-        # Update cache
+        # ✅ Atomic save to prevent corrupted JSON
+        tmp_file = participants_file + ".tmp"
+        with open(tmp_file, "w") as f:
+            json.dump(updated_list, f, indent=2)
+        os.replace(tmp_file, participants_file)
+
+        print(f"✅ Updated and saved {len(updated_list)} boats (anglers skipped)")
+
+        # Update cache timestamp
         cache[f"{tournament}_participants"] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
+
         return updated_list
 
     except Exception as e:
         print(f"⚠️ Error scraping participants: {e}")
         return []
+
 
 
 

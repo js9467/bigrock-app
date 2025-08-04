@@ -313,78 +313,68 @@ def scrape_participants(force=False):
         updated_participants = {}
         seen_boats = set()
         download_tasks = []
+queued_uids = set()
 
-        for article in soup.select("article.post.format-image"):
-            name_tag = article.select_one("h2.post-title")
-            type_tag = article.select_one("ul.post-meta li")
-            img_tag = article.select_one("img")
+for article in soup.select("article.post.format-image"):
+    name_tag = article.select_one("h2.post-title")
+    type_tag = article.select_one("ul.post-meta li")
+    img_tag = article.select_one("img")
 
-            if not name_tag:
-                continue
+    if not name_tag:
+        continue
 
-            boat_name = name_tag.get_text(strip=True)
-            if ',' in boat_name or boat_name.lower() in seen_boats:
-                continue
+    boat_name = name_tag.get_text(strip=True)
+    uid = normalize_boat_name(boat_name)
 
-            boat_type = type_tag.get_text(strip=True) if type_tag else ""
-            uid = normalize_boat_name(boat_name)
-            seen_boats.add(boat_name.lower())
+    # Skip duplicates in page and downloads
+    if uid in seen_boats:
+        continue
+    seen_boats.add(uid)
 
-            image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-            image_path = existing_participants.get(uid, {}).get("image_path", "")
-            local_path = image_path[1:] if image_path.startswith('/') else image_path
+    boat_type = type_tag.get_text(strip=True) if type_tag else ""
+    image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+    image_path = existing_participants.get(uid, {}).get("image_path", "")
 
-            force_download = (
-                uid not in existing_participants or
-                not image_path or
-                not os.path.exists(local_path)
-            )
+    local_path = image_path[1:] if image_path.startswith('/') else image_path
+    force_download = (
+        uid not in existing_participants or
+        not image_path or
+        not os.path.exists(local_path)
+    )
 
-            if force_download:
-                if image_url:
-                    download_tasks.append((uid, boat_name, image_url))
-                    image_path = ""
-                else:
-                    image_path = "/static/images/boats/default.jpg"
+    # Deduplicate download tasks
+    if force_download and image_url and uid not in queued_uids:
+        queued_uids.add(uid)
+        download_tasks.append((uid, boat_name, image_url))
+        image_path = ""
+    elif not image_url:
+        image_path = "/static/images/boats/default.jpg"
 
-            updated_participants[uid] = {
-                "uid": uid,
-                "boat": boat_name,
-                "type": boat_type,
-                "image_path": image_path
-            }
+    updated_participants[uid] = {
+        "uid": uid,
+        "boat": boat_name,
+        "type": boat_type,
+        "image_path": image_path
+    }
 
-        if download_tasks:
-            print(f"📸 Downloading {len(download_tasks)} new boat images...")
-            with ThreadPoolExecutor(max_workers=6) as executor:
-                futures = {
-                    executor.submit(cache_boat_image, bname, url): uid
-                    for uid, bname, url in download_tasks
-                }
-                for future in futures:
-                    uid = futures[future]
-                    try:
-                        result_path = future.result()
-                        updated_participants[uid]["image_path"] = result_path
-                    except Exception as e:
-                        print(f"❌ Error downloading image for {uid}: {e}")
-                        updated_participants[uid]["image_path"] = "/static/images/boats/default.jpg"
+# Ensure the folder exists once before threads
+os.makedirs("static/images/boats", exist_ok=True)
 
-        updated_list = list(updated_participants.values())
-        if updated_list != list(existing_participants.values()):
-            with open(participants_file, "w") as f:
-                json.dump(updated_list, f, indent=2)
-            print(f"✅ Updated and saved {len(updated_list)} participants")
-        else:
-            print(f"✅ No changes detected — {len(updated_list)} participants up-to-date")
-
-        cache[f"{tournament}_participants"] = {"last_scraped": datetime.now().isoformat()}
-        save_cache(cache)
-        return updated_list
-
-    except Exception as e:
-        print(f"⚠️ Error scraping participants: {e}")
-        return []
+if download_tasks:
+    print(f"📸 Downloading {len(download_tasks)} new boat images...")
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {
+            executor.submit(cache_boat_image, bname, url): uid
+            for uid, bname, url in download_tasks
+        }
+        for future in futures:
+            uid = futures[future]
+            try:
+                result_path = future.result()
+                updated_participants[uid]["image_path"] = result_path
+            except Exception as e:
+                print(f"❌ Error downloading image for {uid}: {e}")
+                updated_participants[uid]["image_path"] = "/static/images/boats/default.jpg"
 
 
 def scrape_events(force=False, tournament=None):

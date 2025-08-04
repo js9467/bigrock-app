@@ -224,18 +224,29 @@ def cache_boat_image(boat_name, image_url):
     folder = BOAT_FOLDER
     os.makedirs(folder, exist_ok=True)
     safe_name = normalize_boat_name(boat_name)
-    
-    # Extract file extension, default to .jpg
+
+    # Extract original file extension
     ext = os.path.splitext(image_url.split('?')[0])[-1].lower()
     if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
         ext = '.jpg'
+
     file_path = os.path.join(folder, f"{safe_name}{ext}")
 
     lock = image_locks.setdefault(file_path, Lock())
     with lock:
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            return f"/{file_path}"  # Return relative path
+        # ✅ If WebP version already exists, return it
+        webp_path = os.path.join(folder, f"{safe_name}.webp")
+        if os.path.exists(webp_path) and os.path.getsize(webp_path) > 0:
+            return f"/{webp_path}"
 
+        # ✅ If original exists and WebP exists, return WebP
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            optimize_boat_image(file_path)
+            if os.path.exists(webp_path):
+                return f"/{webp_path}"
+            return f"/{file_path}"
+
+        # 🔹 Download new image
         try:
             response = requests.get(image_url, timeout=10)
             if response.status_code == 200:
@@ -243,18 +254,24 @@ def cache_boat_image(boat_name, image_url):
                     f.write(response.content)
                 print(f"✅ Downloaded image for {boat_name}: {file_path}")
 
-                # 🔹 Optimize immediately & create WebP
+                # 🔹 Optimize + Create WebP
                 optimize_boat_image(file_path)
 
+                # Prefer WebP if created
+                if os.path.exists(webp_path):
+                    return f"/{webp_path}"
                 return f"/{file_path}"
+
             else:
                 print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
                 return "/static/images/boats/default.jpg"
+
         except Exception as e:
             print(f"⚠️ Error downloading image for {boat_name}: {e}")
             if os.path.exists(file_path):
                 os.remove(file_path)
             return "/static/images/boats/default.jpg"
+
 
 
 

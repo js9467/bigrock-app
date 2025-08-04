@@ -13,7 +13,7 @@ import time
 import subprocess
 from threading import Thread
 import smtplib
-from email.mime.text import MI/METext
+from email.mime.text import MIMEText
 NOTIFIED_FILE = 'notified.json'
 
 def load_notified_events():

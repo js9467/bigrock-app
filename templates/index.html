@@ -191,7 +191,7 @@ const app = createApp({
       lastEventTimestamps: new Set(),
       settings: {
         followed_sound: 'followed-activity',
-        boated_sound: '1904_champagne-cork-pop-02',
+        boated_sound: 'generic_005_104781',
         event_volume: 80,
         radio_volume: 30,
         sounds_enabled: true,
@@ -204,7 +204,7 @@ const app = createApp({
       messageQueue: [],
       currentMessage: '',
       messageTimer: null,
-      firstLoad: true
+      firstLoad: true   // ✅ Prevents sound spam on initial load
     };
   },
 
@@ -443,8 +443,12 @@ const app = createApp({
     },
 
     playSound(filename) {
-      if (!filename) return;
-      const cleanName = filename.replace(/\.mp3$/i, '');
+  if (!filename) return;
+
+  // Remove any trailing .mp3 to avoid double extension
+  const cleanName = filename.replace(/\.mp3$/i, '');
+
+      
       const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
       audio.volume = (this.settings.event_volume || 80) / 100;
       audio.play().catch(err => console.warn('🔇 Sound failed:', err));

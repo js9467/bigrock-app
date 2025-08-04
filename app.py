@@ -152,37 +152,6 @@ def send_boat_email_alert(event):
 
     return success
 
-# ==================================================
-# Email trigger helper for Followed & Boated events
-# ==================================================
-def process_new_event(event):
-    event_type = event.get("event", "")
-    details = event.get("details", "").lower()
-    uid = event.get("uid")
-    ts = event.get("timestamp")
-
-    # Only email-worthy events
-    is_email_event = (
-        event_type in ["Released", "Boated"] or
-        "pulled hook" in details or
-        "wrong species" in details
-    )
-
-    # Skip adding Hooked Up to notified.json
-    if not is_email_event:
-        print(f"⏭️ Skipping non-email event: {uid} - {event_type}")
-        return
-
-    # Make a key for duplicates
-    key = f"{ts}_{uid}_{event_type}"
-    notified = load_notified()
-    if key in notified:
-        return
-
- 
-
-
-
 
 def fetch_with_scraperapi(url):
     api_key = "e6f354c9c073ceba04c0fe82e4243ebd"

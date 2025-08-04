@@ -851,7 +851,6 @@ def participants_data():
 @app.route("/scrape/events")
 def get_events():
     settings = load_settings()
-    tournament = settings.get("tournament", "Big Rock")
     tournament = get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
     participants_file = get_cache_path(tournament, "participants.json")
@@ -860,27 +859,38 @@ def get_events():
     if not os.path.exists(participants_file):
         print("⏳ No participants yet — scraping them first...")
         scrape_participants(force=True)
-
-        # Optional: wait up to 5s (10 × 0.5s) for file creation
+        # Wait briefly for participants to be saved
         for _ in range(10):
             if os.path.exists(participants_file):
                 break
             time.sleep(0.5)
 
-    # Demo mode logic
+    # ✅ Demo mode logic
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         all_events = data.get("events", [])
         now = datetime.now()
-        filtered = [
-            e for e in all_events
-            if date_parser.parse(e["timestamp"]).time() <= now.time()
-        ]
-        filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
 
-    
+        # ✅ Filter out events that are in the future
+        filtered = []
+        for e in all_events:
+            try:
+                ts = date_parser.parse(e["timestamp"])
+                if ts <= now:
+                    filtered.append(e)
+            except:
+                continue
 
-    # Live mode
+        # ✅ Sort newest first
+        filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+
+        return jsonify({
+            "status": "ok",
+            "count": len(filtered),
+            "events": filtered[:100]
+        })
+
+    # ✅ Live mode
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force, tournament=tournament)
 
@@ -895,6 +905,7 @@ def get_events():
         "count": len(events),
         "events": events[:100]
     })
+
 
 
 

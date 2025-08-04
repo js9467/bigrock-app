@@ -50,13 +50,13 @@
 
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
-<!-- Header -->
+<!--<!-- Header -->
 <header class="relative bg-brand-blue text-white px-4 py-3 shadow-lg">
   <div class="flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
 
     <!-- Left: Logo + VHF Playing -->
     <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow-lg">
+      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow-lg animate-pulse-slow">
       <span v-else class="text-white text-base animate-pulse">Loading Logo...</span>
 
       <!-- VHF Active Indicator -->
@@ -69,10 +69,10 @@
     <div class="flex flex-col sm:flex-row sm:flex-wrap items-center gap-6 w-full sm:w-auto sm:ml-auto">
 
       <!-- VHF Controls: Stylish unified look -->
-      <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70">
+      <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
         <!-- VHF Button -->
         <button @click="toggleRadio"
-                class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">
+                class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">
           {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
         </button>
 
@@ -100,9 +100,9 @@
     </div>
   </div>
 
-  <!-- Rotating Messages (Marquee-like effect) -->
-  <div v-if="messageQueue.length > 0" class="w-full mt-3 overflow-hidden">
-    <div class="animate-marquee whitespace-nowrap text-yellow-300 text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
+  <!-- Live Broadcast Message Bar -->
+  <div v-if="messageQueue.length > 0" class="w-full mt-3">
+    <div class="bg-yellow-400 text-blue-900 font-extrabold px-4 py-2 text-center text-lg leading-snug break-words whitespace-normal rounded shadow-inner shadow-yellow-500/50 animate-pulse-slow" v-html="currentMessage"></div>
   </div>
 
   <!-- Version -->
@@ -111,6 +111,27 @@
   </div>
 </header>
 
+<!-- Extra Styles -->
+<style>
+/* Smooth pulsing for logo, VHF pill, and alert bar */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* Followed boat flash effect */
+@keyframes flash-highlight {
+  0% { background-color: #fef08a; }   /* Tailwind yellow-200 */
+  50% { background-color: #facc15; }  /* Tailwind yellow-400 */
+  100% { background-color: #fef08a; }
+}
+.flash-followed {
+  animation: flash-highlight 1.5s ease-in-out 2;
+}
+</style>
 <!-- Tailwind Extra Animation -->
 <style>
 @keyframes marquee {

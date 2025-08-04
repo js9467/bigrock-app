@@ -49,7 +49,7 @@ jobs:
           host: 64.99.148.73
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
-          source: "./*,./static/**,./templates/**,version.txt"
+          source: "./*.py,./static/**,./templates/**,version.txt"
           target: /home/pi/bigrock-app
           overwrite: true
 

@@ -306,8 +306,9 @@ def cache_boat_image(boat_name, image_url):
 
 def inject_hooked_up_events(events, tournament=None):
     """
-    Creates synthetic Hooked Up events for demo mode with
-    progressive timestamps to simulate live activity.
+    Creates synthetic Hooked Up events for demo mode.
+    - Ensures Hooked Up events appear immediately.
+    - Maintains future timestamps for resolution events.
     """
     demo_events = []
     inserted_keys = set()
@@ -316,7 +317,7 @@ def inject_hooked_up_events(events, tournament=None):
     # Sort original events by timestamp
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-    except:
+    except Exception:
         pass
 
     for i, event in enumerate(events):
@@ -328,24 +329,24 @@ def inject_hooked_up_events(events, tournament=None):
         is_resolution = (
             event_type == "Boated"
             or (event_type == "Released" and not re.search(r"\b\w+\s+\w+\s+released\b", details))
-            or ("pulled hook" in details)
-            or ("wrong species" in details)
+            or "pulled hook" in details
+            or "wrong species" in details
         )
         if not is_resolution:
             continue
 
         try:
-            # Resolution event time
-            res_ts = date_parser.parse(event["timestamp"])
-
-            # Shift resolution into "future demo time"
-            # Each event appears 45s apart in playback
+            # Shift resolution event into demo timeline (future)
             demo_res_time = now + timedelta(seconds=i * 45)
             event["timestamp"] = demo_res_time.isoformat()
 
-            # Insert Hooked Up event 3–30 minutes before resolution in demo timeline
+            # Inject Hooked Up 3–30 min before resolution
             delta_minutes = random.randint(3, 30)
             hookup_time = demo_res_time - timedelta(minutes=delta_minutes)
+
+            # ✅ Force hook to be in the past for immediate visibility
+            if hookup_time > now:
+                hookup_time = now - timedelta(seconds=1)
 
             key = f"{event['uid']}_{event['timestamp']}"
             if key in inserted_keys:

@@ -693,44 +693,47 @@ def participants_data():
     print("📥 /participants_data requested")
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
-
+    master_file = "participants_master.json"
     participants = []
 
     try:
+        # 1️⃣ Try participants.json (per tournament)
         if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
             with open(participants_file) as f:
                 participants = json.load(f)
-        else:
-            raise FileNotFoundError("🚫 No valid participants cache found")
 
-        # Fix broken image paths
+        # 2️⃣ Try participants_master.json as backup
+        elif os.path.exists(master_file):
+            with open(master_file) as f:
+                master = json.load(f)
+                # Filter by tournament if "display_name" contains it
+                participants = [p for p in master if tournament.lower() in p.get("display_name","").lower()]
+
+        # 3️⃣ Fallback: scan static images
+        if not participants:
+            folder = "static/images/boats"
+            os.makedirs(folder, exist_ok=True)
+            for fname in os.listdir(folder):
+                if fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                    uid = os.path.splitext(fname)[0]
+                    participants.append({
+                        "uid": uid,
+                        "boat": uid.replace("_", " ").replace("-", " ").title(),
+                        "type": "",
+                        "image_path": f"/static/images/boats/{fname}"
+                    })
+            print(f"🛟 Fallback loaded {len(participants)} participants from images")
+
+        # 🔹 Ensure all participants have image_path
         for p in participants:
-            path = p.get("image_path", "")
-            local_path = path[1:] if path.startswith("/") else path
-            if not os.path.exists(local_path):
-                p["image_path"] = "/static/images/boats/bigrock.png"
+            if not p.get("image_path"):
+                p["image_path"] = "/static/images/bigrock.png"
 
     except Exception as e:
         print(f"⚠️ Error loading participants: {e}")
-        participants = []
 
-    # 🔹 Fallback: scan static folder if participants is empty
-    if not participants:
-        folder = "static/images/boats"
-        os.makedirs(folder, exist_ok=True)
-        for fname in os.listdir(folder):
-            if fname.lower().endswith((".jpg", ".png", ".jpeg", ".webp")):
-                uid = os.path.splitext(fname)[0]
-                participants.append({
-                    "uid": uid,
-                    "boat": uid.replace("_", " ").title(),
-                    "type": "",
-                    "image_path": f"/static/images/boats/{fname}"
-                })
-        print(f"🛟 Fallback loaded {len(participants)} participants from images")
-
-    # 🔹 Sort alphabetically by boat name
-    participants.sort(key=lambda p: p.get("boat", "").lower())
+    # 🔹 Always sort alphabetically by boat name
+    participants.sort(key=lambda p: p.get("boat","").lower())
 
     return jsonify({
         "status": "ok",

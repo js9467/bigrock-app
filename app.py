@@ -1051,7 +1051,7 @@ def settings_page():
 def generate_demo():
     try:
         tournament = get_current_tournament()
-        events = scrape_events(force=True, skip_timestamp_check=True)
+        events = scrape_events(force=True)
         leaderboard = scrape_leaderboard(tournament)
         injected = inject_hooked_up_events(events, tournament)
         demo_data = {}

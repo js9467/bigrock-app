@@ -12,6 +12,40 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import subprocess
 from threading import Thread
+import smtplib
+from email.mime.text import MI/METext
+NOTIFIED_FILE = 'notified.json'
+
+def load_notified_events():
+    if os.path.exists(NOTIFIED_FILE):
+        with open(NOTIFIED_FILE) as f:
+            return set(json.load(f))
+    return set()
+
+def save_notified_events(notified_set):
+    with open(NOTIFIED_FILE, 'w') as f:
+        json.dump(list(notified_set), f)
+
+
+SMTP_USER = "bigrockapp@gmail.com"        # Use Gmail or other SMTP
+SMTP_PASS = "gie5Dieg!"          # Gmail app password
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+
+def send_sms_email(phone_email, message):
+    msg = MIMEText(message)
+    msg['From'] = SMTP_USER
+    msg['To'] = phone_email
+    msg['Subject'] = "Boat Alert"
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_USER, [phone_email], msg.as_string())
+        print(f"✅ Alert sent to {phone_email}")
+    except Exception as e:
+        print(f"⚠️ Failed to send to {phone_email}: {e}")
 
 
 
@@ -559,6 +593,40 @@ def participants_data():
 
 
 
+
+
+# Keep track of events we already alerted on
+notified_events = set()
+
+# Load notified events on startup
+notified_events = load_notified_events()
+
+@app.route('/events')
+def get_events():
+    events = load_events()  # your existing scrape or cache function
+    followed_boats = load_followed_boats()  # list of uids like ["palmer_lou", "double_b"]
+
+    alerts = load_alerts()
+    global notified_events  # use the persisted set
+
+    new_alerts_sent = 0
+    for event in events:
+        event_id = f"{event['uid']}_{event['timestamp']}"
+        
+        # Only alert if: followed boat + not already notified
+        if event['uid'] in followed_boats and event_id not in notified_events:
+            notified_events.add(event_id)
+
+            message = f"{event['boat']} just {event['event']}! {event['details']}"
+            for recipient in alerts:
+                send_sms_email(recipient, message)
+                new_alerts_sent += 1
+
+    # Save notified events to persist across restarts
+    if new_alerts_sent > 0:
+        save_notified_events(notified_events)
+
+    return jsonify(events)
 
 
 

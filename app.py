@@ -339,6 +339,7 @@ def inject_hooked_up_events(events, tournament=None):
             res_ts = date_parser.parse(event["timestamp"])
 
             # Shift resolution into "future demo time"
+            # Each event appears 45s apart in playback
             demo_res_time = now + timedelta(seconds=i * 45)
             event["timestamp"] = demo_res_time.isoformat()
 
@@ -346,8 +347,7 @@ def inject_hooked_up_events(events, tournament=None):
             delta_minutes = random.randint(3, 30)
             hookup_time = demo_res_time - timedelta(minutes=delta_minutes)
 
-            # ✅ Use a pipe '|' to safely separate uid and timestamp
-            key = f"{event['uid']}|{event['timestamp']}"
+            key = f"{event['uid']}_{event['timestamp']}"
             if key in inserted_keys:
                 continue
 
@@ -371,7 +371,7 @@ def inject_hooked_up_events(events, tournament=None):
     print(f"📦 Returning {len(all_events)} total events (including {len(demo_events)} injected)")
 
     return all_events
-    
+
 def save_demo_data_if_needed(settings, old_settings):
     if settings.get("data_source") == "demo":
         print("📦 [DEMO] Saving demo data...")
@@ -635,69 +635,48 @@ from bs4 import BeautifulSoup
 CACHE_DIR = "cache"
 
 def scrape_leaderboard(tournament):
-    # Load settings.json from your GitHub
+    # Load settings.json from GitHub
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
         settings = requests.get(settings_url, timeout=10).json()
-    except Exception as e:
-        print(f"⚠️ Could not fetch settings.json: {e}")
+    except:
+        print("⚠️ Could not fetch settings.json")
         return []
 
-    # Normalize the tournament name to match settings keys
-    key = next((k for k in settings if k.lower() == tournament.lower()), None)
-    if not key:
-        msg = f"No tournament key found for {tournament}"
-        print(f"❌ {msg}")
+    # ✅ Use the tournament key exactly as in the JSON
+    if tournament not in settings:
+        print(f"⚠️ Tournament '{tournament}' not found in settings.json")
         return []
 
-    t_info = settings[key]
+    t_info = settings[tournament]
     url = t_info.get("leaderboard")
     if not url:
-        msg = f"No leaderboard URL for {tournament}"
-        print(f"❌ {msg}")
+        print(f"⚠️ No leaderboard URL for {tournament}")
         return []
 
     print(f"🔄 Scraping leaderboard for {tournament}: {url}")
+
     try:
-        r = requests.get(url, timeout=15, verify=False)
+        r = requests.get(url, timeout=10, verify=False)
         r.raise_for_status()
         html = r.text
     except Exception as e:
         print(f"❌ Failed to fetch leaderboard: {e}")
         return []
 
-    # 🔹 Save raw HTML for inspection
-    with open("debug_leaderboard.html", "w", encoding="utf-8") as f:
-        f.write(html)
-    print("📄 Saved debug_leaderboard.html for inspection")
-
     soup = BeautifulSoup(html, "html.parser")
 
     leaderboard = []
-
-    # 1️⃣ Try the original selector
-    rows = soup.select("article.m-b-20")
-    # 2️⃣ Try list items with 'team' or leaderboard rows
-    if not rows:
-        rows = soup.select("li.team, li.leaderboard-row, tr")
-    # 3️⃣ Fallback to any li in leaderboard containers
-    if not rows:
-        rows = soup.select("ul.leaderboard li, ol.leaderboard li")
-
-    for row in rows[:20]:  # Grab top 20 for safety
-        name_tag = row.select_one("h4.montserrat, h3, h2, span.team-name, td")
+    for row in soup.select("article.m-b-20")[:10]:  # Top 10 entries
+        name_tag = row.select_one("h4.montserrat")
         if not name_tag:
             continue
-
         boat_name = name_tag.get_text(strip=True)
-        if not boat_name:
-            continue
 
-        # Optional points/weight
-        points_tag = row.select_one("p.pull-right, span.points, td.points")
+        points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
 
-        uid = normalize_boat_name(boat_name)
+        uid = boat_name.lower().replace(" ", "_").replace("'", "")
         image_path = f"/static/images/boats/{uid}.jpg"
 
         leaderboard.append({
@@ -716,7 +695,6 @@ def scrape_leaderboard(tournament):
 
     print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
     return leaderboard
-    
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"
@@ -1260,7 +1238,7 @@ def get_hooked_up_events():
         unresolved = []
 
         if data_source == "demo":
-            # Track resolution events with timestamp
+            # Track resolutions with timestamp
             resolution_lookup = set()
             for e in events:
                 event_type = e.get("event", "")
@@ -1270,6 +1248,7 @@ def get_hooked_up_events():
                 if event_type in ["Released", "Boated"] or \
                    "pulled hook" in e.get("details", "").lower() or \
                    "wrong species" in e.get("details", "").lower():
+                    # Lookup key: uid + iso timestamp of the event
                     resolution_lookup.add((e["uid"], ts.isoformat()))
 
             for e in events:
@@ -1279,21 +1258,20 @@ def get_hooked_up_events():
                 if ts.time() > now.time():
                     continue
 
-                # ✅ Parse the intended resolution timestamp from hookup_id with '|'
+                # Parse the intended resolution timestamp from hookup_id if present
                 hook_id = e.get("hookup_id", "")
                 try:
-                    uid, ts_str = hook_id.split("|", 1)
+                    uid, ts_str = hook_id.rsplit("_", 1)
                     target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
                 except Exception:
                     unresolved.append(e)
                     continue
 
-                # Only keep Hooked Up if it is not resolved
                 if (uid, target_ts) not in resolution_lookup:
                     unresolved.append(e)
 
         else:
-            # ✅ Live mode: track hooks per boat and clear ALL when resolved
+            # Live mode: track hooks per boat and clear when resolved
             boat_hooks = {}  # uid -> list of unresolved hooked events
             for e in events:
                 uid = e.get("uid")
@@ -1306,8 +1284,9 @@ def get_hooked_up_events():
                 elif ev_type in ["Released", "Boated"] or \
                      "pulled hook" in e.get("details", "").lower() or \
                      "wrong species" in e.get("details", "").lower():
-                    # ✅ Clear all unresolved hooks for that boat
-                    boat_hooks[uid] = []
+                    if uid in boat_hooks and boat_hooks[uid]:
+                        # Pop the oldest unresolved hook for that boat
+                        boat_hooks[uid].pop(0)
 
             # Collect all remaining unresolved hooks
             for hooks in boat_hooks.values():
@@ -1323,7 +1302,7 @@ def get_hooked_up_events():
     except Exception as e:
         print(f"❌ Error in /hooked: {e}")
         return jsonify({"status": "error", "count": 0, "events": []})
-        
+
 
 @app.route('/bluetooth/status')
 def bluetooth_status():
@@ -1599,19 +1578,17 @@ def get_followed_boats():
     return [normalize_boat_name(b) for b in settings.get("followed_boats", [])]
 
 def should_email(event):
-    """Decide if this event should trigger an email."""
+    """Only email if event is boated or boat is followed."""
     etype = event.get("event", "").lower()
-    boat = event.get("boat", "")
-    details = event.get("details", "").lower()
-
-    # Always email boated events for all boats
+    uid = event.get("uid", "")
+    
+    # Always send for boated events
     if "boated" in etype:
         return True
 
-    # Email all events for followed boats
-    settings = load_settings()
-    followed = set(b.lower() for b in settings.get("followed_boats", []))
-    if boat.lower() in followed:
+    # Send for followed boats
+    followed_boats = get_followed_boats()
+    if uid in followed_boats:
         return True
 
     return False
@@ -1707,4 +1684,3 @@ if __name__ == '__main__':
 
     # ✅ Start Flask
     app.run(host='0.0.0.0', port=5000, debug=True)
-

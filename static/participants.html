@@ -1,46 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Participants</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/base.css" />
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-  <div id="app" class="min-h-screen flex flex-col">
-
-    <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md">
+  <div id="app">
+    <!-- Updated Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" class="h-12">
-        <h1 class="text-xl font-bold">Participants</h1>
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
+        <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <a href="/" class="bg-brand-gold hover:bg-yellow-500 text-black font-bold px-4 py-2 rounded-lg shadow">
-        Back
-      </a>
+      <div class="flex items-center gap-3">
+        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
+      </div>
     </header>
 
-    <!-- Participants Grid -->
-    <main class="flex-1 p-4">
-      <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    <div class="p-4 max-w-screen-xl mx-auto">
+      <!-- Heading and Controls -->
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <h1 class="text-4xl font-bold text-yellow-600">Tournament Participants</h1>
+        <div class="flex gap-2 w-full sm:w-auto">
+          <input
+            v-model="search"
+            type="text"
+            placeholder="Search boats..."
+            class="px-4 py-2 border rounded w-full sm:w-64"
+            @focus="launchKeyboard"
+            @blur="hideKeyboard"
+          />
+        </div>
+      </header>
+
+      <!-- Grid of Participants -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         <div
-          v-for="participant in participants"
-          :key="participant.uid"
-          class="bg-white rounded-xl shadow p-3 flex flex-col items-center text-center transition transform hover:scale-105"
+          v-for="p in filteredParticipants"
+          :key="p.uid"
+          class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col"
         >
-          <!-- Placeholder first, real image swaps in when available -->
+          <!-- Placeholder first, real image swaps in asynchronously -->
           <img
-            :src="boatImages[participant.uid] || '/static/images/bigrock.png'"
-            @load="imageLoaded(participant.uid)"
-            class="w-32 h-32 object-cover rounded-lg shadow mb-2 transition-opacity duration-500"
-          >
-          <p class="font-bold truncate w-full">{{ participant.boat }}</p>
-          <p class="text-sm text-gray-500 truncate w-full">{{ participant.type }}</p>
+            :src="boatImages[p.uid] || '/static/images/bigrock.png'"
+            @load="onImageLoad(p.uid)"
+            class="w-full h-48 object-cover transition-opacity duration-500"
+            :class="{ 'opacity-0': !boatImages[p.uid] }"
+          />
+          <div class="p-4 flex-1 flex flex-col justify-between">
+            <div>
+              <h2 class="text-xl font-semibold truncate">{{ p.boat }}</h2>
+              <p class="text-sm text-gray-600 mb-3 truncate">{{ p.type }}</p>
+            </div>
+            <button
+              @click="toggleFollow(p.uid)"
+              :class="{
+                'bg-green-600 hover:bg-green-700': isFollowed(p.uid),
+                'bg-gray-300 hover:bg-gray-400': !isFollowed(p.uid)
+              }"
+              class="px-4 py-1 text-white rounded w-full mt-2">
+              {{ isFollowed(p.uid) ? 'Following' : 'Follow' }}
+            </button>
+          </div>
         </div>
       </div>
-    </main>
+
+      <!-- Status Messages -->
+      <div v-if="!loading && filteredParticipants.length === 0" class="text-center py-6 text-red-600 text-sm">
+        No boats match your search.
+      </div>
+      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
+        Loading boats...
+      </div>
+    </div>
   </div>
 
   <script>
@@ -48,50 +84,89 @@
       data() {
         return {
           participants: [],
-          boatImages: {},
-          tournamentLogo: null
+          boatImages: {}, // Holds real images once loaded
+          followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+          tournamentLogo: '',
+          search: '',
+          loading: false
+        };
+      },
+      computed: {
+        filteredParticipants() {
+          const q = this.search.toLowerCase();
+          return this.participants.filter(p =>
+            p.boat.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
+          );
         }
       },
       methods: {
-        fetchParticipants() {
-          fetch('/participants')
-            .then(r => r.json())
-            .then(data => {
-              this.participants = data;
-              // Trigger fetching of images after participants load
-              data.forEach(p => {
-                this.$nextTick(() => {
-                  this.loadBoatImage(p);
-                });
-              });
-            });
+        async reload() {
+          this.search = '';
+          this.loading = true;
+          try {
+            const res = await fetch('/participants_data?limit=1000&offset=0');
+            const data = await res.json();
+            this.participants = data.participants || [];
+            // Trigger async image loading
+            this.participants.forEach(p => this.preloadBoatImage(p));
+          } catch (err) {
+            console.error('Failed to reload participants:', err);
+          }
+          this.loading = false;
         },
-        loadBoatImage(participant) {
-          // Preload real image asynchronously
+        preloadBoatImage(p) {
           const img = new Image();
-          img.src = participant.image_path;
+          img.src = p.image_path || '/static/images/bigrock.png';
           img.onload = () => {
             this.$set
-              ? this.$set(this.boatImages, participant.uid, participant.image_path) 
-              : (this.boatImages[participant.uid] = participant.image_path);
+              ? this.$set(this.boatImages, p.uid, p.image_path)
+              : (this.boatImages[p.uid] = p.image_path);
           };
         },
-        imageLoaded(uid) {
-          // Optionally track loaded images
+        onImageLoad(uid) {
+          // optional for future animations
         },
-        fetchSettings() {
-          fetch('/settings')
-            .then(r => r.json())
-            .then(data => {
-              if (data.logo) {
-                this.tournamentLogo = data.logo;
-              }
-            });
+        toggleFollow(uid) {
+          if (this.followed.includes(uid)) {
+            this.followed = this.followed.filter(id => id !== uid);
+          } else {
+            this.followed.push(uid);
+          }
+          localStorage.setItem('followedBoats', JSON.stringify(this.followed));
+        },
+        isFollowed(uid) {
+          return this.followed.includes(uid);
+        },
+        launchKeyboard() {
+          fetch('/launch_keyboard').catch(() => {});
+        },
+        hideKeyboard() {
+          fetch('/hide_keyboard').catch(() => {});
         }
       },
-      mounted() {
-        this.fetchSettings();
-        this.fetchParticipants();
+      async mounted() {
+        this.loading = true;
+        try {
+          const res = await fetch('/participants_data?limit=1000&offset=0');
+          const data = await res.json();
+          this.participants = data.participants || [];
+          // Preload images for progressive display
+          this.participants.forEach(p => this.preloadBoatImage(p));
+        } catch (err) {
+          console.error('Failed to load participants:', err);
+        }
+        this.loading = false;
+
+        try {
+          const settingsRes = await fetch('/api/settings');
+          const settings = await settingsRes.json();
+          const tournament = settings.tournament;
+          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const allTournaments = await configRes.json();
+          this.tournamentLogo = allTournaments[tournament]?.logo || '';
+        } catch (e) {
+          console.error('Failed to load tournament logo:', e);
+        }
       }
     });
     app.mount('#app');

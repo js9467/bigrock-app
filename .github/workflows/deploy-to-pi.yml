@@ -27,6 +27,17 @@ jobs:
             echo "py_changed=false" >> $GITHUB_ENV
           fi
 
+      - name: Ensure directories exist on Pi
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 64.99.148.73
+          username: pi
+          key: ${{ secrets.PI_SSH_KEY }}
+          script: |
+            mkdir -p /home/pi/bigrock-app/static/images
+            mkdir -p /home/pi/bigrock-app/static/sounds
+            mkdir -p /home/pi/bigrock-app/templates
+
       - name: Clean up rogue app.py in home
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -43,11 +54,12 @@ jobs:
           host: 64.99.148.73
           username: pi
           key: ${{ secrets.PI_SSH_KEY }}
+          # Always include version.txt to avoid empty tar
           source: |
-            ./*.py
-            static/**
-            templates/**
             version.txt
+            ./*.py
+            static/**/*
+            templates/**/*
           target: /home/pi/bigrock-app
           overwrite: true
 

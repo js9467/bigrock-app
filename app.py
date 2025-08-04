@@ -56,6 +56,7 @@ def load_notified_events():
             return set(json.load(f))
     return set()
 
+
 def save_notified_events(notified):
     with open(NOTIFIED_FILE, 'w') as f:
         json.dump(list(notified), f)

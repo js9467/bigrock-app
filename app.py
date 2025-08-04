@@ -38,8 +38,6 @@ EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
-
-
 def load_alerts():
     if os.path.exists(ALERTS_FILE):
         with open(ALERTS_FILE) as f:
@@ -151,6 +149,43 @@ def send_boat_email_alert(event):
         print(f"❌ SMTP batch failed: {e}")
 
     return success
+
+# ==================================================
+# Email trigger helper for Followed & Boated events
+# ==================================================
+def process_new_event(event):
+    """Send emails for followed boats and all Boated events."""
+    global sent_demo_alerts
+
+    uid = event.get("uid")
+    boat = event.get("boat", "Unknown")
+    event_type = event.get("event", "Activity")
+    timestamp = event.get("timestamp", datetime.now().isoformat())
+
+    # Unique key to avoid duplicate alerts
+    key = (uid, timestamp, event_type)
+    if key in sent_demo_alerts:
+        return
+    sent_demo_alerts.add(key)
+    save_sent_demo_alerts()
+
+    # Load subscribers
+    recipients = load_alerts()
+    if not recipients:
+        return
+
+    # Determine if this is a followed boat
+    followed = False
+    for sub in recipients:
+        if uid and uid in sub.lower():
+            followed = True
+        elif boat.lower() in sub.lower():
+            followed = True
+    # Trigger for any followed OR any boated event
+    if followed or event_type.lower() == "boated":
+        send_boat_email_alert(event)
+
+
 
 
 def fetch_with_scraperapi(url):
@@ -816,6 +851,7 @@ def participants_data():
 @app.route("/scrape/events")
 def get_events():
     settings = load_settings()
+    tournament = settings.get("tournament", "Big Rock")
     tournament = get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
     participants_file = get_cache_path(tournament, "participants.json")
@@ -824,38 +860,35 @@ def get_events():
     if not os.path.exists(participants_file):
         print("⏳ No participants yet — scraping them first...")
         scrape_participants(force=True)
-        # Wait briefly for participants to be saved
+
+        # Optional: wait up to 5s (10 × 0.5s) for file creation
         for _ in range(10):
             if os.path.exists(participants_file):
                 break
             time.sleep(0.5)
 
-    # ✅ Demo mode logic
+    # Demo mode logic
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         all_events = data.get("events", [])
         now = datetime.now()
+        filtered = [
+            e for e in all_events
+            if date_parser.parse(e["timestamp"]).time() <= now.time()
+        ]
+        filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
 
-        # ✅ Filter out events that are in the future
-        filtered = []
-        for e in all_events:
-            try:
-                ts = date_parser.parse(e["timestamp"])
-                if ts <= now:
-                    filtered.append(e)
-            except:
-                continue
-
-        # ✅ Sort newest first
-        filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+        # 🔹 Trigger email alerts for demo events
+        for e in filtered[:100]:
+            process_new_event(e)
 
         return jsonify({
             "status": "ok",
             "count": len(filtered),
-            "events": filtered[:100]
+            "events": filtered
         })
 
-    # ✅ Live mode
+    # Live mode
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force, tournament=tournament)
 
@@ -865,12 +898,15 @@ def get_events():
 
     events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
 
+    # 🔹 Trigger email alerts for each new/recent event
+    for e in events[:100]:  # limit to recent events to prevent spam
+        process_new_event(e)
+
     return jsonify({
         "status": "ok" if events else "error",
         "count": len(events),
         "events": events[:100]
     })
-
 
 
 
@@ -1056,11 +1092,11 @@ def api_settings():
         # ✅ Ensure sound fields exist
         settings_data.setdefault(
             "followed_sound",
-            old_settings.get("followed_sound", "fishing reel")
+            old_settings.get("followed_sound", "1904_champagne-cork-pop-02")
         )
         settings_data.setdefault(
             "boated_sound",
-            old_settings.get("boated_sound", "fishing reel")
+            old_settings.get("boated_sound", "1804_doorbell-02")
         )
 
         # ✅ Save SMS/email alerts
@@ -1084,8 +1120,8 @@ def api_settings():
 
     # ----- GET Settings -----
     settings = load_settings()
-    settings.setdefault("followed_sound", "Fishing Reel")
-    settings.setdefault("boated_sound", "Fishing Reel")
+    settings.setdefault("followed_sound", "1904_champagne-cork-pop-02")
+    settings.setdefault("boated_sound", "1804_doorbell-02")
 
     # ✅ Include alerts in GET response
     settings["sms_emails"] = load_alerts()
@@ -1173,96 +1209,98 @@ def save_sent_demo_alerts():
 
 @app.route("/hooked")
 def get_hooked_up_events():
-    """Return unresolved Hooked Up events for the current tournament."""
+    settings = load_settings()
+    tournament = settings.get("tournament", "Big Rock")
+    data_source = settings.get("data_source", "live")
+    now = datetime.now()
+
+    # Load events
+    if data_source == "demo":
+        data = load_demo_data(tournament)
+        events = data.get("events", [])
+    else:
+        events_file = get_cache_path(tournament, "events.json")
+        if not os.path.exists(events_file):
+            return jsonify({"status": "ok", "events": [], "count": 0})
+        with open(events_file, "r") as f:
+            events = json.load(f)
+
+    # Sort by timestamp ascending to process sequentially
     try:
-        settings = load_settings()
-        tournament = get_current_tournament()
-        data_source = settings.get("data_source", "live")
-        now = datetime.now()
+        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
+    except:
+        pass
 
-        # Load events
-        if data_source == "demo":
-            events = load_demo_data(tournament).get("events", [])
-        else:
-            events_file = get_cache_path(tournament, "events.json")
-            if not os.path.exists(events_file):
-                return jsonify({"status": "ok", "count": 0, "events": []})
-            with open(events_file, "r") as f:
-                events = json.load(f)
+    unresolved = []
 
-        # Sort by timestamp ascending
-        try:
-            events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-        except Exception:
-            pass
-
-        unresolved = []
-
-        if data_source == "demo":
-            # Track resolutions with timestamp
-            resolution_lookup = set()
-            for e in events:
-                event_type = e.get("event", "")
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if ts.time() > now.time():  # skip future demo events
-                    continue
-                if event_type in ["Released", "Boated"] or \
-                   "pulled hook" in e.get("details", "").lower() or \
-                   "wrong species" in e.get("details", "").lower():
-                    # Lookup key: uid + iso timestamp of the event
+    if data_source == "demo":
+        # Existing demo logic (hookup_id based)
+        resolution_lookup = set()
+        for e in events:
+            if e["event"] in ["Released", "Boated"] or \
+               "pulled hook" in e.get("details", "").lower() or \
+               "wrong species" in e.get("details", "").lower():
+                try:
+                    ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                    if ts.time() > now.time():  # future events in demo mode are ignored
+                        continue
                     resolution_lookup.add((e["uid"], ts.isoformat()))
-
-            for e in events:
-                if e.get("event") != "Hooked Up":
+                except:
                     continue
+
+        for e in events:
+            if e["event"] != "Hooked Up":
+                continue
+            try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
                 if ts.time() > now.time():
                     continue
+            except:
+                continue
 
-                # Parse the intended resolution timestamp from hookup_id if present
-                hook_id = e.get("hookup_id", "")
-                try:
-                    uid, ts_str = hook_id.rsplit("_", 1)
-                    target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-                except Exception:
-                    unresolved.append(e)
-                    continue
+            try:
+                uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
+                target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+            except:
+                unresolved.append(e)
+                continue
 
-                if (uid, target_ts) not in resolution_lookup:
-                    unresolved.append(e)
+            if (uid, target_ts) not in resolution_lookup:
+                unresolved.append(e)
 
-        else:
-            # Live mode: track hooks per boat and clear when resolved
-            boat_hooks = {}  # uid -> list of unresolved hooked events
-            for e in events:
-                uid = e.get("uid")
-                if not uid:
-                    continue
+    else:
+        # 🔹 Live mode: sequential clearing logic
+        boat_hooks = {}  # uid -> list of unresolved hooked events
 
-                ev_type = e.get("event")
-                if ev_type == "Hooked Up":
-                    boat_hooks.setdefault(uid, []).append(e)
-                elif ev_type in ["Released", "Boated"] or \
-                     "pulled hook" in e.get("details", "").lower() or \
-                     "wrong species" in e.get("details", "").lower():
-                    if uid in boat_hooks and boat_hooks[uid]:
-                        # Pop the oldest unresolved hook for that boat
-                        boat_hooks[uid].pop(0)
+        for e in events:
+            uid = e.get("uid")
+            if not uid:
+                continue
 
-            # Collect all remaining unresolved hooks
-            for hooks in boat_hooks.values():
-                unresolved.extend(hooks)
+            if e["event"] == "Hooked Up":
+                # Add this hooked event to unresolved list for that boat
+                boat_hooks.setdefault(uid, []).append(e)
 
-        # ✅ Return clean JSON
-        return jsonify({
-            "status": "ok",
-            "count": len(unresolved),
-            "events": sorted(unresolved, key=lambda e: e["timestamp"], reverse=True)
-        })
+            else:
+                # This is a resolution event: Boated / Released / Pulled Hook / Wrong Species
+                if uid in boat_hooks and boat_hooks[uid]:
+                    # Remove oldest unresolved hooked event for that boat
+                    boat_hooks[uid].pop(0)
 
-    except Exception as e:
-        print(f"❌ Error in /hooked: {e}")
-        return jsonify({"status": "error", "count": 0, "events": []})
+               # Collect all unresolved events in chronological order
+        for hooks in boat_hooks.values():
+            unresolved.extend(hooks)
+
+    # 🔹 Trigger email alerts for unresolved Hooked/Boated events
+    for e in unresolved:
+        process_new_event(e)
+
+    return jsonify({
+        "status": "ok",
+        "count": len(unresolved),
+        "events": unresolved
+    })
+
 
 
 @app.route('/bluetooth/status')
@@ -1503,95 +1541,22 @@ def release_summary_data():
 
 import threading
 
-import json, os, time, threading
-from datetime import datetime
-from dateutil import parser as date_parser
-
-NOTIFIED_FILE = "notified.json"
-emailed_events = set()
-
-# ==========================================
-# Email Alert System (Cleaned & Reliable)
-# ==========================================
-
-NOTIFIED_FILE = "notified.json"
-emailed_events = set()
-
-def load_emailed_events():
-    """Load previously emailed events to avoid duplicates."""
-    if os.path.exists(NOTIFIED_FILE):
-        try:
-            with open(NOTIFIED_FILE, "r") as f:
-                return set(json.load(f))
-        except:
-            return set()
-    return set()
-
-def save_emailed_events():
-    """Save emailed events to disk."""
-    with open(NOTIFIED_FILE, "w") as f:
-        json.dump(list(emailed_events), f)
-
-def should_email(event):
-    """Decide which events should trigger an email."""
-    # ✅ Send email for all events OR filter types if needed
-    etype = event.get("event", "").lower()
-    details = event.get("details", "").lower()
-    return (
-        etype in ["released", "boated"]
-        or "pulled hook" in details
-        or "wrong species" in details
-    )
-
-def process_new_event(event):
-    """Send email for any new event exactly once."""
-    global emailed_events
-    uid = f"{event.get('timestamp')}_{event.get('uid')}_{event.get('event')}"
-
-    # Skip duplicates
-    if uid in emailed_events:
-        return
-    emailed_events.add(uid)
-    save_emailed_events()
-
-    if should_email(event):
-        try:
-            send_boat_email_alert(event)  # ✅ Use existing function
-            print(f"📧 Email sent for {event['boat']} - {event['event']}")
-        except Exception as e:
-            print(f"❌ Email failed for {event['boat']}: {e}")
-
 def background_event_emailer():
-    global emailed_events
-    emailed_events = load_emailed_events()
-    print(f"📡 Email watcher started. Loaded {len(emailed_events)} previous notifications.")
-
-    # 🔹 PRELOAD newest events to avoid flood on first run
-    try:
-        tournament = get_current_tournament()
-        events_file = get_cache_path(tournament, "events.json")
-        if os.path.exists(events_file):
-            with open(events_file) as f:
-                events = json.load(f)
-            for e in events[-50:]:  # last 50 events
-                uid = f"{e.get('timestamp')}_{e.get('uid')}_{e.get('event')}"
-                emailed_events.add(uid)
-            save_emailed_events()
-            print(f"⏩ Preloaded {len(events[-50:])} events to prevent email flood")
-    except Exception as e:
-        print(f"⚠️ Failed to preload events: {e}")
-
-    # 🔹 Start watching for new events
+    """Continuously watch the feed and send emails for followed/boated events."""
+    print("📡 Email watcher started.")
     while True:
         try:
             settings = load_settings()
             tournament = get_current_tournament()
 
-            # Load events
+            # Load current feed (live or demo)
             if settings.get("data_source") == "demo":
                 events = load_demo_data(tournament).get("events", [])
                 now = datetime.now().time()
-                events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
+                events = [
+                    e for e in events
+                    if date_parser.parse(e["timestamp"]).time() <= now
+                ]
             else:
                 events_file = get_cache_path(tournament, "events.json")
                 if not os.path.exists(events_file):
@@ -1600,37 +1565,25 @@ def background_event_emailer():
                 with open(events_file) as f:
                     events = json.load(f)
 
-            # Only check the newest 50 events
+            # Sort latest first
             events.sort(key=lambda e: e["timestamp"], reverse=True)
+
+            # Process top 50 events for email
             for e in events[:50]:
                 process_new_event(e)
 
         except Exception as e:
             print(f"⚠️ Email watcher error: {e}")
 
+        # Check every 30 seconds
         time.sleep(30)
 
-
-
-def save_emailed_events():
-    """Save emailed events to disk."""
-    with open(NOTIFIED_FILE, "w") as f:
-        json.dump(list(emailed_events), f)
-
-def should_email(event):
-    """Determine if this event should trigger an email."""
-    # You can filter types here if you only want certain events
-    return True  # ✅ Send email for ALL events
-
+# 🔹 Launch background email watcher
+threading.Thread(target=background_event_emailer, daemon=True).start()
 
 
 
 if __name__ == '__main__':
     print("🚀 Optimizing boat images on startup...")
     optimize_all_boat_images()
-
-    # ✅ Start email watcher
-    Thread(target=background_event_emailer, daemon=True).start()
-
-    # ✅ Start Flask
     app.run(host='0.0.0.0', port=5000, debug=True)

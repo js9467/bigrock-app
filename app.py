@@ -1542,6 +1542,13 @@ from dateutil import parser as date_parser
 NOTIFIED_FILE = "notified.json"
 emailed_events = set()
 
+# ==========================================
+# Email Alert System (Cleaned & Reliable)
+# ==========================================
+
+NOTIFIED_FILE = "notified.json"
+emailed_events = set()
+
 def load_emailed_events():
     """Load previously emailed events to avoid duplicates."""
     if os.path.exists(NOTIFIED_FILE):
@@ -1558,38 +1565,53 @@ def save_emailed_events():
         json.dump(list(emailed_events), f)
 
 def should_email(event):
-    """Determine if this event should trigger an email."""
-    # You can filter types here if you only want certain events
-    return True  # ✅ Send email for ALL events
+    """Decide which events should trigger an email."""
+    # ✅ Send email for all events OR filter types if needed
+    etype = event.get("event", "").lower()
+    details = event.get("details", "").lower()
+    return (
+        etype in ["released", "boated"]
+        or "pulled hook" in details
+        or "wrong species" in details
+    )
 
 def process_new_event(event):
     """Send email for any new event exactly once."""
+    global emailed_events
     uid = f"{event.get('timestamp')}_{event.get('uid')}_{event.get('event')}"
+
+    # Skip duplicates
     if uid in emailed_events:
-        return  # already emailed
+        return
     emailed_events.add(uid)
     save_emailed_events()
 
     if should_email(event):
-        send_alert_email(event)
-        print(f"📧 Email sent for {event['boat']} - {event['event']}")
+        try:
+            send_boat_email_alert(event)  # ✅ Use existing function
+            print(f"📧 Email sent for {event['boat']} - {event['event']}")
+        except Exception as e:
+            print(f"❌ Email failed for {event['boat']}: {e}")
 
 def background_event_emailer():
     """Continuously watch the feed and send emails for new events."""
     global emailed_events
     emailed_events = load_emailed_events()
-    print("📡 Email watcher started. Loaded", len(emailed_events), "previous notifications.")
+    print(f"📡 Email watcher started. Loaded {len(emailed_events)} previous notifications.")
 
     while True:
         try:
             settings = load_settings()
             tournament = get_current_tournament()
 
-            # Load current feed (live or demo)
+            # Load events (live or demo)
             if settings.get("data_source") == "demo":
                 events = load_demo_data(tournament).get("events", [])
                 now = datetime.now().time()
-                events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
+                events = [
+                    e for e in events
+                    if date_parser.parse(e["timestamp"]).time() <= now
+                ]
             else:
                 events_file = get_cache_path(tournament, "events.json")
                 if not os.path.exists(events_file):
@@ -1598,21 +1620,30 @@ def background_event_emailer():
                 with open(events_file) as f:
                     events = json.load(f)
 
-            # Sort latest first
+            # Process top 50 newest events
             events.sort(key=lambda e: e["timestamp"], reverse=True)
-
-            # Process top 50 events for email
             for e in events[:50]:
                 process_new_event(e)
 
         except Exception as e:
             print(f"⚠️ Email watcher error: {e}")
 
-        # Check every 30 seconds
-        time.sleep(30)
+        time.sleep(30)  # Check every 30 seconds
 
-# 🔹 Launch background email watcher
+# 🔹 Launch in background
 threading.Thread(target=background_event_emailer, daemon=True).start()
+
+
+def save_emailed_events():
+    """Save emailed events to disk."""
+    with open(NOTIFIED_FILE, "w") as f:
+        json.dump(list(emailed_events), f)
+
+def should_email(event):
+    """Determine if this event should trigger an email."""
+    # You can filter types here if you only want certain events
+    return True  # ✅ Send email for ALL events
+
 
 
 

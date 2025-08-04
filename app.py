@@ -713,35 +713,24 @@ def participants_data():
     master_file = "participants_master.json"
     participants = []
 
-    def prefer_webp(path: str) -> str:
-        """Return .webp version if it exists, else original path."""
-        if not path:
-            return "/static/images/bigrock.png"
-        base, ext = os.path.splitext(path)
-        webp_path = base + ".webp"
-        # Remove leading slash for filesystem check
-        if os.path.exists(webp_path.lstrip("/")):
-            return webp_path
-        return path
-
     try:
-        # 1️⃣ Try tournament-specific participants.json
+        # 1️⃣ Load per-tournament participants cache first
         if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
             with open(participants_file) as f:
                 participants = json.load(f)
 
-        # 2️⃣ Fallback to participants_master.json filtered by tournament
+        # 2️⃣ Fallback: master participants list
         elif os.path.exists(master_file):
             with open(master_file) as f:
                 master = json.load(f)
-                participants = [
-                    p for p in master
-                    if tournament.lower() in p.get("display_name", "").lower()
-                ]
+            participants = [
+                p for p in master
+                if tournament.lower() in p.get("display_name", "").lower()
+            ]
 
-        # 3️⃣ Final fallback: scan boat images in static folder
+        # 3️⃣ Fallback: scan static images folder
         if not participants:
-            folder = "static/images/boats"
+            folder = BOAT_FOLDER
             os.makedirs(folder, exist_ok=True)
             for fname in os.listdir(folder):
                 if fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
@@ -750,25 +739,39 @@ def participants_data():
                         "uid": uid,
                         "boat": uid.replace("_", " ").replace("-", " ").title(),
                         "type": "",
-                        "image_path": f"/static/images/boats/{fname}"
+                        "image_path": f"/{folder}/{fname}"
                     })
             print(f"🛟 Fallback loaded {len(participants)} participants from images")
 
-        # 🔹 Ensure every participant has a valid image path and prefer .webp
+        # 🔹 Fix image paths & prefer WebP if available
         for p in participants:
-            p["image_path"] = prefer_webp(p.get("image_path", ""))
+            path = p.get("image_path", "")
+            local_path = path.lstrip("/") if path.startswith("/") else path
+
+            # If missing or invalid -> default image
+            if not path or not os.path.exists(local_path):
+                p["image_path"] = "/static/images/boats/default.jpg"
+                continue
+
+            # Prefer .webp if it exists
+            base, ext = os.path.splitext(local_path)
+            webp_local = base + ".webp"
+            if os.path.exists(webp_local):
+                p["image_path"] = "/" + webp_local
+
+        # 🔹 Sort alphabetically by boat name
+        participants.sort(key=lambda p: p.get("boat", "").lower())
 
     except Exception as e:
         print(f"⚠️ Error loading participants: {e}")
-
-    # 🔹 Always sort alphabetically by boat name
-    participants.sort(key=lambda p: p.get("boat", "").lower())
 
     return jsonify({
         "status": "ok",
         "participants": participants,
         "count": len(participants)
     })
+
+
 
 
 
@@ -1435,4 +1438,3 @@ if __name__ == '__main__':
     print("🚀 Optimizing boat images on startup...")
     optimize_all_boat_images()
     app.run(host='0.0.0.0', port=5000, debug=True)
-

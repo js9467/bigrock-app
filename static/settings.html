@@ -148,122 +148,156 @@
     <!-- (Unchanged from your original) -->
   </div>
 
-  <script>
-    const { createApp } = Vue;
-    createApp({
-      data() {
-        return {
-          settings: {
-            tournament: '',
-            data_source: 'live',
-            event_volume: 80,
-            vhf_volume: 70,
-            sounds_enabled: true,
-            hooked_sound: '',
-            boated_sound: ''
-          },
-          tournaments: {},
-          wifiNetworks: [],
-          bluetoothDevices: [],
-          wifiPopup: false,
-          bluetoothPopup: false,
-          toast: { message: '', type: '' },
-          availableSounds: [],
-          tournamentLogo: '',
-          recipients: [
-            { phone: '', carrier: '@vtext.com' }
-          ]
-        };
+ <script>
+const { createApp } = Vue;
+createApp({
+  data() {
+    return {
+      settings: {
+        tournament: '',
+        data_source: 'live',
+        event_volume: 80,
+        vhf_volume: 70,
+        sounds_enabled: true,
+        hooked_sound: '',
+        boated_sound: '',
+        sms_emails: []
       },
-      computed: {
-        validTournaments() {
-          return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
-        },
-        connectedSSID() {
-          const connected = this.wifiNetworks.find(n => n.connected);
-          return connected ? connected.ssid : 'Not connected';
-        }
-      },
-      methods: {
-        showToast(message, type = 'info') {
-          this.toast = { message, type };
-          setTimeout(() => this.toast.message = '', 3000);
-        },
-        saveSettings() {
-          localStorage.setItem('followed_sound', this.settings.hooked_sound);
-          localStorage.setItem('event_volume', this.settings.event_volume);
-          localStorage.setItem('boated_sound', this.settings.boated_sound);
-          axios.post('/api/settings', this.settings).then(() => {
-            this.showToast('✅ Settings saved.', 'success');
-          }).catch(() => {
-            this.showToast('❌ Failed to save settings.', 'error');
-          });
-        },
-        previewSound(file) {
-          if (!file) return;
-          const audio = new Audio(`/static/sounds/${file}`);
-          audio.volume = (this.settings.event_volume || 80) / 100;
-          audio.play().catch(() => {});
-        },
-        addRecipient() {
-          this.recipients.push({ phone: '', carrier: '@vtext.com' });
-        },
-        removeRecipient(index) {
-          this.recipients.splice(index, 1);
-        },
-        saveAlerts() {
-          const smsEmails = this.recipients
-            .filter(r => r.phone.trim())
-            .map(r => r.phone + r.carrier);
-          axios.post('/alerts/subscribe', { sms_emails: smsEmails }).then(() => {
-            this.showToast('✅ Recipients saved.', 'success');
-          }).catch(() => {
-            this.showToast('❌ Failed to save recipients.', 'error');
-          });
-        },
-        sendTestAlert() {
-          axios.get('/alerts/test').then(res => {
-            this.showToast(`✅ Test alert sent to ${res.data.success_count} recipients.`, 'success');
-          }).catch(() => {
-            this.showToast('❌ Failed to send test alert.', 'error');
-          });
-        },
-        connectWifi(ssid) { /* unchanged */ },
-        disconnectWifi() { /* unchanged */ },
-        connectBluetooth(mac) { /* unchanged */ },
-        fetchWifi() { axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; }); },
-        onHookedSoundChange() { 
-          const file = this.settings.hooked_sound;
-          if (file) { this.previewSound(file); localStorage.setItem('followed_sound', file); this.saveSettings(); }
-        },
-        onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
-        updateTournamentLogo() {
-          const t = this.settings.tournament;
-          this.tournamentLogo = this.tournaments[t]?.logo || '';
-        }
-      },
-      mounted() {
-        axios.get('/api/settings').then(res => {
-          this.settings = { ...this.settings, ...res.data };
-          const storedSound = localStorage.getItem('followed_sound');
-          if (storedSound) this.settings.hooked_sound = storedSound;
-          const storedVol = localStorage.getItem('event_volume');
-          if (storedVol) this.settings.event_volume = parseInt(storedVol);
-          const storedBoated = localStorage.getItem('boated_sound');
-          if (storedBoated) this.settings.boated_sound = storedBoated;
-          axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-            this.tournaments = res.data;
-            this.updateTournamentLogo();
-          });
+      tournaments: {},
+      wifiNetworks: [],
+      bluetoothDevices: [],
+      wifiPopup: false,
+      bluetoothPopup: false,
+      toast: { message: '', type: '' },
+      availableSounds: [],
+      tournamentLogo: '',
+      recipients: [
+        { phone: '', carrier: '@vtext.com' }
+      ]
+    };
+  },
+  computed: {
+    validTournaments() {
+      return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
+    },
+    connectedSSID() {
+      const connected = this.wifiNetworks.find(n => n.connected);
+      return connected ? connected.ssid : 'Not connected';
+    }
+  },
+  methods: {
+    showToast(message, type = 'info') {
+      this.toast = { message, type };
+      setTimeout(() => this.toast.message = '', 3000);
+    },
+    saveSettings() {
+      // Always include sms_emails when saving
+      const smsEmails = this.recipients
+        .filter(r => r.phone.trim())
+        .map(r => r.phone + r.carrier);
+
+      this.settings.sms_emails = smsEmails;
+
+      localStorage.setItem('followed_sound', this.settings.hooked_sound);
+      localStorage.setItem('event_volume', this.settings.event_volume);
+      localStorage.setItem('boated_sound', this.settings.boated_sound);
+
+      axios.post('/api/settings', this.settings).then(() => {
+        this.showToast('✅ Settings saved.', 'success');
+      }).catch(() => {
+        this.showToast('❌ Failed to save settings.', 'error');
+      });
+    },
+    previewSound(file) {
+      if (!file) return;
+      const audio = new Audio(`/static/sounds/${file}`);
+      audio.volume = (this.settings.event_volume || 80) / 100;
+      audio.play().catch(() => {});
+    },
+    addRecipient() {
+      this.recipients.push({ phone: '', carrier: '@vtext.com' });
+    },
+    removeRecipient(index) {
+      this.recipients.splice(index, 1);
+    },
+    saveAlerts() {
+      const smsEmails = this.recipients
+        .filter(r => r.phone.trim())
+        .map(r => r.phone + r.carrier);
+
+      // Save to alerts.json for backend SMS
+      axios.post('/alerts/subscribe', { sms_emails: smsEmails });
+
+      // Save to settings.json for persistence
+      const updatedSettings = { ...this.settings, sms_emails: smsEmails };
+      axios.post('/api/settings', updatedSettings).then(() => {
+        this.showToast('✅ Recipients saved.', 'success');
+      }).catch(() => {
+        this.showToast('❌ Failed to save recipients.', 'error');
+      });
+    },
+    sendTestAlert() {
+      axios.get('/alerts/test').then(res => {
+        this.showToast(`✅ Test alert sent to ${res.data.success_count} recipients.`, 'success');
+      }).catch(() => {
+        this.showToast('❌ Failed to send test alert.', 'error');
+      });
+    },
+    connectWifi(ssid) { /* unchanged */ },
+    disconnectWifi() { /* unchanged */ },
+    connectBluetooth(mac) { /* unchanged */ },
+    fetchWifi() { axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; }); },
+    onHookedSoundChange() { 
+      const file = this.settings.hooked_sound;
+      if (file) { this.previewSound(file); localStorage.setItem('followed_sound', file); this.saveSettings(); }
+    },
+    onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
+    updateTournamentLogo() {
+      const t = this.settings.tournament;
+      this.tournamentLogo = this.tournaments[t]?.logo || '';
+    }
+  },
+  mounted() {
+    // Load settings and populate recipients
+    axios.get('/api/settings').then(res => {
+      this.settings = { ...this.settings, ...res.data };
+
+      // ✅ Convert sms_emails -> recipients
+      if (res.data.sms_emails && Array.isArray(res.data.sms_emails)) {
+        this.recipients = res.data.sms_emails.map(email => {
+          const match = email.match(/^(\d+)(@.+)$/);
+          return {
+            phone: match ? match[1] : email,
+            carrier: match ? match[2] : '@vtext.com'
+          };
         });
-        axios.get('/sounds').then(res => {
-          this.availableSounds = res.data.files || [];
-        }).catch(() => {
-          this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
-        });
-        this.fetchWifi();
       }
-    }).mount('#app');
-  </script>
+
+      // Restore local sound settings
+      const storedSound = localStorage.getItem('followed_sound');
+      if (storedSound) this.settings.hooked_sound = storedSound;
+      const storedVol = localStorage.getItem('event_volume');
+      if (storedVol) this.settings.event_volume = parseInt(storedVol);
+      const storedBoated = localStorage.getItem('boated_sound');
+      if (storedBoated) this.settings.boated_sound = storedBoated;
+
+      axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
+        this.tournaments = res.data;
+        this.updateTournamentLogo();
+      });
+    });
+
+    axios.get('/sounds').then(res => {
+      this.availableSounds = res.data.files || [];
+    }).catch(() => {
+      this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+    });
+
+    this.fetchWifi();
+  }
+}).mount('#app');
+</script>
+
 </body>
 </html>
+

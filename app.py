@@ -1088,11 +1088,11 @@ def api_settings():
         # ✅ Ensure sound fields exist
         settings_data.setdefault(
             "followed_sound",
-            old_settings.get("followed_sound", "1904_champagne-cork-pop-02")
+            old_settings.get("followed_sound", "fishing reel")
         )
         settings_data.setdefault(
             "boated_sound",
-            old_settings.get("boated_sound", "1804_doorbell-02")
+            old_settings.get("boated_sound", "fishing reel")
         )
 
         # ✅ Save SMS/email alerts

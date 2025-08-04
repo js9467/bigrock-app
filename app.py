@@ -38,8 +38,7 @@ EVENTS_FILE = 'events.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
-def send_alert_email(event):
-    return send_boat_email_alert(event)
+
 
 def load_alerts():
     if os.path.exists(ALERTS_FILE):

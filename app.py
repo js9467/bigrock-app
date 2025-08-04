@@ -14,12 +14,16 @@ import subprocess
 from threading import Thread
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+from email.utils import formataddr
+
 
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
 
-SMTP_USER = "bigrockapp@gmail.com"        # use a Gmail account
-SMTP_PASS = "coslxivgfqohjvto"          # must be a Gmail app password
+SMTP_USER = "bigrockapp@gmail.com"
+SMTP_PASS = "coslxivgfqohjvto"  # Gmail App Password
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
@@ -763,19 +767,49 @@ def subscribe_alerts():
 
 @app.route('/alerts/test', methods=['GET'])
 def test_alerts():
-    """Send a test message to all subscribers."""
-    alerts = load_alerts()
-    if not alerts:
+    """Send a test email alert with boat image and action info."""
+    # Example test data
+    boat_name = "Palmer Lou"
+    action = "Hooked Up"
+    action_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    image_path = "static/images/boats/palmer_lou.jpg"  # adjust if needed
+
+    # Load subscriber emails from alerts.json
+    recipients = load_alerts()
+    if not recipients:
         return jsonify({"status": "no_subscribers"}), 404
 
-    test_message = "🚤 Test Alert: Your Big Rock alerts are working!"
     success = 0
-    for recipient in alerts:
+    for recipient in recipients:
         try:
-            send_sms_email(recipient, test_message)
+            # Create email with image
+            msg = MIMEMultipart()
+            msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
+            msg['To'] = recipient
+            msg['Subject'] = f"{boat_name} {action} at {action_time}"
+
+            # Plain text body
+            body = f"🚤 {boat_name} {action}!\nTime: {action_time}\n\nBigRock Live Alert"
+            msg.attach(MIMEText(body, 'plain'))
+
+            # Attach boat image if exists
+            if os.path.exists(image_path):
+                with open(image_path, 'rb') as f:
+                    img_data = f.read()
+                    image = MIMEImage(img_data, name=os.path.basename(image_path))
+                    msg.attach(image)
+
+            # Send email
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_USER, [recipient], msg.as_string())
+
+            print(f"✅ Email alert sent to {recipient}")
             success += 1
+
         except Exception as e:
-            print(f"⚠️ Failed to send to {recipient}: {e}")
+            print(f"❌ Failed to send to {recipient}: {e}")
 
     return jsonify({"status": "sent", "success_count": success})
 

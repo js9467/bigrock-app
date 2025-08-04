@@ -19,6 +19,8 @@ from email.mime.image import MIMEImage
 from email.utils import formataddr
 from PIL import Image
 import io
+sent_demo_alerts = set()
+
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
 
@@ -66,6 +68,76 @@ def send_sms_email(phone_email, message):
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
         server.sendmail(SMTP_USER, [phone_email], msg.as_string())
+
+def send_boat_email_alert(event):
+    """Send an inline email alert for a boat event with image."""
+    boat = event.get('boat', 'Unknown')
+    action = event.get('event', 'Activity')
+    timestamp = event.get('timestamp', datetime.now().isoformat())
+    uid = event.get('uid', 'unknown')
+    image_path = f"static/images/boats/{uid}.jpg"
+
+    recipients = load_alerts()
+    if not recipients:
+        return 0
+
+    # Build the email
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.image import MIMEImage
+    from email.utils import formataddr
+    import io
+    from PIL import Image
+
+    success = 0
+    for recipient in recipients:
+        try:
+            msg = MIMEMultipart("related")
+            msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
+            msg['To'] = recipient
+            msg['Subject'] = f"{boat} {action} at {timestamp}"
+
+            msg_alt = MIMEMultipart("alternative")
+            msg.attach(msg_alt)
+
+            text_body = f"🚤 {boat} {action}!\nTime: {timestamp}\n\nBigRock Live Alert"
+            msg_alt.attach(MIMEText(text_body, "plain"))
+
+            html_body = f"""
+            <html><body>
+                <p>🚤 <b>{boat}</b> {action}!<br>
+                Time: {timestamp}</p>
+                <img src="cid:boat_image" style="max-width: 600px; height: auto;">
+            </body></html>
+            """
+            msg_alt.attach(MIMEText(html_body, "html"))
+
+            if os.path.exists(image_path):
+                try:
+                    with Image.open(image_path) as img:
+                        img.thumbnail((600, 600))
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format="JPEG", quality=70)
+                        img_bytes.seek(0)
+                        image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
+                        image.add_header("Content-ID", "<boat_image>")
+                        image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
+                        msg.attach(image)
+                except Exception as e:
+                    print(f"⚠️ Could not resize/attach image for {boat}: {e}")
+
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_USER, [recipient], msg.as_string())
+
+            print(f"✅ Email alert sent to {recipient} for {boat} {action}")
+            success += 1
+
+        except Exception as e:
+            print(f"❌ Failed to send alert to {recipient}: {e}")
+
+    return success
 
 def fetch_with_scraperapi(url):
     api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
@@ -1002,8 +1074,7 @@ def get_hooked_up_events():
 
     # Load events
     if data_source == "demo":
-        data = load_demo_data(tournament)
-        events = data.get("events", [])
+        events = load_demo_data(tournament).get("events", [])
     else:
         events_file = get_cache_path(tournament, "events.json")
         if not os.path.exists(events_file):
@@ -1011,7 +1082,7 @@ def get_hooked_up_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    # Sort by timestamp ascending to process sequentially
+    # Sort chronologically to process in order
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     except:
@@ -1020,7 +1091,9 @@ def get_hooked_up_events():
     unresolved = []
 
     if data_source == "demo":
-        # Existing demo logic (hookup_id based)
+        global sent_demo_alerts
+
+        # Step 1: Build resolution lookup
         resolution_lookup = set()
         for e in events:
             if e["event"] in ["Released", "Boated"] or \
@@ -1028,15 +1101,16 @@ def get_hooked_up_events():
                "wrong species" in e.get("details", "").lower():
                 try:
                     ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                    if ts.time() > now.time():  # future events in demo mode are ignored
-                        continue
-                    resolution_lookup.add((e["uid"], ts.isoformat()))
+                    if ts.time() <= now.time():  # ignore future demo events
+                        resolution_lookup.add((e["uid"], ts.isoformat()))
                 except:
                     continue
 
+        # Step 2: Process Hooked Up events
         for e in events:
             if e["event"] != "Hooked Up":
                 continue
+
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
                 if ts.time() > now.time():
@@ -1051,8 +1125,15 @@ def get_hooked_up_events():
                 unresolved.append(e)
                 continue
 
+            # Add unresolved events (no resolution yet)
             if (uid, target_ts) not in resolution_lookup:
                 unresolved.append(e)
+
+                # Step 3: Send email alert if not already sent
+                key = (uid, ts.isoformat())
+                if key not in sent_demo_alerts:
+                    sent_demo_alerts.add(key)
+                    send_boat_email_alert(e)  # <- uses your inline image email helper
 
     else:
         # 🔹 Live mode: sequential clearing logic
@@ -1064,16 +1145,12 @@ def get_hooked_up_events():
                 continue
 
             if e["event"] == "Hooked Up":
-                # Add this hooked event to unresolved list for that boat
                 boat_hooks.setdefault(uid, []).append(e)
-
             else:
-                # This is a resolution event: Boated / Released / Pulled Hook / Wrong Species
+                # Resolve oldest Hooked Up for that boat
                 if uid in boat_hooks and boat_hooks[uid]:
-                    # Remove oldest unresolved hooked event for that boat
                     boat_hooks[uid].pop(0)
 
-        # Collect all unresolved events in chronological order
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 

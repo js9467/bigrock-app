@@ -4,12 +4,6 @@ on:
   push:
     branches: [main]
 
-jobs:name: Auto Deploy to Raspberry Pi
-
-on:
-  push:
-    branches: [main]
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -54,112 +48,6 @@ jobs:
             static/**
             templates/**
             version.txt
-          target: /home/pi/bigrock-app
-          overwrite: true
-
-      - name: Restart bigrock.service if Python files changed
-        if: env.py_changed == 'true'
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          script: |
-            echo "🔁 Restarting bigrock.service..."
-            sudo systemctl restart bigrock.service
-            sleep 2
-            sudo systemctl status bigrock.service
-
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2  # only need small history for diff
-
-      - name: Generate dynamic version based on commit count
-        run: |
-          VERSION="3.$(git rev-list --count HEAD)"
-          echo "$VERSION" > version.txt
-          echo "Generated version: $VERSION"
-
-      - name: Get and expand changed files
-        id: changed
-        run: |
-          FILES=$(git diff --name-only HEAD^ HEAD || true)
-          echo "$FILES" > files_raw.txt
-
-          # Always include version.txt
-          echo "version.txt" >> files_raw.txt
-
-          echo "🔹 Raw changed files:"
-          cat files_raw.txt
-
-          FILES_TO_UPLOAD=""
-          DIRS_TO_CREATE=""
-          while IFS= read -r path; do
-            if [ -d "$path" ]; then
-              # Collect directory for mkdir
-              DIRS_TO_CREATE="$DIRS_TO_CREATE $path"
-              # Add its files to upload list
-              for f in $(find "$path" -type f); do
-                FILES_TO_UPLOAD="$FILES_TO_UPLOAD,$f"
-              done
-            elif [ -f "$path" ]; then
-              FILES_TO_UPLOAD="$FILES_TO_UPLOAD,$path"
-            fi
-          done < files_raw.txt
-
-          # Remove leading comma
-          FILES_TO_UPLOAD="${FILES_TO_UPLOAD#,}"
-
-          echo "files=$FILES_TO_UPLOAD" >> $GITHUB_OUTPUT
-          echo "dirs=$DIRS_TO_CREATE" >> $GITHUB_ENV
-
-          echo "🔹 Files to upload:"
-          echo "$FILES_TO_UPLOAD" | tr ',' '\n'
-          echo "🔹 Directories to create on Pi: $DIRS_TO_CREATE"
-
-          # Detect Python file changes
-          if echo "$FILES_TO_UPLOAD" | grep -Ei '\.py$'; then
-            echo "py_changed=true" >> $GITHUB_ENV
-          else
-            echo "py_changed=false" >> $GITHUB_ENV
-          fi
-
-      - name: Create changed directories on Raspberry Pi
-        if: env.dirs != ''
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          script: |
-            echo "📂 Creating directories on target..."
-            for d in $dirs; do
-              mkdir -p "/home/pi/bigrock-app/$d"
-            done
-
-      - name: Clean up rogue app.py in home
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          script: |
-            echo "🧹 Removing rogue /home/pi/app.py if it exists..."
-            rm -f /home/pi/app.py
-
-      - name: Upload changed files to Raspberry Pi
-        if: steps.changed.outputs.files != ''
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          source: ${{ steps.changed.outputs.files }}
           target: /home/pi/bigrock-app
           overwrite: true
 

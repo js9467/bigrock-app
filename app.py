@@ -697,21 +697,23 @@ def participants_data():
     participants = []
 
     try:
-        # 1️⃣ Try participants.json (per tournament)
+        # 1️⃣ Load per-tournament participants cache first
         if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
             with open(participants_file) as f:
                 participants = json.load(f)
 
-        # 2️⃣ Try participants_master.json as backup
+        # 2️⃣ Fallback: master participants list
         elif os.path.exists(master_file):
             with open(master_file) as f:
                 master = json.load(f)
-                # Filter by tournament if "display_name" contains it
-                participants = [p for p in master if tournament.lower() in p.get("display_name","").lower()]
+            participants = [
+                p for p in master
+                if tournament.lower() in p.get("display_name", "").lower()
+            ]
 
-        # 3️⃣ Fallback: scan static images
+        # 3️⃣ Fallback: scan static images folder
         if not participants:
-            folder = "static/images/boats"
+            folder = BOAT_FOLDER
             os.makedirs(folder, exist_ok=True)
             for fname in os.listdir(folder):
                 if fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
@@ -720,20 +722,31 @@ def participants_data():
                         "uid": uid,
                         "boat": uid.replace("_", " ").replace("-", " ").title(),
                         "type": "",
-                        "image_path": f"/static/images/boats/{fname}"
+                        "image_path": f"/{folder}/{fname}"
                     })
             print(f"🛟 Fallback loaded {len(participants)} participants from images")
 
-        # 🔹 Ensure all participants have image_path
+        # 🔹 Fix image paths & prefer WebP if available
         for p in participants:
-            if not p.get("image_path"):
-                p["image_path"] = "/static/images/bigrock.png"
+            path = p.get("image_path", "")
+            local_path = path.lstrip("/") if path.startswith("/") else path
+
+            # If missing or invalid -> default image
+            if not path or not os.path.exists(local_path):
+                p["image_path"] = "/static/images/boats/default.jpg"
+                continue
+
+            # Prefer .webp if it exists
+            base, ext = os.path.splitext(local_path)
+            webp_local = base + ".webp"
+            if os.path.exists(webp_local):
+                p["image_path"] = "/" + webp_local
+
+        # 🔹 Sort alphabetically by boat name
+        participants.sort(key=lambda p: p.get("boat", "").lower())
 
     except Exception as e:
         print(f"⚠️ Error loading participants: {e}")
-
-    # 🔹 Always sort alphabetically by boat name
-    participants.sort(key=lambda p: p.get("boat","").lower())
 
     return jsonify({
         "status": "ok",

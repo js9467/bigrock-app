@@ -17,7 +17,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr
-
+from PIL import Image
 
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
@@ -767,14 +767,12 @@ def subscribe_alerts():
 
 @app.route('/alerts/test', methods=['GET'])
 def test_alerts():
-    """Send a test email alert with boat image and action info."""
-    # Example test data
+    """Send a test email alert with a resized boat image for Palmer Lou."""
     boat_name = "Palmer Lou"
     action = "Hooked Up"
     action_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    image_path = "static/images/boats/palmer_lou.jpg"  # adjust if needed
+    image_path = "static/images/boats/palmer_lou.jpg"
 
-    # Load subscriber emails from alerts.json
     recipients = load_alerts()
     if not recipients:
         return jsonify({"status": "no_subscribers"}), 404
@@ -782,7 +780,6 @@ def test_alerts():
     success = 0
     for recipient in recipients:
         try:
-            # Create email with image
             msg = MIMEMultipart()
             msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
             msg['To'] = recipient
@@ -792,12 +789,19 @@ def test_alerts():
             body = f"🚤 {boat_name} {action}!\nTime: {action_time}\n\nBigRock Live Alert"
             msg.attach(MIMEText(body, 'plain'))
 
-            # Attach boat image if exists
+            # Attach resized image if exists
             if os.path.exists(image_path):
-                with open(image_path, 'rb') as f:
-                    img_data = f.read()
-                    image = MIMEImage(img_data, name=os.path.basename(image_path))
-                    msg.attach(image)
+                try:
+                    # Resize image to max 600px width to keep email small
+                    with Image.open(image_path) as img:
+                        img.thumbnail((600, 600))
+                        img_bytes = io.BytesIO()
+                        img.save(img_bytes, format="JPEG", quality=70)
+                        img_bytes.seek(0)
+                        image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
+                        msg.attach(image)
+                except Exception as e:
+                    print(f"⚠️ Could not resize image: {e}")
 
             # Send email
             with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
@@ -805,13 +809,14 @@ def test_alerts():
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(SMTP_USER, [recipient], msg.as_string())
 
-            print(f"✅ Email alert sent to {recipient}")
+            print(f"✅ Test email sent to {recipient} with Palmer Lou image")
             success += 1
 
         except Exception as e:
             print(f"❌ Failed to send to {recipient}: {e}")
 
     return jsonify({"status": "sent", "success_count": success})
+
 
 
 # ==========================================

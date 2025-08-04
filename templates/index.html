@@ -10,41 +10,41 @@
   <link rel="stylesheet" href="/static/css/base.css">
 
   <style>
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-.text-center a {
-  color: #facc15;
-  text-decoration: underline;
-  font-weight: bold;
-}
-.message-strip-wrapper {
-  position: relative;
-  overflow: hidden;
-  height: 2.25rem;
-  background-color: #002855;
-}
-.message-strip {
-  display: inline-block;
-  white-space: nowrap;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: white;
-  animation: marquee 40s linear infinite;
-  will-change: transform;
-  padding-left: 100%;
-}
-.message-strip a {
-  color: #facc15;
-  text-decoration: underline;
-  font-weight: bold;
-  padding: 0 0.5rem;
-}
-.message-strip-wrapper:hover .message-strip {
-  animation-play-state: paused;
-  cursor: pointer;
-}
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .text-center a {
+      color: #facc15;
+      text-decoration: underline;
+      font-weight: bold;
+    }
+    .message-strip-wrapper {
+      position: relative;
+      overflow: hidden;
+      height: 2.25rem;
+      background-color: #002855;
+    }
+    .message-strip {
+      display: inline-block;
+      white-space: nowrap;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: white;
+      animation: marquee 40s linear infinite;
+      will-change: transform;
+      padding-left: 100%;
+    }
+    .message-strip a {
+      color: #facc15;
+      text-decoration: underline;
+      font-weight: bold;
+      padding: 0 0.5rem;
+    }
+    .message-strip-wrapper:hover .message-strip {
+      animation-play-state: paused;
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -102,13 +102,10 @@
       <div v-for="event in hooked" :key="event.timestamp + event.uid"
            :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-        <!-- ✅ Clean image block -->
-        <img 
-          :src="getBoatImage(event.uid)" 
-          loading="lazy" 
-          class="w-20 h-20 object-cover rounded" 
-          @error="onImageError($event)"
-        >
+        <img :src="getBoatImage(event.uid)" 
+             loading="lazy" 
+             class="w-20 h-20 object-cover rounded"
+             @error="onImageError($event)">
 
         <div>
           <div class="text-lg font-semibold">{{ event.boat }}</div>
@@ -128,13 +125,10 @@
       <div v-for="event in events" :key="event.timestamp + event.uid"
            :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-        <!-- ✅ Same image block as Hooked -->
-        <img 
-          :src="getBoatImage(event.uid)" 
-          loading="lazy" 
-          class="w-20 h-20 object-cover rounded" 
-          @error="onImageError($event)"
-        >
+        <img :src="getBoatImage(event.uid)" 
+             loading="lazy" 
+             class="w-20 h-20 object-cover rounded"
+             @error="onImageError($event)">
 
         <div>
           <div class="text-lg font-semibold">{{ event.boat }}</div>
@@ -196,9 +190,14 @@ const app = createApp({
     if (player) player.volume = this.settings.radio_volume / 100;
 
     const storedPlaying = localStorage.getItem('radioPlaying') === 'true';
-    this.radioPlaying = storedPlaying && !player.paused && !player.ended && player.currentTime > 0;
-    if (!this.radioPlaying) {
-      localStorage.setItem('radioPlaying', 'false');
+    if (storedPlaying) {
+      this.radioPlaying = !player.paused && !player.ended && player.currentTime > 0;
+      if (!this.radioPlaying) {
+        console.log('🔄 Auto-fix: forcing VHF to off because player is paused.');
+        localStorage.setItem('radioPlaying', 'false');
+      }
+    } else {
+      this.radioPlaying = false;
     }
 
     window.addEventListener('online', this.setupMessages);
@@ -213,16 +212,93 @@ const app = createApp({
       }
     },
 
-    toggleRadio() { /* unchanged */ },
+    toggleRadio() {
+      const player = document.getElementById('radio-player');
+      if (!player) return;
+
+      if (this.radioPlaying) {
+        if (this.hls) this.hls.destroy();
+        player.pause();
+        this.radioPlaying = false;
+        localStorage.setItem('radioPlaying', 'false');
+        return;
+      }
+
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              const primary = all[tournament]?.stream;
+              const fallback = all[tournament]?.fallback_stream || all.fallback_stream;
+
+              const tryPlay = (url, label = 'Primary') => {
+                return new Promise((resolve, reject) => {
+                  if (!url) return reject(`${label} stream URL is missing.`);
+
+                  if (Hls.isSupported()) {
+                    if (this.hls) this.hls.destroy();
+                    this.hls = new Hls();
+                    this.hls.loadSource(url);
+                    this.hls.attachMedia(player);
+                    this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                      this.applyRadioVolume();
+                      player.play().then(resolve).catch(reject);
+                    });
+                  } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+                    player.src = url;
+                    this.applyRadioVolume();
+                    player.play().then(resolve).catch(reject);
+                  } else {
+                    reject(`${label} stream unsupported.`);
+                  }
+
+                  setTimeout(() => reject(`${label} stream timed out.`), 5000);
+                });
+              };
+
+              tryPlay(primary, 'Primary')
+                .then(() => {
+                  this.radioPlaying = true;
+                  this.error = null;
+                  localStorage.setItem('radioPlaying', 'true');
+                })
+                .catch(primaryErr => {
+                  console.warn("Primary stream failed:", primaryErr);
+                  tryPlay(fallback, 'Fallback')
+                    .then(() => {
+                      this.radioPlaying = true;
+                      this.error = "Your tournament VHF feed is currently unavailable. You are hearing sample audio.";
+                      this.enqueueMessage(this.error);
+                      localStorage.setItem('radioPlaying', 'true');
+                    })
+                    .catch(fallbackErr => {
+                      console.error("Both streams failed:", fallbackErr);
+                      this.radioPlaying = false;
+                      this.error = "🔇 Failed to play VHF stream.";
+                      this.enqueueMessage(this.error);
+                    });
+                });
+            });
+        });
+    },
 
     fetchSettings() {
       return fetch('/api/settings')
         .then(res => res.json())
-        .then(data => { this.settings = { ...this.settings, ...data }; });
+        .then(data => {
+          this.settings = { ...this.settings, ...data };
+        });
     },
 
     fetchVersion() {
-      fetch('/api/version').then(res => res.json()).then(data => { this.version = data.version; });
+      fetch('/api/version')
+        .then(res => res.json())
+        .then(data => {
+          this.version = data.version;
+        });
     },
 
     setupMessages() {
@@ -231,14 +307,16 @@ const app = createApp({
         this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a> for live event updates.`);
       }
       if (this.settings.data_source === 'demo') {
-        this.enqueueMessage(`You are in demo mode. Events are emulated. <a href='#' onclick='injectTestEvent()'>Simulate boated event</a>`);
+        this.enqueueMessage(`You are in demo mode. Events are emulated from a previous tournament. <a href='#' onclick='injectTestEvent()'>Click here to simulate a boated event.</a>`);
       }
       if (this.radioPlaying && this.error) {
         this.enqueueMessage(this.error);
       }
     },
 
-    enqueueMessage(msg) { if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg); },
+    enqueueMessage(msg) {
+      if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg);
+    },
 
     startMessageRotation() {
       if (this.messageQueue.length === 0) return;
@@ -257,38 +335,42 @@ const app = createApp({
         fetch('/scrape/events').then(res => res.json()),
         fetch('/hooked').then(res => res.json())
       ])
-      .then(([eventsData, hookedData]) => {
-        const newEvents = eventsData.events || [];
-        const newHooked = hookedData.events || [];
+        .then(([eventsData, hookedData]) => {
+          const newEvents = eventsData.events || [];
+          const newHooked = hookedData.events || [];
 
-        for (const event of newEvents) {
-          const key = event.timestamp + event.uid;
-          const isNew = !this.lastEventTimestamps.has(key);
-          this.lastEventTimestamps.add(key);
+          // Track new events to avoid initial sound spam
+          for (const event of newEvents) {
+            const key = event.timestamp + event.uid;
+            const isNew = !this.lastEventTimestamps.has(key);
+            this.lastEventTimestamps.add(key);
 
-          if (isNew && !this.firstLoad && this.settings.sounds_enabled) {
-            if (event.event.toLowerCase().includes('boated')) this.playSound(this.settings.boated_sound);
-            else if (this.isFollowed(event.uid)) this.playSound(this.settings.followed_sound);
+            if (isNew && !this.firstLoad && this.settings.sounds_enabled) {
+              if (event.event.toLowerCase().includes('boated')) {
+                this.playSound(this.settings.boated_sound);
+              } else if (this.isFollowed(event.uid)) {
+                this.playSound(this.settings.followed_sound);
+              }
+            }
           }
-        }
 
-        this.firstLoad = false;
-        this.events = newEvents;
-        this.hooked = newHooked;
-        this.loading = false;
-      })
-      .catch(err => {
-        console.error("❌ Fetch error:", err);
-        this.loading = false;
-      });
+          this.firstLoad = false;
+          this.events = newEvents;
+          this.hooked = newHooked;
+          this.loading = false;
+        })
+        .catch(err => {
+          console.error("❌ Fetch error:", err);
+          this.loading = false;
+        });
     },
 
     getBoatImage(uid) {
       return this.boatImages[uid] || '/static/images/default_boat.jpg';
     },
 
-    onImageError(event) {
-      event.target.src = '/static/images/default_boat.jpg';
+    onImageError(e) {
+      e.target.src = '/static/images/default_boat.jpg';
     },
 
     loadParticipants() {
@@ -296,24 +378,41 @@ const app = createApp({
         .then(res => res.json())
         .then(data => {
           const images = {};
-          for (const p of data.participants) images[p.uid] = p.image_path;
-          images["palmer_lou"] = "/static/images/palmer_lou.jpg"; // Demo
+          for (const p of data.participants) {
+            images[p.uid] = p.image_path;
+          }
+          // Include Palmer Lou for demo
+          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
           this.boatImages = images;
         });
     },
 
-    loadTournamentLogo() { /* unchanged */ },
+    loadTournamentLogo() {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(settings => {
+          const tournament = settings.tournament;
+          return fetch('https://js9467.github.io/Brtourney/settings.json')
+            .then(res => res.json())
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+            });
+        });
+    },
 
     formatTime(ts) {
       const dt = new Date(ts);
       return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     },
 
-    isFollowed(uid) { return this.followed.includes(uid); },
+    isFollowed(uid) {
+      return this.followed.includes(uid);
+    },
 
     playSound(filename) {
       if (!filename) return;
-      const audio = new Audio(`/static/sounds/${filename.replace(/\.mp3$/i, '')}.mp3`);
+      const cleanName = filename.replace(/\.mp3$/i, '');
+      const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
       audio.volume = (this.settings.event_volume || 80) / 100;
       audio.play().catch(err => console.warn('🔇 Sound failed:', err));
     }
@@ -321,15 +420,15 @@ const app = createApp({
 
 }).mount('#app');
 
-window.app = app;
+window.app = app; // ✅ Expose to injectTestEvent
 
-// Demo inject
+// ✅ Simulated demo event
 window.injectTestEvent = function () {
   if (!window.app) return;
   const injected = {
     boat: "Palmer Lou",
     event: "Boated",
-    details: "Palmer Lou boated a massive Blue Marlin!",
+    details: "Palmer Lou has boated a massive Blue Marlin and will be heading to the scales.",
     timestamp: new Date().toISOString(),
     uid: "palmer_lou"
   };
@@ -338,5 +437,6 @@ window.injectTestEvent = function () {
   window.app.playSound(window.app.settings.boated_sound);
 };
 </script>
+
 </body>
 </html>

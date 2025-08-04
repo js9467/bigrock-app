@@ -1168,7 +1168,8 @@ def get_hooked_up_events():
 
     # Load events
     if data_source == "demo":
-        events = load_demo_data(tournament).get("events", [])
+        data = load_demo_data(tournament)
+        events = data.get("events", [])
     else:
         events_file = get_cache_path(tournament, "events.json")
         if not os.path.exists(events_file):
@@ -1176,7 +1177,7 @@ def get_hooked_up_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    # Sort chronologically
+    # Sort by timestamp ascending to process sequentially
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     except:
@@ -1185,97 +1186,60 @@ def get_hooked_up_events():
     unresolved = []
 
     if data_source == "demo":
-        global sent_demo_alerts
-
-        # 1️⃣ Adjust demo timestamps to "play" in real time
-        start_time = datetime.now()
-        for i, e in enumerate(events):
-            try:
-                original_ts = date_parser.parse(e["timestamp"])
-                # offset events every 45 seconds
-                new_ts = start_time + timedelta(seconds=i * 45)
-                e["timestamp"] = new_ts.isoformat()
-            except:
-                e["timestamp"] = (start_time + timedelta(seconds=i * 45)).isoformat()
-
-        # 2️⃣ Build resolution lookup & send emails
+        # Existing demo logic (hookup_id based)
         resolution_lookup = set()
-        new_emails = 0
-        MAX_EMAILS_PER_POLL = 3
-
         for e in events:
-            event_type = e.get("event", "")
-            details = e.get("details", "").lower()
-
-            # Check if event is past "now" in adjusted timeline
-            try:
-                ts = date_parser.parse(e["timestamp"])
-                if ts > now:
-                    continue
-            except:
-                continue
-
-            uid = e.get("uid", "unknown")
-            key_base = (uid, e["timestamp"], event_type)
-
-            # Resolution events
-            is_resolution = (
-                event_type in ["Released", "Boated"] or
-                "pulled hook" in details or
-                "wrong species" in details
-            )
-            if is_resolution:
-                resolution_lookup.add((uid, ts.isoformat()))
-                if key_base not in sent_demo_alerts and new_emails < MAX_EMAILS_PER_POLL:
-                    send_boat_email_alert(e)
-                    sent_demo_alerts.add(key_base)
-                    new_emails += 1
-
-        # 3️⃣ Process Hooked Up events
-        for e in events:
-            if e.get("event") != "Hooked Up":
-                continue
-
-            try:
-                ts = date_parser.parse(e["timestamp"])
-                if ts > now:
-                    continue
-            except:
-                continue
-
-            # Unresolved if no matching resolution
-            uid = e.get("uid", "unknown")
-            hookup_id = e.get("hookup_id", "")
-            target_ts = None
-            if hookup_id:
+            if e["event"] in ["Released", "Boated"] or \
+               "pulled hook" in e.get("details", "").lower() or \
+               "wrong species" in e.get("details", "").lower():
                 try:
-                    _, ts_str = hookup_id.rsplit("_", 1)
-                    target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+                    ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                    if ts.time() > now.time():  # future events in demo mode are ignored
+                        continue
+                    resolution_lookup.add((e["uid"], ts.isoformat()))
                 except:
-                    pass
+                    continue
 
-            if not target_ts or (uid, target_ts) not in resolution_lookup:
+        for e in events:
+            if e["event"] != "Hooked Up":
+                continue
+            try:
+                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                if ts.time() > now.time():
+                    continue
+            except:
+                continue
+
+            try:
+                uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
+                target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+            except:
                 unresolved.append(e)
-                key_base = (uid, e["timestamp"], "Hooked Up")
-                if key_base not in sent_demo_alerts and new_emails < MAX_EMAILS_PER_POLL:
-                    send_boat_email_alert(e)
-                    sent_demo_alerts.add(key_base)
-                    new_emails += 1
+                continue
 
-        save_sent_demo_alerts()
+            if (uid, target_ts) not in resolution_lookup:
+                unresolved.append(e)
 
     else:
-        # 🔹 Live mode logic (unchanged)
-        boat_hooks = {}
+        # 🔹 Live mode: sequential clearing logic
+        boat_hooks = {}  # uid -> list of unresolved hooked events
+
         for e in events:
             uid = e.get("uid")
             if not uid:
                 continue
+
             if e["event"] == "Hooked Up":
+                # Add this hooked event to unresolved list for that boat
                 boat_hooks.setdefault(uid, []).append(e)
+
             else:
+                # This is a resolution event: Boated / Released / Pulled Hook / Wrong Species
                 if uid in boat_hooks and boat_hooks[uid]:
+                    # Remove oldest unresolved hooked event for that boat
                     boat_hooks[uid].pop(0)
+
+        # Collect all unresolved events in chronological order
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
@@ -1284,7 +1248,6 @@ def get_hooked_up_events():
         "count": len(unresolved),
         "events": unresolved
     })
-
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

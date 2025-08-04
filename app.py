@@ -877,18 +877,12 @@ def get_events():
             if date_parser.parse(e["timestamp"]).time() <= now.time()
         ]
         filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
-
-        # 🔹 Trigger email alerts for demo events
-        for e in filtered[:100]:
-            process_new_event(e)
-
         return jsonify({
             "status": "ok",
             "count": len(filtered),
-            "events": filtered
+            "events": filtered 
         })
 
-    # Live mode
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force, tournament=tournament)
 
@@ -898,15 +892,15 @@ def get_events():
 
     events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
 
-    # 🔹 Trigger email alerts for each new/recent event
-    for e in events[:100]:  # limit to recent events to prevent spam
-        process_new_event(e)
+# 🔹 Trigger email alerts for each event
+for e in events[:100]:  # limit to recent events to avoid backfill spam
+    process_new_event(e)
 
-    return jsonify({
-        "status": "ok" if events else "error",
-        "count": len(events),
-        "events": events[:100]
-    })
+return jsonify({
+    "status": "ok" if events else "error",
+    "count": len(events),
+    "events": events[:100]
+})
 
 
 
@@ -1287,20 +1281,19 @@ def get_hooked_up_events():
                     # Remove oldest unresolved hooked event for that boat
                     boat_hooks[uid].pop(0)
 
-               # Collect all unresolved events in chronological order
+        # Collect all unresolved events in chronological order
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
-    # 🔹 Trigger email alerts for unresolved Hooked/Boated events
-    for e in unresolved:
-        process_new_event(e)
+   # 🔹 Trigger email alerts for unresolved Hooked/Boated events
+for e in unresolved:
+    process_new_event(e)
 
-    return jsonify({
-        "status": "ok",
-        "count": len(unresolved),
-        "events": unresolved
-    })
-
+return jsonify({
+    "status": "ok",
+    "count": len(unresolved),
+    "events": unresolved
+})
 
 
 @app.route('/bluetooth/status')
@@ -1539,47 +1532,6 @@ def release_summary_data():
 
 
 
-import threading
-
-def background_event_emailer():
-    """Continuously watch the feed and send emails for followed/boated events."""
-    print("📡 Email watcher started.")
-    while True:
-        try:
-            settings = load_settings()
-            tournament = get_current_tournament()
-
-            # Load current feed (live or demo)
-            if settings.get("data_source") == "demo":
-                events = load_demo_data(tournament).get("events", [])
-                now = datetime.now().time()
-                events = [
-                    e for e in events
-                    if date_parser.parse(e["timestamp"]).time() <= now
-                ]
-            else:
-                events_file = get_cache_path(tournament, "events.json")
-                if not os.path.exists(events_file):
-                    time.sleep(5)
-                    continue
-                with open(events_file) as f:
-                    events = json.load(f)
-
-            # Sort latest first
-            events.sort(key=lambda e: e["timestamp"], reverse=True)
-
-            # Process top 50 events for email
-            for e in events[:50]:
-                process_new_event(e)
-
-        except Exception as e:
-            print(f"⚠️ Email watcher error: {e}")
-
-        # Check every 30 seconds
-        time.sleep(30)
-
-# 🔹 Launch background email watcher
-threading.Thread(target=background_event_emailer, daemon=True).start()
 
 
 

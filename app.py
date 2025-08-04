@@ -1111,6 +1111,29 @@ def get_leaderboard(tournament):
 # Global set to track which demo alerts were emailed
 sent_demo_alerts = set()  # (uid, timestamp, event_type)
 
+import json, os
+from datetime import datetime, timedelta
+from dateutil import parser as date_parser
+
+SENT_ALERTS_FILE = "sent_demo_alerts.json"
+sent_demo_alerts = set()
+
+# Load persistent sent alert history
+if os.path.exists(SENT_ALERTS_FILE):
+    try:
+        with open(SENT_ALERTS_FILE) as f:
+            sent_demo_alerts = set(tuple(x) for x in json.load(f))
+    except:
+        sent_demo_alerts = set()
+
+def save_sent_demo_alerts():
+    try:
+        with open(SENT_ALERTS_FILE, "w") as f:
+            json.dump([list(x) for x in sent_demo_alerts], f)
+    except Exception as e:
+        print(f"⚠️ Failed to save sent_demo_alerts: {e}")
+
+
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()
@@ -1139,97 +1162,95 @@ def get_hooked_up_events():
     if data_source == "demo":
         global sent_demo_alerts
 
-        # Step 1: Build resolution lookup and send resolution emails
+        # 1️⃣ Adjust demo timestamps to "play" in real time
+        start_time = datetime.now()
+        for i, e in enumerate(events):
+            try:
+                original_ts = date_parser.parse(e["timestamp"])
+                # offset events every 45 seconds
+                new_ts = start_time + timedelta(seconds=i * 45)
+                e["timestamp"] = new_ts.isoformat()
+            except:
+                e["timestamp"] = (start_time + timedelta(seconds=i * 45)).isoformat()
+
+        # 2️⃣ Build resolution lookup & send emails
         resolution_lookup = set()
+        new_emails = 0
+        MAX_EMAILS_PER_POLL = 3
+
         for e in events:
             event_type = e.get("event", "")
             details = e.get("details", "").lower()
 
+            # Check if event is past "now" in adjusted timeline
+            try:
+                ts = date_parser.parse(e["timestamp"])
+                if ts > now:
+                    continue
+            except:
+                continue
+
+            uid = e.get("uid", "unknown")
+            key_base = (uid, e["timestamp"], event_type)
+
+            # Resolution events
             is_resolution = (
                 event_type in ["Released", "Boated"] or
                 "pulled hook" in details or
                 "wrong species" in details
             )
+            if is_resolution:
+                resolution_lookup.add((uid, ts.isoformat()))
+                if key_base not in sent_demo_alerts and new_emails < MAX_EMAILS_PER_POLL:
+                    send_boat_email_alert(e)
+                    sent_demo_alerts.add(key_base)
+                    new_emails += 1
 
-            if not is_resolution:
-                continue
-
-            try:
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if ts.time() > now.time():  # ignore future demo events
-                    continue
-
-                # Add to resolution lookup
-                resolution_lookup.add((e["uid"], ts.isoformat()))
-
-                # ✅ Send resolution email if not already sent
-                key = (e["uid"], ts.isoformat(), event_type)
-                if key not in sent_demo_alerts:
-                    sent_demo_alerts.add(key)
-
-                    # Include details in subject if available
-                    subject_event = f"{event_type}"
-                    if e.get("details"):
-                        subject_event += f" - {e['details']}"
-
-                    event_for_email = {
-                        "boat": e.get("boat", "Unknown"),
-                        "event": subject_event,
-                        "timestamp": e.get("timestamp"),
-                        "uid": e.get("uid"),
-                    }
-                    send_boat_email_alert(event_for_email)
-
-            except:
-                continue
-
-        # Step 2: Process Hooked Up events and send emails
+        # 3️⃣ Process Hooked Up events
         for e in events:
             if e.get("event") != "Hooked Up":
                 continue
 
             try:
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if ts.time() > now.time():
+                ts = date_parser.parse(e["timestamp"])
+                if ts > now:
                     continue
             except:
                 continue
 
-            try:
-                uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
-                target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-            except:
-                # Fallback if no hookup_id
-                unresolved.append(e)
-                target_ts = ts.isoformat()
+            # Unresolved if no matching resolution
+            uid = e.get("uid", "unknown")
+            hookup_id = e.get("hookup_id", "")
+            target_ts = None
+            if hookup_id:
+                try:
+                    _, ts_str = hookup_id.rsplit("_", 1)
+                    target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+                except:
+                    pass
 
-            # Unresolved means no matching resolution yet
-            if (uid, target_ts) not in resolution_lookup:
+            if not target_ts or (uid, target_ts) not in resolution_lookup:
                 unresolved.append(e)
-
-                # ✅ Send hooked up email if not already sent
-                key = (uid, ts.isoformat(), "Hooked Up")
-                if key not in sent_demo_alerts:
-                    sent_demo_alerts.add(key)
+                key_base = (uid, e["timestamp"], "Hooked Up")
+                if key_base not in sent_demo_alerts and new_emails < MAX_EMAILS_PER_POLL:
                     send_boat_email_alert(e)
+                    sent_demo_alerts.add(key_base)
+                    new_emails += 1
+
+        save_sent_demo_alerts()
 
     else:
-        # 🔹 Live mode: sequential clearing logic
-        boat_hooks = {}  # uid -> list of unresolved hooked events
-
+        # 🔹 Live mode logic (unchanged)
+        boat_hooks = {}
         for e in events:
             uid = e.get("uid")
             if not uid:
                 continue
-
             if e["event"] == "Hooked Up":
                 boat_hooks.setdefault(uid, []).append(e)
             else:
-                # This is a resolution event
                 if uid in boat_hooks and boat_hooks[uid]:
                     boat_hooks[uid].pop(0)
-
-        # Collect all unresolved events
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 

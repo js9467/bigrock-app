@@ -635,7 +635,7 @@ from bs4 import BeautifulSoup
 CACHE_DIR = "cache"
 
 def scrape_leaderboard(tournament):
-    # Load settings.json from your GitHub
+    # Load settings.json from GitHub
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
         settings = requests.get(settings_url, timeout=10).json()
@@ -643,13 +643,19 @@ def scrape_leaderboard(tournament):
         print("⚠️ Could not fetch settings.json")
         return []
 
-    t_info = settings.get(tournament)
-    if not t_info or not t_info.get("leaderboard"):
+    # ✅ Use the tournament key exactly as in the JSON
+    if tournament not in settings:
+        print(f"⚠️ Tournament '{tournament}' not found in settings.json")
+        return []
+
+    t_info = settings[tournament]
+    url = t_info.get("leaderboard")
+    if not url:
         print(f"⚠️ No leaderboard URL for {tournament}")
         return []
 
-    url = t_info["leaderboard"]
     print(f"🔄 Scraping leaderboard for {tournament}: {url}")
+
     try:
         r = requests.get(url, timeout=10, verify=False)
         r.raise_for_status()
@@ -660,19 +666,19 @@ def scrape_leaderboard(tournament):
 
     soup = BeautifulSoup(html, "html.parser")
 
-    # Example parsing: adapt to actual HTML
     leaderboard = []
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10
-        name = row.select_one("h4.montserrat")
-        if not name:
+    for row in soup.select("article.m-b-20")[:10]:  # Top 10 entries
+        name_tag = row.select_one("h4.montserrat")
+        if not name_tag:
             continue
-        boat_name = name.get_text(strip=True)
-        # Optional: weight or points
+        boat_name = name_tag.get_text(strip=True)
+
         points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
-        
+
         uid = boat_name.lower().replace(" ", "_").replace("'", "")
         image_path = f"/static/images/boats/{uid}.jpg"
+
         leaderboard.append({
             "boat": boat_name,
             "uid": uid,
@@ -689,7 +695,6 @@ def scrape_leaderboard(tournament):
 
     print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
     return leaderboard
-
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"

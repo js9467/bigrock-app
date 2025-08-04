@@ -66,17 +66,20 @@
     <!-- Right: Buttons -->
     <div class="flex flex-col sm:flex-row sm:flex-wrap gap-4 items-center w-full sm:w-auto sm:ml-auto">
 
-      <!-- VHF Controls -->
-<div class="flex items-center gap-2 w-full sm:w-auto">
+     <!-- VHF Controls: Button + Slider in One Line -->
+<div class="flex items-center gap-3 flex-nowrap w-full sm:w-auto">
+  <!-- VHF Button -->
   <button @click="toggleRadio"
-          class="px-4 py-2 w-full sm:w-36 font-semibold border border-yellow-400 text-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition">
+          class="px-4 py-2 w-32 sm:w-36 font-semibold border border-yellow-400 text-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition">
     {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
   </button>
-  <div class="flex items-center text-sm text-white gap-2 w-full sm:w-auto">
+
+  <!-- Volume Control -->
+  <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
     <span class="text-lg">🔊</span>
     <input type="range" min="0" max="100" v-model="settings.radio_volume"
            @input="applyRadioVolume" @change="saveRadioVolume"
-           class="h-1 bg-white rounded-lg appearance-none cursor-pointer w-28 sm:w-40">
+           class="h-1 bg-white rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0">
     <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
   </div>
 </div>

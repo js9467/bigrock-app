@@ -157,7 +157,8 @@
 <script>
 const { createApp } = Vue;
 
-createApp({
+// ✅ Mount app and store reference in window.app
+const app = createApp({
   data() {
     return {
       events: [],
@@ -175,7 +176,9 @@ createApp({
         radio_volume: 30,
         sounds_enabled: true,
         data_source: 'live',
-        tournament: ''
+        tournament: '',
+        stream: '',
+        fallback_stream: ''
       },
       radioPlaying: false,
       hls: null,
@@ -203,6 +206,7 @@ createApp({
 
     const storedPlaying = localStorage.getItem('radioPlaying') === 'true';
     this.radioPlaying = storedPlaying;
+    if (storedPlaying) this.startRadio(); // Auto-resume if previously on
   },
 
   methods: {
@@ -224,8 +228,6 @@ createApp({
           }
           images["palmer_lou"] = "/static/images/palmer_lou.jpg";
           this.boatImages = images;
-
-          // ✅ Force Vue to refresh event images after loading participants
           this.events = [...this.events];
           this.hooked = [...this.hooked];
         });
@@ -306,25 +308,85 @@ createApp({
         i = (i + 1) % this.messageQueue.length;
         this.currentMessage = this.messageQueue[i];
       }, 7000);
+    },
+
+    // ✅ New VHF toggle logic
+    toggleRadio() {
+      if (this.radioPlaying) {
+        this.stopRadio();
+      } else {
+        this.startRadio();
+      }
+    },
+
+    startRadio() {
+      const player = document.getElementById('radio-player');
+      if (!player) return;
+
+      const stream = this.settings.stream || this.settings.fallback_stream;
+      if (!stream) {
+        this.error = "❌ No stream URL configured";
+        console.warn(this.error);
+        return;
+      }
+
+      if (Hls.isSupported()) {
+        if (!this.hls) {
+          this.hls = new Hls();
+          this.hls.loadSource(stream);
+          this.hls.attachMedia(player);
+        } else {
+          this.hls.loadSource(stream);
+        }
+      } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+        player.src = stream;
+      } else {
+        this.error = "❌ Browser does not support HLS playback";
+        console.warn(this.error);
+        return;
+      }
+
+      player.volume = this.settings.radio_volume / 100;
+      player.play().catch(err => console.warn("VHF play error:", err));
+      this.radioPlaying = true;
+      localStorage.setItem('radioPlaying', 'true');
+    },
+
+    stopRadio() {
+      const player = document.getElementById('radio-player');
+      if (player) player.pause();
+      this.radioPlaying = false;
+      localStorage.setItem('radioPlaying', 'false');
+    },
+
+    applyRadioVolume(e) {
+      const player = document.getElementById('radio-player');
+      if (player) player.volume = this.settings.radio_volume / 100;
+    },
+
+    saveRadioVolume() {
+      localStorage.setItem('radioVolume', this.settings.radio_volume);
     }
   }
 
 }).mount('#app');
 
-// Inject demo event for Palmer Lou
+window.app = app; // ✅ Make Vue accessible to injected events
+
+// ✅ Fixed simulated demo event
 window.injectTestEvent = function () {
-  const now = new Date();
-  const future = new Date(now.getTime() + 10000).toISOString();
+  if (!window.app) return;
   const injected = {
     boat: "Palmer Lou",
     event: "Boated",
     details: "Palmer Lou has boated a massive Blue Marlin and will be heading to the scales.",
-    timestamp: future,
+    timestamp: new Date().toISOString(), // current time so it appears immediately
     uid: "palmer_lou"
   };
-  app.events.unshift(injected);
-  app.lastEventTimestamps.add(injected.timestamp + injected.uid);
+  window.app.events.unshift(injected);
+  window.app.lastEventTimestamps.add(injected.timestamp + injected.uid);
 };
 </script>
+
 </body>
 </html>

@@ -56,7 +56,6 @@ def load_notified_events():
             return set(json.load(f))
     return set()
 
-
 def save_notified_events(notified):
     with open(NOTIFIED_FILE, 'w') as f:
         json.dump(list(notified), f)
@@ -77,13 +76,6 @@ def send_boat_email_alert(event):
     action = event.get('event', 'Activity')
     timestamp = event.get('timestamp', datetime.now().isoformat())
     uid = event.get('uid', 'unknown')
-    details = event.get('details', 'No additional details provided')
-
-    # ✅ Subject line includes details if available
-    subject = f"{boat} {action}"
-    if details and details.lower() != 'hooked up!':
-        subject += f" — {details}"
-    subject += f" at {timestamp}"
 
     # 🔹 Detect the real image file
     base_path = f"static/images/boats/{uid}"
@@ -106,6 +98,7 @@ def send_boat_email_alert(event):
     success = 0
 
     try:
+        # ✅ Open SMTP once for the batch
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
@@ -115,26 +108,18 @@ def send_boat_email_alert(event):
                     msg = MIMEMultipart("related")
                     msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
                     msg['To'] = recipient
-                    msg['Subject'] = subject  # ✅ Now includes details
+                    msg['Subject'] = f"{boat} {action} at {timestamp}"
 
                     msg_alt = MIMEMultipart("alternative")
                     msg.attach(msg_alt)
 
-                    # ✅ Plain text version
-                    text_body = f"""🚤 {boat} {action}!
-Time: {timestamp}
-Details: {details}
-
-BigRock Live Alert
-"""
+                    text_body = f"🚤 {boat} {action}!\nTime: {timestamp}\n\nBigRock Live Alert"
                     msg_alt.attach(MIMEText(text_body, "plain"))
 
-                    # ✅ HTML version
                     html_body = f"""
                     <html><body>
                         <p>🚤 <b>{boat}</b> {action}!<br>
-                        Time: {timestamp}<br>
-                        Details: {details}</p>
+                        Time: {timestamp}</p>
                         <img src="cid:boat_image" style="max-width: 600px; height: auto;">
                     </body></html>
                     """
@@ -143,6 +128,7 @@ BigRock Live Alert
                     # 🔹 Attach image if available
                     if image_path and os.path.exists(image_path):
                         with Image.open(image_path) as img:
+                            # Convert WebP or RGBA to RGB JPEG
                             if img.mode in ("RGBA", "LA"):
                                 img = img.convert("RGB")
                             img.thumbnail((600, 600))
@@ -165,7 +151,6 @@ BigRock Live Alert
         print(f"❌ SMTP batch failed: {e}")
 
     return success
-
 
 
 def fetch_with_scraperapi(url):
@@ -1581,48 +1566,44 @@ def background_event_emailer():
     emailed_events = load_emailed_events()
     print(f"📡 Email watcher started. Loaded {len(emailed_events)} previous notifications.")
 
-    tournament = get_current_tournament()
-    events_file = get_cache_path(tournament, "events.json")
-
-    # ✅ Preload recent events to prevent flood on startup
+    # 🔹 PRELOAD newest events to avoid flood on first run
     try:
+        tournament = get_current_tournament()
+        events_file = get_cache_path(tournament, "events.json")
         if os.path.exists(events_file):
             with open(events_file) as f:
                 events = json.load(f)
-            events.sort(key=lambda e: e["timestamp"], reverse=True)
-
-            # Preload the newest 50 events so they won't email immediately
-            for e in events[:50]:
+            for e in events[-50:]:  # last 50 events
                 uid = f"{e.get('timestamp')}_{e.get('uid')}_{e.get('event')}"
                 emailed_events.add(uid)
-
             save_emailed_events()
-            print(f"⏩ Preloaded {min(50, len(events))} events as already emailed to prevent flood")
+            print(f"⏩ Preloaded {len(events[-50:])} events to prevent email flood")
     except Exception as e:
         print(f"⚠️ Failed to preload events: {e}")
 
-    # ✅ Continuous watch loop
+    # 🔹 Start watching for new events
     while True:
         try:
             settings = load_settings()
             tournament = get_current_tournament()
 
-            # Load events from demo or live
+            # Load events
             if settings.get("data_source") == "demo":
                 events = load_demo_data(tournament).get("events", [])
                 now = datetime.now().time()
                 events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
             else:
+                events_file = get_cache_path(tournament, "events.json")
                 if not os.path.exists(events_file):
                     time.sleep(5)
                     continue
                 with open(events_file) as f:
                     events = json.load(f)
 
-            # Check only the newest 50 events
+            # Only check the newest 50 events
             events.sort(key=lambda e: e["timestamp"], reverse=True)
             for e in events[:50]:
-                process_new_event(e)  # Will only email if not in emailed_events
+                process_new_event(e)
 
         except Exception as e:
             print(f"⚠️ Email watcher error: {e}")
@@ -1636,6 +1617,10 @@ def save_emailed_events():
     with open(NOTIFIED_FILE, "w") as f:
         json.dump(list(emailed_events), f)
 
+def should_email(event):
+    """Determine if this event should trigger an email."""
+    # You can filter types here if you only want certain events
+    return True  # ✅ Send email for ALL events
 
 
 

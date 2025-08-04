@@ -51,64 +51,79 @@
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
 <!-- Header -->
-<header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
-  <div class="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+<header class="relative bg-gradient-to-r from-brand-blue via-blue-800 to-brand-blue text-white px-4 py-3 shadow-lg">
+  <div class="flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
 
-    <!-- Left: Logo + VHF -->
+    <!-- Left: Logo + VHF Playing -->
     <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2 whitespace-nowrap">
-        🎧 VHF Playing
+      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow-lg">
+      <span v-else class="text-white text-base animate-pulse">Loading Logo...</span>
+
+      <!-- VHF Active Indicator -->
+      <span v-if="radioPlaying" class="text-sm font-semibold text-green-300 animate-pulse whitespace-nowrap flex items-center gap-1">
+        🎧 <span class="hidden sm:inline">VHF Playing</span>
       </span>
     </div>
 
-    <!-- Right: Buttons -->
-    <div class="flex flex-col sm:flex-row sm:flex-wrap gap-4 items-center w-full sm:w-auto sm:ml-auto">
+    <!-- Right: Controls & Nav -->
+    <div class="flex flex-col sm:flex-row sm:flex-wrap items-center gap-6 w-full sm:w-auto sm:ml-auto">
 
-     <!-- VHF Controls: Button + Slider in One Line -->
-<div class="flex items-center gap-3 flex-nowrap w-full sm:w-auto">
-  <!-- VHF Button -->
-  <button @click="toggleRadio"
-          class="px-4 py-2 w-32 sm:w-36 font-semibold border border-yellow-400 text-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition">
-    {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-  </button>
+      <!-- VHF Controls: Stylish unified look -->
+      <div class="flex items-center gap-3 bg-blue-900/40 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70">
+        <!-- VHF Button -->
+        <button @click="toggleRadio"
+                class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">
+          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+        </button>
 
-  <!-- Volume Control -->
-  <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
-    <span class="text-lg">🔊</span>
-    <input type="range" min="0" max="100" v-model="settings.radio_volume"
-           @input="applyRadioVolume" @change="saveRadioVolume"
-           class="h-1 bg-white rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0">
-    <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
-  </div>
-</div>
+        <!-- Volume Control -->
+        <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
+          <span class="text-lg">🔊</span>
+          <input type="range" min="0" max="100" v-model="settings.radio_volume"
+                 @input="applyRadioVolume" @change="saveRadioVolume"
+                 class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
+          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
+        </div>
+      </div>
 
-
-      <!-- Navigation Buttons -->
+      <!-- Navigation Buttons with Glow -->
       <div class="grid grid-cols-2 sm:flex gap-2 sm:gap-4 w-full sm:w-auto text-center">
         <a href="/participants"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Participants</a>
         <a href="/leaderboard"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
+           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Leaderboard</a>
         <a href="/release-summary"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Releases</a>
+           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Releases</a>
         <a href="/settings-page"
-           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
+           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">⚙</a>
       </div>
     </div>
   </div>
 
-  <!-- Rotating Messages -->
-  <div v-if="messageQueue.length > 0" class="w-full bg-brand-blue py-1 mt-2 sm:mt-0">
-    <div class="text-white text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
+  <!-- Rotating Messages (Marquee-like effect) -->
+  <div v-if="messageQueue.length > 0" class="w-full mt-3 overflow-hidden">
+    <div class="animate-marquee whitespace-nowrap text-yellow-300 text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
   </div>
 
   <!-- Version -->
-  <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
+  <div class="absolute bottom-1 left-3 text-xs text-white/70" v-if="version">
     v{{ version }}
   </div>
-</header> 
+</header>
+
+<!-- Tailwind Extra Animation -->
+<style>
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.animate-marquee {
+  display: inline-block;
+  min-width: 100%;
+  animation: marquee 15s linear infinite;
+}
+</style>
+
 
   <div class="flex h-screen overflow-hidden">
     <!-- Hooked Column -->

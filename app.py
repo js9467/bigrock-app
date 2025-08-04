@@ -1282,19 +1282,20 @@ def get_hooked_up_events():
                     # Remove oldest unresolved hooked event for that boat
                     boat_hooks[uid].pop(0)
 
-        # Collect all unresolved events in chronological order
+               # Collect all unresolved events in chronological order
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
-   # 🔹 Trigger email alerts for unresolved Hooked/Boated events
-for e in unresolved:
-    process_new_event(e)
+    # 🔹 Trigger email alerts for unresolved Hooked/Boated events
+    for e in unresolved:
+        process_new_event(e)
 
-return jsonify({
-    "status": "ok",
-    "count": len(unresolved),
-    "events": unresolved
-})
+    return jsonify({
+        "status": "ok",
+        "count": len(unresolved),
+        "events": unresolved
+    })
+
 
 
 @app.route('/bluetooth/status')

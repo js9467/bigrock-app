@@ -678,6 +678,10 @@ MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"
 
+MAX_IMG_SIZE = (400, 400)  # Max width/height
+IMG_QUALITY = 70           # JPEG/WEBP quality
+BOAT_FOLDER = "static/images/boats"
+
 def optimize_boat_image(file_path):
     """Auto-rotate, resize, compress, and create WebP for a single boat image."""
     try:
@@ -720,6 +724,21 @@ def optimize_boat_image(file_path):
             print(f"✅ Optimized {os.path.basename(file_path)} ({img.width}x{img.height}) -> WebP saved")
     except Exception as e:
         print(f"⚠️ Failed to optimize {file_path}: {e}")
+
+
+def optimize_all_boat_images():
+    """Optimize all boat images in static folder (startup or fallback)."""
+    os.makedirs(BOAT_FOLDER, exist_ok=True)
+    optimized_count = 0
+    for fname in os.listdir(BOAT_FOLDER):
+        if fname.lower().endswith((".jpg", ".jpeg", ".png")):
+            fpath = os.path.join(BOAT_FOLDER, fname)
+            optimize_boat_image(fpath)
+            optimized_count += 1
+    print(f"🎉 Boat image optimization complete ({optimized_count} checked)")
+
+
+
 
 
 # Routes
@@ -1496,4 +1515,5 @@ def release_summary_data():
 if __name__ == '__main__':
     print("🚀 Optimizing boat images on startup...")
     optimize_all_boat_images()
+    app.run(host='0.0.0.0', port=5000, debug=True)
     app.run(host='0.0.0.0', port=5000, debug=True)

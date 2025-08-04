@@ -51,6 +51,7 @@
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
 <!--<!-- Header -->
+<!-- Header -->
 <header class="relative bg-brand-blue text-white px-4 py-3 shadow-lg">
   <div class="flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
 
@@ -68,15 +69,12 @@
     <!-- Right: Controls & Nav -->
     <div class="flex flex-col sm:flex-row sm:flex-wrap items-center gap-6 w-full sm:w-auto sm:ml-auto">
 
-      <!-- VHF Controls: Stylish unified look -->
+      <!-- VHF Controls -->
       <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
-        <!-- VHF Button -->
         <button @click="toggleRadio"
-                class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">
+                class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">
           {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
         </button>
-
-        <!-- Volume Control -->
         <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
           <span class="text-lg">🔊</span>
           <input type="range" min="0" max="100" v-model="settings.radio_volume"
@@ -100,17 +98,34 @@
     </div>
   </div>
 
-  <!-- Live Broadcast Message Bar -->
-  <div v-if="messageQueue.length > 0" class="w-full mt-3">
+  <!-- Live Alert Bar -->
+  <div v-if="messageQueue.length > 0" class="w-full mt-3 relative">
     <div class="bg-yellow-400 text-blue-900 font-extrabold px-4 py-2 text-center text-lg leading-snug break-words whitespace-normal rounded shadow-inner shadow-yellow-500/50 animate-pulse-slow" v-html="currentMessage"></div>
-  </div>
 
-  <!-- Version -->
-  <div class="absolute bottom-1 left-3 text-xs text-white/70" v-if="version">
-    v{{ version }}
+    <!-- Version badge stays visible -->
+    <div class="absolute bottom-0 left-2 mb-1 text-xs text-white/80 bg-blue-900/80 px-2 py-0.5 rounded">
+      v{{ version }}
+    </div>
+
+    <!-- Demo injection button (only visible in demo mode) -->
+    <button v-if="settings.data_source === 'demo'" 
+            @click="injectTestEvent" 
+            class="absolute bottom-0 right-2 mb-1 text-xs font-bold text-blue-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded shadow">
+      + Demo Event
+    </button>
   </div>
 </header>
 
+<!-- Extra Styles -->
+<style>
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+</style>
 <!-- Extra Styles -->
 <style>
 /* Smooth pulsing for logo, VHF pill, and alert bar */

@@ -18,7 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr
 from PIL import Image
-
+import io
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
 
@@ -149,7 +149,7 @@ from threading import Lock
 image_locks = {}
 
 def cache_boat_image(boat_name, image_url):
-    folder = 'static/images/boats'
+    folder = BOAT_FOLDER
     os.makedirs(folder, exist_ok=True)
     safe_name = normalize_boat_name(boat_name)
     
@@ -159,27 +159,27 @@ def cache_boat_image(boat_name, image_url):
         ext = '.jpg'
     file_path = os.path.join(folder, f"{safe_name}{ext}")
 
-    # Thread-safe per-file lock
     lock = image_locks.setdefault(file_path, Lock())
     with lock:
-        # If file already exists and is not empty, skip download
         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
             return f"/{file_path}"  # Return relative path
 
-        # Download image
         try:
             response = requests.get(image_url, timeout=10)
             if response.status_code == 200:
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
                 print(f"✅ Downloaded image for {boat_name}: {file_path}")
+
+                # 🔹 Optimize immediately & create WebP
+                optimize_boat_image(file_path)
+
                 return f"/{file_path}"
             else:
                 print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
                 return "/static/images/boats/default.jpg"
         except Exception as e:
             print(f"⚠️ Error downloading image for {boat_name}: {e}")
-            # Clean up any partially written file
             if os.path.exists(file_path):
                 os.remove(file_path)
             return "/static/images/boats/default.jpg"
@@ -547,7 +547,50 @@ def scrape_leaderboard(tournament):
     print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
     return leaderboard
 
+MAX_IMG_SIZE = (400, 400)  # Max width/height
+IMG_QUALITY = 70           # JPEG/WEBP quality
+BOAT_FOLDER = "static/images/boats"
 
+def optimize_boat_image(file_path):
+    """Resize and compress a single boat image and save WebP version."""
+    try:
+        if not os.path.exists(file_path):
+            return
+
+        # Skip very small files (~already optimized)
+        if os.path.getsize(file_path) < 50_000:
+            return
+
+        with Image.open(file_path) as img:
+            img_format = img.format or "JPEG"
+
+            # Resize in-place if larger than target
+            if img.width > MAX_IMG_SIZE[0] or img.height > MAX_IMG_SIZE[1]:
+                img.thumbnail(MAX_IMG_SIZE)
+
+            # Overwrite original with optimized JPEG/PNG
+            img.save(file_path, optimize=True, quality=IMG_QUALITY)
+
+            # Create WebP version for faster browsers
+            webp_path = os.path.splitext(file_path)[0] + ".webp"
+            img.save(webp_path, format="WEBP", optimize=True, quality=IMG_QUALITY)
+
+            print(f"✅ Optimized {os.path.basename(file_path)} ({img.width}x{img.height}) -> WebP saved")
+    except Exception as e:
+        print(f"⚠️ Failed to optimize {file_path}: {e}")
+
+
+def optimize_all_boat_images():
+    """Optimize all boat images in static folder (startup or fallback)."""
+    os.makedirs(BOAT_FOLDER, exist_ok=True)
+    optimized_count = 0
+    for fname in os.listdir(BOAT_FOLDER):
+        if fname.lower().endswith((".jpg", ".jpeg", ".png")):
+            fpath = os.path.join(BOAT_FOLDER, fname)
+            optimize_boat_image(fpath)
+            optimized_count += 1
+    print(f"🎉 Boat image optimization complete ({optimized_count} checked)")
+    
 # Routes
 @app.route('/')
 def homepage():
@@ -1282,4 +1325,7 @@ def release_summary_data():
 
 
 if __name__ == '__main__':
+    print("🚀 Optimizing boat images on startup...")
+    optimize_all_boat_images()
     app.run(host='0.0.0.0', port=5000, debug=True)
+

@@ -262,12 +262,10 @@ def run_in_thread(target, name):
     Thread(target=wrapper).start()
 
 def scrape_participants(force=False):
-    """Scrape participants for the current tournament, keeping boats only."""
     cache = load_cache()
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
 
-    # ✅ Use cache if fresh
     if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
         if os.path.exists(participants_file):
@@ -276,7 +274,6 @@ def scrape_participants(force=False):
         return []
 
     try:
-        # Load tournament URLs from remote settings.json
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
         settings = requests.get(settings_url, timeout=30).json()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
@@ -289,17 +286,12 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
-        # Load existing participants to preserve images
         existing_participants = {}
         if os.path.exists(participants_file):
-            try:
-                with open(participants_file, "r") as f:
-                    for p in json.load(f):
-                        existing_participants[p["uid"]] = p
-            except Exception as e:
-                print(f"⚠️ Existing participants file unreadable, ignoring: {e}")
+            with open(participants_file, "r") as f:
+                for p in json.load(f):
+                    existing_participants[p["uid"]] = p
 
-        # Fetch and parse HTML
         html = fetch_with_scraperapi(participants_url)
         if not html:
             raise Exception("No HTML returned from ScraperAPI")
@@ -307,7 +299,7 @@ def scrape_participants(force=False):
         with open("debug_participants.html", "w", encoding="utf-8") as f:
             f.write(html)
 
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, 'html.parser')
         updated_participants = {}
         seen_boats = set()
         download_tasks = []
@@ -316,20 +308,15 @@ def scrape_participants(force=False):
             name_tag = article.select_one("h2.post-title")
             type_tag = article.select_one("ul.post-meta li")
             img_tag = article.select_one("img")
+
             if not name_tag:
                 continue
 
             boat_name = name_tag.get_text(strip=True)
-
-            # ❌ Skip duplicates
-            if boat_name.lower() in seen_boats:
+            if ',' in boat_name or boat_name.lower() in seen_boats:
                 continue
 
-            # ❌ Skip anglers: no boat type or looks like "John Smith"
             boat_type = type_tag.get_text(strip=True) if type_tag else ""
-            if not boat_type or re.match(r'^[A-Z][a-z]+\s[A-Z][a-z]+$', boat_name):
-                continue
-
             uid = normalize_boat_name(boat_name)
             seen_boats.add(boat_name.lower())
 
@@ -357,7 +344,6 @@ def scrape_participants(force=False):
                 "image_path": image_path
             }
 
-        # Download missing images in parallel
         if download_tasks:
             print(f"📸 Downloading {len(download_tasks)} new boat images...")
             with ThreadPoolExecutor(max_workers=6) as executor:
@@ -375,26 +361,20 @@ def scrape_participants(force=False):
                         updated_participants[uid]["image_path"] = "/static/images/boats/default.jpg"
 
         updated_list = list(updated_participants.values())
+        if updated_list != list(existing_participants.values()):
+            with open(participants_file, "w") as f:
+                json.dump(updated_list, f, indent=2)
+            print(f"✅ Updated and saved {len(updated_list)} participants")
+        else:
+            print(f"✅ No changes detected — {len(updated_list)} participants up-to-date")
 
-        # ✅ Atomic save to prevent corrupted JSON
-        tmp_file = participants_file + ".tmp"
-        with open(tmp_file, "w") as f:
-            json.dump(updated_list, f, indent=2)
-        os.replace(tmp_file, participants_file)
-
-        print(f"✅ Updated and saved {len(updated_list)} boats (anglers skipped)")
-
-        # Update cache timestamp
         cache[f"{tournament}_participants"] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
-
         return updated_list
 
     except Exception as e:
         print(f"⚠️ Error scraping participants: {e}")
         return []
-
-
 
 
 def scrape_events(force=False, tournament=None):
@@ -629,7 +609,6 @@ def participants_data():
         "participants": participants,
         "count": len(participants)
     })
-
 
 
 

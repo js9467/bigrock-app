@@ -76,6 +76,13 @@ def send_boat_email_alert(event):
     action = event.get('event', 'Activity')
     timestamp = event.get('timestamp', datetime.now().isoformat())
     uid = event.get('uid', 'unknown')
+    details = event.get('details', 'No additional details provided')
+
+    # ✅ Subject line includes details if available
+    subject = f"{boat} {action}"
+    if details and details.lower() != 'hooked up!':
+        subject += f" — {details}"
+    subject += f" at {timestamp}"
 
     # 🔹 Detect the real image file
     base_path = f"static/images/boats/{uid}"
@@ -98,7 +105,6 @@ def send_boat_email_alert(event):
     success = 0
 
     try:
-        # ✅ Open SMTP once for the batch
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
@@ -108,18 +114,26 @@ def send_boat_email_alert(event):
                     msg = MIMEMultipart("related")
                     msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
                     msg['To'] = recipient
-                    msg['Subject'] = f"{boat} {action} at {timestamp}"
+                    msg['Subject'] = subject  # ✅ Now includes details
 
                     msg_alt = MIMEMultipart("alternative")
                     msg.attach(msg_alt)
 
-                    text_body = f"🚤 {boat} {action}!\nTime: {timestamp}\n\nBigRock Live Alert"
+                    # ✅ Plain text version
+                    text_body = f"""🚤 {boat} {action}!
+Time: {timestamp}
+Details: {details}
+
+BigRock Live Alert
+"""
                     msg_alt.attach(MIMEText(text_body, "plain"))
 
+                    # ✅ HTML version
                     html_body = f"""
                     <html><body>
                         <p>🚤 <b>{boat}</b> {action}!<br>
-                        Time: {timestamp}</p>
+                        Time: {timestamp}<br>
+                        Details: {details}</p>
                         <img src="cid:boat_image" style="max-width: 600px; height: auto;">
                     </body></html>
                     """
@@ -128,7 +142,6 @@ def send_boat_email_alert(event):
                     # 🔹 Attach image if available
                     if image_path and os.path.exists(image_path):
                         with Image.open(image_path) as img:
-                            # Convert WebP or RGBA to RGB JPEG
                             if img.mode in ("RGBA", "LA"):
                                 img = img.convert("RGB")
                             img.thumbnail((600, 600))
@@ -151,6 +164,7 @@ def send_boat_email_alert(event):
         print(f"❌ SMTP batch failed: {e}")
 
     return success
+
 
 
 def fetch_with_scraperapi(url):

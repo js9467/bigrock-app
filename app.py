@@ -262,6 +262,7 @@ def scrape_participants(force=False):
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
 
+    # Check cache freshness
     if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
         if os.path.exists(participants_file):
@@ -282,14 +283,13 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
-        # Load existing participants for image reuse
+        # Load existing participants
         existing_participants = {}
         if os.path.exists(participants_file):
             with open(participants_file, "r") as f:
                 for p in json.load(f):
                     existing_participants[p["uid"]] = p
 
-        # Fetch page
         html = fetch_with_scraperapi(participants_url)
         if not html:
             raise Exception("No HTML returned from ScraperAPI")
@@ -303,6 +303,9 @@ def scrape_participants(force=False):
         download_tasks = []
         queued_uids = set()  # Prevent duplicate downloads
 
+        # Keywords that identify human entries
+        skip_keywords = ["captain", "mate", "angler", "crew", "team", "junior", "lady"]
+
         for article in soup.select("article.post.format-image"):
             name_tag = article.select_one("h2.post-title")
             type_tag = article.select_one("ul.post-meta li")
@@ -312,18 +315,23 @@ def scrape_participants(force=False):
                 continue
 
             boat_name = name_tag.get_text(strip=True)
+            boat_type = type_tag.get_text(strip=True) if type_tag else ""
+
+            # 🔹 Skip non-boat entries (crew/people)
+            if any(word in boat_type.lower() for word in skip_keywords):
+                print(f"⏩ Skipping non-boat entry: {boat_name} ({boat_type})")
+                continue
+
             uid = normalize_boat_name(boat_name)
 
-            # Skip duplicates in page
+            # Deduplicate boats
             if uid in seen_boats:
                 continue
             seen_boats.add(uid)
 
-            boat_type = type_tag.get_text(strip=True) if type_tag else ""
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
             image_path = existing_participants.get(uid, {}).get("image_path", "")
 
-            # Local file check
             local_path = image_path[1:] if image_path.startswith('/') else image_path
             force_download = (
                 uid not in existing_participants or
@@ -331,11 +339,15 @@ def scrape_participants(force=False):
                 not os.path.exists(local_path)
             )
 
-            # Queue download task if needed
+            # Queue download if needed
             if force_download and image_url and uid not in queued_uids:
-                queued_uids.add(uid)
-                download_tasks.append((uid, boat_name, image_url))
-                image_path = ""  # Will update after download
+                # Skip known blank/default placeholder images
+                if "placeholder" in image_url.lower() or "default" in image_url.lower():
+                    image_path = "/static/images/boats/default.jpg"
+                else:
+                    queued_uids.add(uid)
+                    download_tasks.append((uid, boat_name, image_url))
+                    image_path = ""
             elif not image_url:
                 image_path = "/static/images/boats/default.jpg"
 
@@ -346,10 +358,10 @@ def scrape_participants(force=False):
                 "image_path": image_path
             }
 
-        # Ensure folder exists once before downloading
+        # Ensure the folder exists before threading
         os.makedirs("static/images/boats", exist_ok=True)
 
-        # Multi-threaded download
+        # Download queued images in threads
         if download_tasks:
             print(f"📸 Downloading {len(download_tasks)} new boat images...")
             with ThreadPoolExecutor(max_workers=6) as executor:
@@ -383,6 +395,7 @@ def scrape_participants(force=False):
     except Exception as e:
         print(f"⚠️ Error scraping participants: {e}")
         return []
+
 
 
 

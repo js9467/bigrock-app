@@ -1115,8 +1115,8 @@ def api_settings():
 
     # ----- GET Settings -----
     settings = load_settings()
-    settings.setdefault("followed_sound", "1904_champagne-cork-pop-02")
-    settings.setdefault("boated_sound", "1804_doorbell-02")
+    settings.setdefault("followed_sound", "Fishing Reel")
+    settings.setdefault("boated_sound", "Fishing Reel")
 
     # ✅ Include alerts in GET response
     settings["sms_emails"] = load_alerts()

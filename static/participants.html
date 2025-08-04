@@ -42,11 +42,12 @@
           :key="p.uid"
           class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col"
         >
-          <!-- Placeholder shown until image loads -->
+          <!-- Lazy loaded image with fade-in -->
           <img
-            :src="boatImages[p.uid] || '/static/images/bigrock.png'"
-            loading="lazy"
-            class="w-full h-48 object-cover transition-opacity duration-500"
+            class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
+            :data-src="p.image_path || '/static/images/bigrock.png'"
+            src="/static/images/bigrock.png"
+            alt="Boat Image"
           />
           <div class="p-4 flex-1 flex flex-col justify-between">
             <div>
@@ -77,84 +78,83 @@
   </div>
 
   <script>
-const app = Vue.createApp({
-  data() {
-    return {
-      participants: [],
-      followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-      tournamentLogo: '',
-      search: '',
-      loading: false
-    };
-  },
-  computed: {
-    filteredParticipants() {
-      const q = this.search.toLowerCase();
-      return this.participants.filter(p =>
-        p.boat.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
-      );
-    }
-  },
-  methods: {
-    toggleFollow(uid) {
-      if (this.followed.includes(uid)) {
-        this.followed = this.followed.filter(id => id !== uid);
-      } else {
-        this.followed.push(uid);
+  const app = Vue.createApp({
+    data() {
+      return {
+        participants: [],
+        followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+        tournamentLogo: '',
+        search: '',
+        loading: false
+      };
+    },
+    computed: {
+      filteredParticipants() {
+        const q = this.search.toLowerCase();
+        return this.participants.filter(p =>
+          p.boat.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
+        );
       }
-      localStorage.setItem('followedBoats', JSON.stringify(this.followed));
     },
-    isFollowed(uid) {
-      return this.followed.includes(uid);
-    },
-    async loadParticipants() {
-      this.loading = true;
-      const res = await fetch('/participants_data?limit=1000&offset=0');
-      const data = await res.json();
-      this.participants = (data.participants || []).sort((a,b)=>a.boat.localeCompare(b.boat));
-      this.loading = false;
+    methods: {
+      toggleFollow(uid) {
+        if (this.followed.includes(uid)) {
+          this.followed = this.followed.filter(id => id !== uid);
+        } else {
+          this.followed.push(uid);
+        }
+        localStorage.setItem('followedBoats', JSON.stringify(this.followed));
+      },
+      isFollowed(uid) {
+        return this.followed.includes(uid);
+      },
+      async loadParticipants() {
+        this.loading = true;
+        const res = await fetch('/participants_data?limit=1000&offset=0');
+        const data = await res.json();
+        this.participants = (data.participants || []).sort((a,b)=>a.boat.localeCompare(b.boat));
+        this.loading = false;
 
-      // Wait for Vue to render the list, then attach lazy loader
-      this.$nextTick(() => this.initLazyLoading());
-    },
-    async loadLogo() {
-      try {
-        const settingsRes = await fetch('/api/settings');
-        const settings = await settingsRes.json();
-        const tournament = settings.tournament;
-        const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
-        const allTournaments = await configRes.json();
-        this.tournamentLogo = allTournaments[tournament]?.logo || '';
-      } catch(e) { console.error('Logo load failed', e); }
-    },
-    launchKeyboard() { fetch('/launch_keyboard').catch(()=>{}); },
-    hideKeyboard() { fetch('/hide_keyboard').catch(()=>{}); },
+        // Wait for Vue to render the list, then attach lazy loader
+        this.$nextTick(() => this.initLazyLoading());
+      },
+      async loadLogo() {
+        try {
+          const settingsRes = await fetch('/api/settings');
+          const settings = await settingsRes.json();
+          const tournament = settings.tournament;
+          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const allTournaments = await configRes.json();
+          this.tournamentLogo = allTournaments[tournament]?.logo || '';
+        } catch(e) { console.error('Logo load failed', e); }
+      },
+      launchKeyboard() { fetch('/launch_keyboard').catch(()=>{}); },
+      hideKeyboard() { fetch('/hide_keyboard').catch(()=>{}); },
 
-    // Initialize Intersection Observer for lazy images
-    initLazyLoading() {
-      const observer = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const img = entry.target;
-            img.src = img.dataset.src;
-            img.onload = () => img.classList.add('opacity-100');
-            observer.unobserve(img);
-          }
+      // Initialize Intersection Observer for lazy images
+      initLazyLoading() {
+        const observer = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              img.src = img.dataset.src;
+              img.onload = () => img.classList.add('opacity-100');
+              observer.unobserve(img);
+            }
+          });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('img.lazy').forEach(img => {
+          observer.observe(img);
         });
-      }, { threshold: 0.1 });
-
-      document.querySelectorAll('img.lazy').forEach(img => {
-        img.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-        observer.observe(img);
-      });
+      }
+    },
+    mounted() {
+      this.loadLogo();
+      this.loadParticipants();
     }
-  },
-  mounted() {
-    this.loadLogo();
-    this.loadParticipants();
-  }
-});
-app.mount('#app');
-</script>
+  });
+  app.mount('#app');
+  </script>
 </body>
 </html>

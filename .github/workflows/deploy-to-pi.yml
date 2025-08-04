@@ -30,7 +30,7 @@ jobs:
       - name: Install rsync and openssh
         run: sudo apt-get update && sudo apt-get install -y rsync openssh-client
 
-      - name: Deploy project with rsync
+      - name: Deploy project with rsync (exclude venv)
         env:
           PI_HOST: 64.99.148.73
           PI_USER: pi
@@ -39,10 +39,12 @@ jobs:
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
 
-          # Mirror repo to Pi, excluding GitHub metadata
+          # Rsync app files but exclude venv and GitHub metadata
           rsync -avz --delete \
+            --exclude "venv/" \
             --exclude ".git/" \
             --exclude ".github/" \
+            --exclude "__pycache__/" \
             -e "ssh -i key.pem -o StrictHostKeyChecking=no" \
             ./ $PI_USER@$PI_HOST:/home/pi/bigrock-app/
 

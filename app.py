@@ -890,17 +890,18 @@ def get_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
+   events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
 
-# 🔹 Trigger email alerts for each event
-for e in events[:100]:  # limit to recent events to avoid backfill spam
+# 🔹 Trigger email alerts for each new/recent event
+for e in events[:100]:  # Limit to avoid spamming old historical events
     process_new_event(e)
 
-return jsonify({
-    "status": "ok" if events else "error",
-    "count": len(events),
-    "events": events[:100]
-})
+    return jsonify({
+        "status": "ok" if events else "error",
+        "count": len(events),
+        "events": events[:100]
+    })
+
 
 
 

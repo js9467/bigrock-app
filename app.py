@@ -1150,41 +1150,49 @@ def leaderboard_page():
     return send_from_directory('static', 'leaderboard.html')
 
 # Serve JSON data
-@app.route("/api/leaderboard/<tournament>")
-def get_leaderboard(tournament):
-    """Always scrape leaderboard fresh from master JSON."""
+@app.route("/api/leaderboard")
+def api_leaderboard():
+    tournament = get_current_tournament()  # ✅ Always use current tournament
+    print(f"📊 Fetching leaderboard for tournament: {tournament}")
+
+    # Load master settings.json
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
         settings = requests.get(settings_url, timeout=10).json()
     except Exception as e:
-        return jsonify({"status": "error", "message": "Failed to load settings.json"}), 500
+        return jsonify({"status": "error", "message": f"Failed to fetch settings.json: {e}"}), 500
 
-    t_info = settings.get(tournament)
-    if not t_info or not t_info.get("leaderboard"):
+    # Match the tournament key
+    matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
+    if not matching_key:
+        return jsonify({"status": "error", "message": f"Tournament '{tournament}' not in settings.json"}), 404
+
+    leaderboard_url = settings[matching_key].get("leaderboard")
+    if not leaderboard_url:
         return jsonify({"status": "error", "message": f"No leaderboard URL for {tournament}"}), 404
 
-    url = t_info["leaderboard"]
-    print(f"🔄 Scraping leaderboard for {tournament}: {url}")
-
+    # Fetch & parse leaderboard
+    print(f"🔄 Scraping leaderboard from: {leaderboard_url}")
     try:
-        html = requests.get(url, timeout=15, verify=False).text
+        r = requests.get(leaderboard_url, timeout=15, verify=False)
+        r.raise_for_status()
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to fetch leaderboard: {e}"}), 500
+        return jsonify({"status": "error", "message": f"Failed to fetch leaderboard page: {e}"}), 500
 
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(r.text, "html.parser")
     leaderboard = []
 
-    # Example parsing — adjust selectors if needed
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10 boats
-        name_tag = row.select_one("h4.montserrat")
-        if not name_tag:
+    # Example parsing — adapt if HTML structure changes
+    for row in soup.select("article.m-b-20")[:10]:  # Top 10
+        name = row.select_one("h4.montserrat")
+        if not name:
             continue
+        boat_name = name.get_text(strip=True)
 
-        boat_name = name_tag.get_text(strip=True)
         points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
 
-        uid = boat_name.lower().replace(" ", "_").replace("'", "")
+        uid = normalize_boat_name(boat_name)
         image_path = f"/static/images/boats/{uid}.jpg"
 
         leaderboard.append({
@@ -1194,7 +1202,7 @@ def get_leaderboard(tournament):
             "image": image_path
         })
 
-    # Save to cache for optional reuse
+    # Cache result
     t_dir = os.path.join(CACHE_DIR, tournament)
     os.makedirs(t_dir, exist_ok=True)
     lb_file = os.path.join(t_dir, "leaderboard.json")

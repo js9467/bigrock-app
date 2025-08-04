@@ -150,6 +150,42 @@ def send_boat_email_alert(event):
 
     return success
 
+# ==================================================
+# Email trigger helper for Followed & Boated events
+# ==================================================
+def process_new_event(event):
+    """Send emails for followed boats and all Boated events."""
+    global sent_demo_alerts
+
+    uid = event.get("uid")
+    boat = event.get("boat", "Unknown")
+    event_type = event.get("event", "Activity")
+    timestamp = event.get("timestamp", datetime.now().isoformat())
+
+    # Unique key to avoid duplicate alerts
+    key = (uid, timestamp, event_type)
+    if key in sent_demo_alerts:
+        return
+    sent_demo_alerts.add(key)
+    save_sent_demo_alerts()
+
+    # Load subscribers
+    recipients = load_alerts()
+    if not recipients:
+        return
+
+    # Determine if this is a followed boat
+    followed = False
+    for sub in recipients:
+        if uid and uid in sub.lower():
+            followed = True
+        elif boat.lower() in sub.lower():
+            followed = True
+    # Trigger for any followed OR any boated event
+    if followed or event_type.lower() == "boated":
+        send_boat_email_alert(event)
+
+
 
 
 def fetch_with_scraperapi(url):
@@ -855,11 +891,17 @@ def get_events():
             events = json.load(f)
 
     events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
-    return jsonify({
-        "status": "ok" if events else "error",
-        "count": len(events),
-        "events": events[:100]
-    })
+
+# 🔹 Trigger email alerts for each event
+for e in events[:100]:  # limit to recent events to avoid backfill spam
+    process_new_event(e)
+
+return jsonify({
+    "status": "ok" if events else "error",
+    "count": len(events),
+    "events": events[:100]
+})
+
 
 
 
@@ -1243,11 +1285,16 @@ def get_hooked_up_events():
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
-    return jsonify({
-        "status": "ok",
-        "count": len(unresolved),
-        "events": unresolved
-    })
+   # 🔹 Trigger email alerts for unresolved Hooked/Boated events
+for e in unresolved:
+    process_new_event(e)
+
+return jsonify({
+    "status": "ok",
+    "count": len(unresolved),
+    "events": unresolved
+})
+
 
 @app.route('/bluetooth/status')
 def bluetooth_status():

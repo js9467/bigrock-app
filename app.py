@@ -1540,9 +1540,51 @@ def release_summary_data():
 
 import threading
 
+import json, os, time, threading
+from datetime import datetime
+from dateutil import parser as date_parser
+
+NOTIFIED_FILE = "notified.json"
+emailed_events = set()
+
+def load_emailed_events():
+    """Load previously emailed events to avoid duplicates."""
+    if os.path.exists(NOTIFIED_FILE):
+        try:
+            with open(NOTIFIED_FILE, "r") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+def save_emailed_events():
+    """Save emailed events to disk."""
+    with open(NOTIFIED_FILE, "w") as f:
+        json.dump(list(emailed_events), f)
+
+def should_email(event):
+    """Determine if this event should trigger an email."""
+    # You can filter types here if you only want certain events
+    return True  # ✅ Send email for ALL events
+
+def process_new_event(event):
+    """Send email for any new event exactly once."""
+    uid = f"{event.get('timestamp')}_{event.get('uid')}_{event.get('event')}"
+    if uid in emailed_events:
+        return  # already emailed
+    emailed_events.add(uid)
+    save_emailed_events()
+
+    if should_email(event):
+        send_alert_email(event)
+        print(f"📧 Email sent for {event['boat']} - {event['event']}")
+
 def background_event_emailer():
-    """Continuously watch the feed and send emails for followed/boated events."""
-    print("📡 Email watcher started.")
+    """Continuously watch the feed and send emails for new events."""
+    global emailed_events
+    emailed_events = load_emailed_events()
+    print("📡 Email watcher started. Loaded", len(emailed_events), "previous notifications.")
+
     while True:
         try:
             settings = load_settings()
@@ -1552,10 +1594,7 @@ def background_event_emailer():
             if settings.get("data_source") == "demo":
                 events = load_demo_data(tournament).get("events", [])
                 now = datetime.now().time()
-                events = [
-                    e for e in events
-                    if date_parser.parse(e["timestamp"]).time() <= now
-                ]
+                events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
             else:
                 events_file = get_cache_path(tournament, "events.json")
                 if not os.path.exists(events_file):

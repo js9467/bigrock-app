@@ -231,7 +231,7 @@ def save_demo_data_if_needed(settings, old_settings):
         tournament = settings.get("tournament", "Big Rock")
         try:
             events = scrape_events(force=True)
-            leaderboard = scrape_leaderboard(force=True)
+            leaderboard = scrape_leaderboard(tournament)
             demo_data = {}
             if os.path.exists(DEMO_DATA_FILE):
                 with open(DEMO_DATA_FILE, 'r') as f:
@@ -783,7 +783,7 @@ def generate_demo():
     try:
         tournament = get_current_tournament()
         events = scrape_events(force=True, skip_timestamp_check=True)
-        leaderboard = scrape_leaderboard(force=True)
+        leaderboard = scrape_leaderboard(tournament)
         injected = inject_hooked_up_events(events, tournament)
         demo_data = {}
         if os.path.exists(DEMO_DATA_FILE):

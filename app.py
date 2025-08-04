@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from dateutil import parser as date_parser
 from datetime import datetime, timedelta
 import json
-import os
+import os/eve
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import requests
@@ -602,7 +602,7 @@ notified_events = set()
 notified_events = load_notified_events()
 
 @app.route('/events')
-def get_events():
+def get_events_txt():
     events = load_events()  # your existing scrape or cache function
     followed_boats = load_followed_boats()  # list of uids like ["palmer_lou", "double_b"]
 

@@ -154,36 +154,33 @@ def send_boat_email_alert(event):
 # Email trigger helper for Followed & Boated events
 # ==================================================
 def process_new_event(event):
-    """Send emails for followed boats and all Boated events."""
-    global sent_demo_alerts
-
+    event_type = event.get("event", "")
+    details = event.get("details", "").lower()
     uid = event.get("uid")
-    boat = event.get("boat", "Unknown")
-    event_type = event.get("event", "Activity")
-    timestamp = event.get("timestamp", datetime.now().isoformat())
+    ts = event.get("timestamp")
 
-    # Unique key to avoid duplicate alerts
-    key = (uid, timestamp, event_type)
-    if key in sent_demo_alerts:
-        return
-    sent_demo_alerts.add(key)
-    save_sent_demo_alerts()
+    # Only email-worthy events
+    is_email_event = (
+        event_type in ["Released", "Boated"] or
+        "pulled hook" in details or
+        "wrong species" in details
+    )
 
-    # Load subscribers
-    recipients = load_alerts()
-    if not recipients:
+    # Skip adding Hooked Up to notified.json
+    if not is_email_event:
+        print(f"⏭️ Skipping non-email event: {uid} - {event_type}")
         return
 
-    # Determine if this is a followed boat
-    followed = False
-    for sub in recipients:
-        if uid and uid in sub.lower():
-            followed = True
-        elif boat.lower() in sub.lower():
-            followed = True
-    # Trigger for any followed OR any boated event
-    if followed or event_type.lower() == "boated":
-        send_boat_email_alert(event)
+    # Make a key for duplicates
+    key = f"{ts}_{uid}_{event_type}"
+    notified = load_notified()
+    if key in notified:
+        return
+
+    send_email_alert(event)
+    notified.append(key)
+    save_notified(notified)
+    print(f"✅ Email sent for {uid} - {event_type}")
 
 
 

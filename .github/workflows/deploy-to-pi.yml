@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # small history for changed file detection
+          fetch-depth: 2  # only need small history for diff
 
       - name: Generate dynamic version based on commit count
         run: |
@@ -23,7 +23,7 @@ jobs:
       - name: Get and expand changed files
         id: changed
         run: |
-          # Detect changed files (current vs previous commit)
+          # Get changed files between last two commits
           FILES=$(git diff --name-only HEAD^ HEAD || true)
           echo "$FILES" > files_raw.txt
 
@@ -33,11 +33,12 @@ jobs:
           echo "🔹 Raw changed files:"
           cat files_raw.txt
 
-          # Expand directories into individual files
           EXPANDED=""
+          DIRS=""
           while IFS= read -r path; do
             if [ -d "$path" ]; then
-              # Expand directory to all files inside
+              DIRS="$DIRS $path"
+              # Expand directory into individual files
               for f in $(find "$path" -type f); do
                 EXPANDED="$EXPANDED,$f"
               done
@@ -49,19 +50,21 @@ jobs:
           # Remove leading comma
           EXPANDED="${EXPANDED#,}"
 
-          # Save as output for scp-action
           echo "files=$EXPANDED" >> $GITHUB_OUTPUT
-          echo "🔹 Final expanded file list:"
+          echo "dirs=$DIRS" >> $GITHUB_ENV
+
+          echo "🔹 Files to upload:"
           echo "$EXPANDED" | tr ',' '\n'
 
-          # Python change detection for conditional restart
+          # Detect Python file changes for conditional restart
           if echo "$EXPANDED" | grep -Ei '\.py$'; then
             echo "py_changed=true" >> $GITHUB_ENV
           else
             echo "py_changed=false" >> $GITHUB_ENV
           fi
 
-      - name: Create directories on Raspberry Pi
+      - name: Create changed directories on Raspberry Pi
+        if: env.dirs != ''
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 64.99.148.73
@@ -69,9 +72,9 @@ jobs:
           key: ${{ secrets.PI_SSH_KEY }}
           script: |
             echo "📂 Creating directories on target..."
-            mkdir -p /home/pi/bigrock-app/static/images
-            mkdir -p /home/pi/bigrock-app/static/sounds
-            mkdir -p /home/pi/bigrock-app/templates
+            for d in $dirs; do
+              mkdir -p "/home/pi/bigrock-app/$d"
+            done
 
       - name: Clean up rogue app.py in home
         uses: appleboy/ssh-action@v1.0.3
@@ -84,6 +87,7 @@ jobs:
             rm -f /home/pi/app.py
 
       - name: Upload changed files to Raspberry Pi
+        if: steps.changed.outputs.files != ''
         uses: appleboy/scp-action@v0.1.4
         with:
           host: 64.99.148.73

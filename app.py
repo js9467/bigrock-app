@@ -289,46 +289,71 @@ def cache_boat_image(boat_name, image_url):
 
 
 def inject_hooked_up_events(events, tournament=None):
-    print(f"🔍 inject_hooked_up_events() called with {len(events)} events")
+    """
+    Creates synthetic Hooked Up events for demo mode with
+    progressive timestamps to simulate live activity.
+    """
     demo_events = []
     inserted_keys = set()
+    now = datetime.now()
 
-    for event in events:
+    # Sort original events by timestamp
+    try:
+        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
+    except:
+        pass
+
+    for i, event in enumerate(events):
         event_type = event.get("event", "")
         details = event.get("details", "").lower()
         boat = event.get("boat", "Unknown")
+
+        # Identify resolution events
         is_resolution = (
-            event_type == "Boated" or
-            (event_type == "Released" and not re.search(r"\b\w+\s+\w+\s+released\b", details)) or
-            ("pulled hook" in details) or
-            ("wrong species" in details)
+            event_type == "Boated"
+            or (event_type == "Released" and not re.search(r"\b\w+\s+\w+\s+released\b", details))
+            or ("pulled hook" in details)
+            or ("wrong species" in details)
         )
-        print(f"🔄 Checking event: {event['timestamp']} | {event_type} | {details} | Boat: {boat}")
         if not is_resolution:
             continue
+
         try:
-            timestamp = date_parser.parse(event["timestamp"])
-            delta = timedelta(minutes=random.randint(3, 30))
-            demo_time = timestamp - delta
+            # Resolution event time
+            res_ts = date_parser.parse(event["timestamp"])
+
+            # Shift resolution into "future demo time"
+            # Each event appears 45s apart in playback
+            demo_res_time = now + timedelta(seconds=i * 45)
+            event["timestamp"] = demo_res_time.isoformat()
+
+            # Insert Hooked Up event 3–30 minutes before resolution in demo timeline
+            delta_minutes = random.randint(3, 30)
+            hookup_time = demo_res_time - timedelta(minutes=delta_minutes)
+
             key = f"{event['uid']}_{event['timestamp']}"
             if key in inserted_keys:
-                print(f"⏩ Skipping duplicate: {key}")
                 continue
+
             demo_event = {
-                "timestamp": demo_time.isoformat(),
+                "timestamp": hookup_time.isoformat(),
                 "event": "Hooked Up",
-                "boat": event["boat"],
+                "boat": boat,
                 "uid": event["uid"],
                 "details": "Hooked up!",
                 "hookup_id": key
             }
+
             demo_events.append(demo_event)
             inserted_keys.add(key)
+
         except Exception as e:
             print(f"⚠️ Demo injection failed for {boat}: {e}")
 
+    # Combine synthetic Hooked Up with actual events
     all_events = sorted(demo_events + events, key=lambda e: e["timestamp"])
     print(f"📦 Returning {len(all_events)} total events (including {len(demo_events)} injected)")
+
     return all_events
 
 def save_demo_data_if_needed(settings, old_settings):
@@ -629,7 +654,7 @@ def scrape_leaderboard(tournament):
         # Optional: weight or points
         points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
-        
+
         uid = boat_name.lower().replace(" ", "_").replace("'", "")
         image_path = f"/static/images/boats/{uid}.jpg"
         leaderboard.append({
@@ -692,7 +717,7 @@ def optimize_all_boat_images():
             optimize_boat_image(fpath)
             optimized_count += 1
     print(f"🎉 Boat image optimization complete ({optimized_count} checked)")
-    
+
 # Routes
 @app.route('/')
 def homepage():
@@ -780,14 +805,62 @@ def participants_data():
     return jsonify({
         "status": "ok",
         "participants": participants,
-        "count": len(
-
-
-
-
-
-participants)
+        "count": len(participants)
     })
+
+
+
+
+
+@app.route("/scrape/events")
+def get_events():
+    settings = load_settings()
+    tournament = settings.get("tournament", "Big Rock")
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
+    participants_file = get_cache_path(tournament, "participants.json")
+
+    # ✅ Ensure participants cache exists before scraping events
+    if not os.path.exists(participants_file):
+        print("⏳ No participants yet — scraping them first...")
+        scrape_participants(force=True)
+
+        # Optional: wait up to 5s (10 × 0.5s) for file creation
+        for _ in range(10):
+            if os.path.exists(participants_file):
+                break
+            time.sleep(0.5)
+
+    # Demo mode logic
+    if settings.get("data_source") == "demo":
+        data = load_demo_data(tournament)
+        all_events = data.get("events", [])
+        now = datetime.now()
+        filtered = [
+            e for e in all_events
+            if date_parser.parse(e["timestamp"]).time() <= now.time()
+        ]
+        filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
+        return jsonify({
+            "status": "ok",
+            "count": len(filtered),
+            "events": filtered
+        })
+
+    force = request.args.get("force", "false").lower() == "true"
+    events = scrape_events(force=force, tournament=tournament)
+
+    if not events and os.path.exists(events_file):
+        with open(events_file, "r") as f:
+            events = json.load(f)
+
+    events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
+    return jsonify({
+        "status": "ok" if events else "error",
+        "count": len(events),
+        "events": events[:100]
+    })
+
 
 
 @app.route("/scrape/all")
@@ -1058,8 +1131,8 @@ def get_leaderboard(tournament):
         leaderboard = scrape_leaderboard(tournament)
 
     return jsonify({"status": "ok", "leaderboard": leaderboard})
-    
-    
+
+
 # Global set to track which demo alerts were emailed
 sent_demo_alerts = set()  # (uid, timestamp, event_type)
 

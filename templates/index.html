@@ -67,19 +67,20 @@
     <div class="flex flex-col sm:flex-row sm:flex-wrap gap-4 items-center w-full sm:w-auto sm:ml-auto">
 
       <!-- VHF Controls -->
-      <div class="flex flex-col items-center w-full sm:w-auto">
-        <button @click="toggleRadio"
-                class="px-4 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-        </button>
-        <div class="mt-1 flex items-center text-sm text-white gap-2 w-full sm:w-36 justify-center">
-          <span class="text-lg">🔊</span>
-          <input type="range" min="0" max="100" v-model="settings.radio_volume"
-                 @input="applyRadioVolume" @change="saveRadioVolume"
-                 class="h-1 bg-white rounded-lg appearance-none cursor-pointer w-28 sm:w-40">
-          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
-        </div>
-      </div>
+<div class="flex items-center gap-2 w-full sm:w-auto">
+  <button @click="toggleRadio"
+          class="px-4 py-2 w-full sm:w-36 font-semibold border border-yellow-400 text-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition">
+    {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+  </button>
+  <div class="flex items-center text-sm text-white gap-2 w-full sm:w-auto">
+    <span class="text-lg">🔊</span>
+    <input type="range" min="0" max="100" v-model="settings.radio_volume"
+           @input="applyRadioVolume" @change="saveRadioVolume"
+           class="h-1 bg-white rounded-lg appearance-none cursor-pointer w-28 sm:w-40">
+    <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
+  </div>
+</div>
+
 
       <!-- Navigation Buttons -->
       <div class="grid grid-cols-2 sm:flex gap-2 sm:gap-4 w-full sm:w-auto text-center">

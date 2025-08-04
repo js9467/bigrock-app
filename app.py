@@ -400,29 +400,46 @@ def scrape_events(force=False, tournament=None):
     tournament = tournament or get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
 
-    if not force and is_cache_fresh(cache, f"events_{tournament}", 2):
+    # ✅ Check cache freshness (2 minutes)
+    cache_key = f"events_{tournament}"
+    if not force and is_cache_fresh(cache, cache_key, 2):
         if os.path.exists(events_file):
             with open(events_file) as f:
                 return json.load(f)
         return []
 
     try:
+        # Load tournament settings
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
-        remote = requests.get(settings_url).json()
-        key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
-        events_url = remote[key]["events"]
+        remote = requests.get(settings_url, timeout=15).json()
+        key = next(
+            (k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)),
+            None
+        )
+        if not key:
+            raise Exception(f"Tournament '{tournament}' not found in remote settings.json")
 
-        html = fetch_page_html(events_url, "article.m-b-20, article.entry, div.activity, li.event, div.feed-item")
+        events_url = remote[key].get("events")
+        if not events_url:
+            raise Exception(f"No events URL found for {tournament}")
+
+        print(f"📡 Scraping events from: {events_url}")
+        html = fetch_with_scraperapi(events_url)
+        if not html:
+            raise Exception("Failed to fetch events page HTML")
+
         soup = BeautifulSoup(html, 'html.parser')
         events = []
         seen = set()
 
+        # Load participants for boat name normalization
         participants_file = get_cache_path(tournament, "participants.json")
         participants = {}
         if os.path.exists(participants_file):
             with open(participants_file) as f:
                 participants = {p["uid"]: p for p in json.load(f)}
 
+        # Parse all event-like elements
         for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
             time_tag = article.select_one("p.pull-right")
             name_tag = article.select_one("h4.montserrat")
@@ -430,17 +447,19 @@ def scrape_events(force=False, tournament=None):
             if not time_tag or not name_tag or not desc_tag:
                 continue
 
+            # Parse timestamp
             raw = time_tag.get_text(strip=True).replace("@", "").strip()
             try:
                 ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
             except:
                 continue
 
+            # Normalize boat and event
             boat = name_tag.get_text(strip=True)
             desc = desc_tag.get_text(strip=True)
             uid = normalize_boat_name(boat)
 
-            # Use participant boat name if found
+            # Use official participant boat name if available
             if uid in participants:
                 boat = participants[uid]["boat"]
 
@@ -455,7 +474,7 @@ def scrape_events(force=False, tournament=None):
             else:
                 event_type = "Other"
 
-            # Deduplication check
+            # Deduplicate
             key = f"{uid}_{event_type}_{ts}"
             if key in seen:
                 continue
@@ -469,12 +488,14 @@ def scrape_events(force=False, tournament=None):
                 "details": desc
             })
 
+        # Sort and save
         events.sort(key=lambda e: e["timestamp"])
         with open(events_file, "w") as f:
             json.dump(events, f, indent=2)
 
-        cache[f"events_{tournament}"] = {"last_scraped": datetime.now().isoformat()}
+        cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
+        print(f"✅ Scraped {len(events)} events for {tournament}")
         return events
 
     except Exception as e:

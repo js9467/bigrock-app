@@ -1070,6 +1070,30 @@ def list_sounds():
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500
 
+@app.route('/alerts/test', methods=['GET'])
+def test_alerts():
+    alerts = load_alerts()
+    if not alerts:
+        return jsonify({"status": "no_subscribers"}), 404
+
+    test_message = "🚤 Test Alert: Your Big Rock alerts are working!"
+    success = []
+    failures = []
+
+    for recipient in alerts:
+        try:
+            send_sms_email(recipient, test_message)
+            success.append(recipient)
+        except Exception as e:
+            print(f"⚠️ Failed to send to {recipient}: {e}")
+            failures.append(recipient)
+
+    return jsonify({
+        "status": "sent",
+        "success_count": len(success),
+        "failures": failures
+    })
+
 @app.route('/api/version')
 def api_version():
     try:

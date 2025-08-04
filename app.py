@@ -1601,17 +1601,19 @@ def get_followed_boats():
     return [normalize_boat_name(b) for b in settings.get("followed_boats", [])]
 
 def should_email(event):
-    """Only email if event is boated or boat is followed."""
+    """Decide if this event should trigger an email."""
     etype = event.get("event", "").lower()
-    uid = event.get("uid", "")
-    
-    # Always send for boated events
+    boat = event.get("boat", "")
+    details = event.get("details", "").lower()
+
+    # Always email boated events for all boats
     if "boated" in etype:
         return True
 
-    # Send for followed boats
-    followed_boats = get_followed_boats()
-    if uid in followed_boats:
+    # Email all events for followed boats
+    settings = load_settings()
+    followed = set(b.lower() for b in settings.get("followed_boats", []))
+    if boat.lower() in followed:
         return True
 
     return False

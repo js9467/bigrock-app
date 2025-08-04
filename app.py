@@ -94,54 +94,62 @@ def send_boat_email_alert(event):
         return 0
 
     success = 0
-    for recipient in recipients:
-        try:
-            msg = MIMEMultipart("related")
-            msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
-            msg['To'] = recipient
-            msg['Subject'] = f"{boat} {action} at {timestamp}"
 
-            msg_alt = MIMEMultipart("alternative")
-            msg.attach(msg_alt)
+    try:
+        # ✅ Open SMTP once for the batch
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
 
-            text_body = f"🚤 {boat} {action}!\nTime: {timestamp}\n\nBigRock Live Alert"
-            msg_alt.attach(MIMEText(text_body, "plain"))
+            for recipient in recipients:
+                try:
+                    msg = MIMEMultipart("related")
+                    msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
+                    msg['To'] = recipient
+                    msg['Subject'] = f"{boat} {action} at {timestamp}"
 
-            html_body = f"""
-            <html><body>
-                <p>🚤 <b>{boat}</b> {action}!<br>
-                Time: {timestamp}</p>
-                <img src="cid:boat_image" style="max-width: 600px; height: auto;">
-            </body></html>
-            """
-            msg_alt.attach(MIMEText(html_body, "html"))
+                    msg_alt = MIMEMultipart("alternative")
+                    msg.attach(msg_alt)
 
-            # 🔹 Attach image (convert WebP to JPEG for email)
-            if image_path and os.path.exists(image_path):
-                with Image.open(image_path) as img:
-                    if image_path.lower().endswith(".webp"):
-                        img = img.convert("RGB")  # WebP -> JPEG
-                    img.thumbnail((600, 600))
-                    img_bytes = io.BytesIO()
-                    img.save(img_bytes, format="JPEG", quality=70)
-                    img_bytes.seek(0)
-                    image = MIMEImage(img_bytes.read(), name=f"{uid}.jpg")
-                    image.add_header("Content-ID", "<boat_image>")
-                    image.add_header("Content-Disposition", "inline", filename=f"{uid}.jpg")
-                    msg.attach(image)
+                    text_body = f"🚤 {boat} {action}!\nTime: {timestamp}\n\nBigRock Live Alert"
+                    msg_alt.attach(MIMEText(text_body, "plain"))
 
-            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(SMTP_USER, [recipient], msg.as_string())
+                    html_body = f"""
+                    <html><body>
+                        <p>🚤 <b>{boat}</b> {action}!<br>
+                        Time: {timestamp}</p>
+                        <img src="cid:boat_image" style="max-width: 600px; height: auto;">
+                    </body></html>
+                    """
+                    msg_alt.attach(MIMEText(html_body, "html"))
 
-            print(f"✅ Email alert sent to {recipient} for {boat} {action}")
-            success += 1
+                    # 🔹 Attach image if available
+                    if image_path and os.path.exists(image_path):
+                        with Image.open(image_path) as img:
+                            # Convert WebP or RGBA to RGB JPEG
+                            if img.mode in ("RGBA", "LA"):
+                                img = img.convert("RGB")
+                            img.thumbnail((600, 600))
+                            img_bytes = io.BytesIO()
+                            img.save(img_bytes, format="JPEG", quality=70)
+                            img_bytes.seek(0)
+                            image = MIMEImage(img_bytes.read(), name=f"{uid}.jpg")
+                            image.add_header("Content-ID", "<boat_image>")
+                            image.add_header("Content-Disposition", "inline", filename=f"{uid}.jpg")
+                            msg.attach(image)
 
-        except Exception as e:
-            print(f"❌ Failed to send alert to {recipient}: {e}")
+                    server.sendmail(SMTP_USER, [recipient], msg.as_string())
+                    print(f"✅ Email alert sent to {recipient} for {boat} {action}")
+                    success += 1
+
+                except Exception as e:
+                    print(f"❌ Failed to send alert to {recipient}: {e}")
+
+    except Exception as e:
+        print(f"❌ SMTP batch failed: {e}")
 
     return success
+
 
 
 def fetch_with_scraperapi(url):

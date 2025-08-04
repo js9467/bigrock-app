@@ -614,6 +614,9 @@ def participants_data():
                 })
         print(f"🛟 Fallback loaded {len(participants)} participants from images")
 
+    # 🔹 Sort alphabetically by boat name
+    participants.sort(key=lambda p: p.get("boat", "").lower())
+
     return jsonify({
         "status": "ok",
         "participants": participants,

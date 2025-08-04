@@ -10,101 +10,88 @@
   <link rel="stylesheet" href="/static/css/base.css">
 
   <style>
-    @keyframes marquee {
-      0% { transform: translateX(100%); }
-      100% { transform: translateX(-100%); }
-    }
-    .text-center a {
-      color: #facc15;
-      text-decoration: underline;
-      font-weight: bold;
-    }
-    .message-strip-wrapper {
-      position: relative;
-      overflow: hidden;
-      height: 2.25rem;
-      background-color: #002855;
-    }
-    .message-strip {
-      display: inline-block;
-      white-space: nowrap;
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: white;
-      animation: marquee 40s linear infinite;
-      will-change: transform;
-      padding-left: 100%;
-    }
-    .message-strip a {
-      color: #facc15;
-      text-decoration: underline;
-      font-weight: bold;
-      padding: 0 0.5rem;
-    }
-    .message-strip-wrapper:hover .message-strip {
-      animation-play-state: paused;
-      cursor: pointer;
-    }
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.text-center a {
+  color: #facc15;
+  text-decoration: underline;
+  font-weight: bold;
+}
+.message-strip-wrapper {
+  position: relative;
+  overflow: hidden;
+  height: 2.25rem;
+  background-color: #002855;
+}
+.message-strip {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+  padding-left: 100%;
+}
+.message-strip a {
+  color: #facc15;
+  text-decoration: underline;
+  font-weight: bold;
+  padding: 0 0.5rem;
+}
+.message-strip-wrapper:hover .message-strip {
+  animation-play-state: paused;
+  cursor: pointer;
+}
   </style>
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
-<!-- Header -->
-<header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
-  <div class="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+  <!-- Header -->
+  <header class="bg-brand-blue text-white px-4 py-3 shadow-md relative">
+    <div class="flex items-center justify-between gap-4 flex-wrap w-full">
+      <!-- Left: Logo + VHF -->
+      <div class="flex items-center gap-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
+        <span v-else class="text-white text-base">Loading Logo...</span>
+        <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2">🎧 VHF Playing</span>
+      </div>
 
-    <!-- Left: Logo + VHF -->
-    <div class="flex items-center gap-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-      <span v-else class="text-white text-base">Loading Logo...</span>
-      <span v-if="radioPlaying" class="text-sm text-green-300 animate-pulse ml-2 whitespace-nowrap">
-        🎧 VHF Playing
-      </span>
-    </div>
-
-    <!-- Right: Buttons -->
-    <div class="flex flex-col sm:flex-row sm:flex-wrap gap-4 items-center w-full sm:w-auto sm:ml-auto">
-
-      <!-- VHF Controls -->
-      <div class="flex flex-col items-center w-full sm:w-auto">
-        <button @click="toggleRadio"
-                class="px-4 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
-          {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
-        </button>
-        <div class="mt-1 flex items-center text-sm text-white gap-2 w-full sm:w-36 justify-center">
-          <span class="text-lg">🔊</span>
-          <input type="range" min="0" max="100" v-model="settings.radio_volume"
-                 @input="applyRadioVolume" @change="saveRadioVolume"
-                 class="h-1 bg-white rounded-lg appearance-none cursor-pointer w-28 sm:w-40">
-          <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
+      <!-- Right: Buttons -->
+      <div class="flex gap-4 items-start flex-wrap justify-end ml-auto">
+        <div class="flex flex-col items-center">
+          <button @click="toggleRadio"
+                  class="px-4 py-2 w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">
+            {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+          </button>
+          <div class="mt-1 flex items-center text-sm text-white gap-2 w-36 justify-center">
+            <span class="text-lg">🔊</span>
+            <input type="range" min="0" max="100" v-model="settings.radio_volume"
+                   @input="applyRadioVolume" @change="saveRadioVolume"
+                   class="w-40 h-1 bg-white rounded-lg appearance-none cursor-pointer">
+            <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
+          </div>
         </div>
-      </div>
-
-      <!-- Navigation Buttons -->
-      <div class="grid grid-cols-2 sm:flex gap-2 sm:gap-4 w-full sm:w-auto text-center">
-        <a href="/participants"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
-        <a href="/leaderboard"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
-        <a href="/release-summary"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Releases</a>
-        <a href="/settings-page"
-           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
+        <a href="/participants" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Participants</a>
+        <a href="/leaderboard" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Leaderboard</a>
+        <a href="/release-summary" class="px-3 py-2 w-36 text-center text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Releases</a>
+        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-white rounded hover:bg-white hover:text-blue-900 transition">⚙</a>
       </div>
     </div>
-  </div>
 
-  <!-- Rotating Messages -->
-  <div v-if="messageQueue.length > 0" class="w-full bg-brand-blue py-1 mt-2 sm:mt-0">
-    <div class="text-white text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
-  </div>
+    <!-- Rotating Messages -->
+    <div v-if="messageQueue.length > 0" class="w-full bg-brand-blue py-1">
+      <div class="text-white text-center text-lg font-semibold px-4" v-html="currentMessage"></div>
+    </div>
 
-  <!-- Version -->
-  <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
-    v{{ version }}
-  </div>
-</header> 
+    <!-- Version -->
+    <div class="absolute bottom-1 left-3 text-xs text-white opacity-70" v-if="version">
+      v{{ version }}
+    </div>
+  </header>
 
   <div class="flex h-screen overflow-hidden">
     <!-- Hooked Column -->
@@ -115,10 +102,19 @@
       <div v-for="event in hooked" :key="event.timestamp + event.uid"
            :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-        <img :src="getBoatImage(event.uid)" 
-             loading="lazy" 
-             class="w-20 h-20 object-cover rounded"
-             @error="onImageError($event)">
+        <picture v-if="getBoatImage(event.uid).endsWith('.webp')">
+  <source :srcset="getBoatImage(event.uid)" type="image/webp">
+  <img :src="getBoatImage(event.uid).replace('.webp', '.jpg')"
+       loading="lazy"
+       class="w-20 h-20 object-cover rounded"
+       @error="onImageError($event)">
+</picture>
+<img v-else
+     :src="getBoatImage(event.uid)"
+     loading="lazy"
+     class="w-20 h-20 object-cover rounded"
+     @error="onImageError($event)">
+
 
         <div>
           <div class="text-lg font-semibold">{{ event.boat }}</div>
@@ -138,10 +134,13 @@
       <div v-for="event in events" :key="event.timestamp + event.uid"
            :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-        <img :src="getBoatImage(event.uid)" 
-             loading="lazy" 
-             class="w-20 h-20 object-cover rounded"
-             @error="onImageError($event)">
+        <picture>
+          <source :srcset="getBoatImage(event.uid).replace(/\.(jpg|jpeg|png)$/i, '.webp')" type="image/webp">
+          <img :src="getBoatImage(event.uid)"
+               loading="lazy"
+               class="w-20 h-20 object-cover rounded"
+               @error="onImageError($event)">
+        </picture>
 
         <div>
           <div class="text-lg font-semibold">{{ event.boat }}</div>
@@ -379,11 +378,7 @@ const app = createApp({
     },
 
     getBoatImage(uid) {
-      return this.boatImages[uid] || '/static/images/default_boat.jpg';
-    },
-
-    onImageError(e) {
-      e.target.src = '/static/images/default_boat.jpg';
+      return this.boatImages[uid] || '';
     },
 
     loadParticipants() {
@@ -435,14 +430,14 @@ const app = createApp({
 
 window.app = app; // ✅ Expose to injectTestEvent
 
-// ✅ Simulated demo event
+// ✅ Fixed simulated demo event
 window.injectTestEvent = function () {
   if (!window.app) return;
   const injected = {
     boat: "Palmer Lou",
     event: "Boated",
     details: "Palmer Lou has boated a massive Blue Marlin and will be heading to the scales.",
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString(), // current time so it shows immediately
     uid: "palmer_lou"
   };
   window.app.events.unshift(injected);
@@ -450,6 +445,7 @@ window.injectTestEvent = function () {
   window.app.playSound(window.app.settings.boated_sound);
 };
 </script>
+
 
 </body>
 </html>

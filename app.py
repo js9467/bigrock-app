@@ -1147,45 +1147,56 @@ def leaderboard_page():
 # Serve JSON data
 @app.route("/api/leaderboard/<tournament>")
 def get_leaderboard(tournament):
-    t_dir = os.path.join(CACHE_DIR, tournament)
-    lb_file = os.path.join(t_dir, "leaderboard.json")
+    """Always scrape leaderboard fresh from master JSON."""
+    settings_url = "https://js9467.github.io/Brtourney/settings.json"
+    try:
+        settings = requests.get(settings_url, timeout=10).json()
+    except Exception as e:
+        return jsonify({"status": "error", "message": "Failed to load settings.json"}), 500
 
-    # Serve cache if available
-    if os.path.exists(lb_file):
-        with open(lb_file) as f:
-            leaderboard = json.load(f)
-    else:
-        leaderboard = scrape_leaderboard(tournament)
+    t_info = settings.get(tournament)
+    if not t_info or not t_info.get("leaderboard"):
+        return jsonify({"status": "error", "message": f"No leaderboard URL for {tournament}"}), 404
+
+    url = t_info["leaderboard"]
+    print(f"🔄 Scraping leaderboard for {tournament}: {url}")
+
+    try:
+        html = requests.get(url, timeout=15, verify=False).text
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to fetch leaderboard: {e}"}), 500
+
+    soup = BeautifulSoup(html, "html.parser")
+    leaderboard = []
+
+    # Example parsing — adjust selectors if needed
+    for row in soup.select("article.m-b-20")[:10]:  # Top 10 boats
+        name_tag = row.select_one("h4.montserrat")
+        if not name_tag:
+            continue
+
+        boat_name = name_tag.get_text(strip=True)
+        points_tag = row.select_one("p.pull-right")
+        points = points_tag.get_text(strip=True) if points_tag else ""
+
+        uid = boat_name.lower().replace(" ", "_").replace("'", "")
+        image_path = f"/static/images/boats/{uid}.jpg"
+
+        leaderboard.append({
+            "boat": boat_name,
+            "uid": uid,
+            "points": points,
+            "image": image_path
+        })
+
+    # Save to cache for optional reuse
+    t_dir = os.path.join(CACHE_DIR, tournament)
+    os.makedirs(t_dir, exist_ok=True)
+    lb_file = os.path.join(t_dir, "leaderboard.json")
+    with open(lb_file, "w") as f:
+        json.dump(leaderboard, f, indent=2)
 
     return jsonify({"status": "ok", "leaderboard": leaderboard})
-    
-    
-# Global set to track which demo alerts were emailed
-sent_demo_alerts = set()  # (uid, timestamp, event_type)
-
-import json, os
-from datetime import datetime, timedelta
-from dateutil import parser as date_parser
-
-SENT_ALERTS_FILE = "sent_demo_alerts.json"
-sent_demo_alerts = set()
-
-# Load persistent sent alert history
-if os.path.exists(SENT_ALERTS_FILE):
-    try:
-        with open(SENT_ALERTS_FILE) as f:
-            sent_demo_alerts = set(tuple(x) for x in json.load(f))
-    except:
-        sent_demo_alerts = set()
-
-def save_sent_demo_alerts():
-    try:
-        with open(SENT_ALERTS_FILE, "w") as f:
-            json.dump([list(x) for x in sent_demo_alerts], f)
-    except Exception as e:
-        print(f"⚠️ Failed to save sent_demo_alerts: {e}")
-
-
 @app.route("/hooked")
 def get_hooked_up_events():
     """Return unresolved Hooked Up events for the current tournament."""

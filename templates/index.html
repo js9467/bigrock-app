@@ -457,8 +457,11 @@ const app = createApp({
 
 }).mount('#app');
 
-window.app = vm;                    // Expose Vue instance
-window.settings = vm.$data.settings; // ✅ Direct reference for console
+window.app = vm;
+Object.defineProperty(window, 'settings', {
+  get() { return vm.$data.settings; }
+});
+
 
 
 // ✅ Simulated demo event

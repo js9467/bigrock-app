@@ -178,7 +178,7 @@
 <script>
 const { createApp } = Vue;
 
-const app = createApp({
+const vm = createApp({
   data() {
     return {
       events: [],
@@ -204,7 +204,7 @@ const app = createApp({
       messageQueue: [],
       currentMessage: '',
       messageTimer: null,
-      firstLoad: true   // ✅ Prevents sound spam on initial load
+      firstLoad: true // ✅ Prevents sound spam on initial load
     };
   },
 
@@ -443,26 +443,18 @@ const app = createApp({
     },
 
     playSound(filename) {
-  if (!filename) return;
-
-  // Remove any trailing .mp3 to avoid double extension
-  const cleanName = filename.replace(/\.mp3$/i, '');
-
-      
+      if (!filename) return;
+      const cleanName = filename.replace(/\.mp3$/i, '');
       const audio = new Audio(`/static/sounds/${cleanName}.mp3`);
       audio.volume = (this.settings.event_volume || 80) / 100;
       audio.play().catch(err => console.warn('🔇 Sound failed:', err));
     }
   }
-
 }).mount('#app');
 
+window.vm = vm;       // ✅ fixes "vm is not defined"
 window.app = vm;
-Object.defineProperty(window, 'settings', {
-  get() { return vm.$data.settings; }
-});
-
-
+window.settings = vm.$data.settings;
 
 // ✅ Simulated demo event
 window.injectTestEvent = function () {
@@ -479,6 +471,7 @@ window.injectTestEvent = function () {
   window.app.playSound(window.app.settings.boated_sound);
 };
 </script>
+
 
 </body>
 </html>

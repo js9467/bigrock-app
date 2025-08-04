@@ -1547,16 +1547,27 @@ def save_emailed_events():
     with open(NOTIFIED_FILE, "w") as f:
         json.dump(list(emailed_events), f)
 
+def get_followed_boats():
+    """Read followed boats list from settings.json."""
+    settings = load_settings()
+    # Ensure they are normalized to match uids
+    return [normalize_boat_name(b) for b in settings.get("followed_boats", [])]
+
 def should_email(event):
-    """Decide which events should trigger an email."""
-    # ✅ Send email for all events OR filter types if needed
+    """Only email if event is boated or boat is followed."""
     etype = event.get("event", "").lower()
-    details = event.get("details", "").lower()
-    return (
-        etype in ["released", "boated"]
-        or "pulled hook" in details
-        or "wrong species" in details
-    )
+    uid = event.get("uid", "")
+    
+    # Always send for boated events
+    if "boated" in etype:
+        return True
+
+    # Send for followed boats
+    followed_boats = get_followed_boats()
+    if uid in followed_boats:
+        return True
+
+    return False
 
 def process_new_event(event):
     """Send email for any new event exactly once."""

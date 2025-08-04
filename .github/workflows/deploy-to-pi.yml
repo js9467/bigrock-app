@@ -44,14 +44,14 @@ jobs:
             rm -f /home/pi/app.py
 
       - name: Upload all source files to Raspberry Pi
-  uses: appleboy/scp-action@v0.1.4
-  with:
-    host: 64.99.148.73
-    username: pi
-    key: ${{ secrets.PI_SSH_KEY }}
-    source: "./*.py,./static/,./templates/,version.txt"
-    target: /home/pi/bigrock-app
-    overwrite: true
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: 64.99.148.73
+        username: pi
+        key: ${{ secrets.PI_SSH_KEY }}
+        source: "./*.py,./static/,./templates/,version.txt"
+        target: /home/pi/bigrock-app
+        overwrite: true
 
       - name: Restart bigrock.service if Python files changed
         if: env.py_changed == 'true'

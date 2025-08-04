@@ -765,9 +765,17 @@ def subscribe_alerts():
     save_alerts(alerts)
     return jsonify({"status": "subscribed", "count": len(alerts)})
 
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+from email.utils import formataddr
+from datetime import datetime
+from PIL import Image
+import os, io, smtplib
+
 @app.route('/alerts/test', methods=['GET'])
 def test_alerts():
-    """Send a test email alert with a resized boat image for Palmer Lou."""
+    """Send a test email alert with Palmer Lou image inline in the email body."""
     boat_name = "Palmer Lou"
     action = "Hooked Up"
     action_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -780,28 +788,48 @@ def test_alerts():
     success = 0
     for recipient in recipients:
         try:
-            msg = MIMEMultipart()
+            # Create HTML email with inline image
+            msg = MIMEMultipart("related")
             msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
             msg['To'] = recipient
             msg['Subject'] = f"{boat_name} {action} at {action_time}"
 
-            # Plain text body
-            body = f"🚤 {boat_name} {action}!\nTime: {action_time}\n\nBigRock Live Alert"
-            msg.attach(MIMEText(body, 'plain'))
+            # Create alternative plain+html body
+            msg_alternative = MIMEMultipart("alternative")
+            msg.attach(msg_alternative)
 
-            # Attach resized image if exists
+            # Plain text fallback
+            text_body = f"🚤 {boat_name} {action}!\nTime: {action_time}\n\nBigRock Live Alert"
+            msg_alternative.attach(MIMEText(text_body, "plain"))
+
+            # HTML body referencing the inline image
+            html_body = f"""
+            <html>
+            <body>
+                <p>🚤 <b>{boat_name}</b> {action}!<br>
+                Time: {action_time}</p>
+                <img src="cid:boat_image" style="max-width: 600px; height: auto;">
+            </body>
+            </html>
+            """
+            msg_alternative.attach(MIMEText(html_body, "html"))
+
+            # Attach the boat image inline
             if os.path.exists(image_path):
                 try:
-                    # Resize image to max 600px width to keep email small
                     with Image.open(image_path) as img:
                         img.thumbnail((600, 600))
                         img_bytes = io.BytesIO()
                         img.save(img_bytes, format="JPEG", quality=70)
                         img_bytes.seek(0)
                         image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
+                        image.add_header("Content-ID", "<boat_image>")
+                        image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
                         msg.attach(image)
                 except Exception as e:
-                    print(f"⚠️ Could not resize image: {e}")
+                    print(f"⚠️ Could not resize/attach image: {e}")
+            else:
+                print(f"❌ Image not found at {image_path}")
 
             # Send email
             with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
@@ -809,13 +837,14 @@ def test_alerts():
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(SMTP_USER, [recipient], msg.as_string())
 
-            print(f"✅ Test email sent to {recipient} with Palmer Lou image")
+            print(f"✅ Test email sent to {recipient} with Palmer Lou image inline")
             success += 1
 
         except Exception as e:
             print(f"❌ Failed to send to {recipient}: {e}")
 
     return jsonify({"status": "sent", "success_count": success})
+
 
 
 

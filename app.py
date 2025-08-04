@@ -18,8 +18,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr
 from PIL import Image
-import io
-sent_demo_alerts = set()
 
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
@@ -68,76 +66,6 @@ def send_sms_email(phone_email, message):
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
         server.sendmail(SMTP_USER, [phone_email], msg.as_string())
-
-def send_boat_email_alert(event):
-    """Send an inline email alert for a boat event with image."""
-    boat = event.get('boat', 'Unknown')
-    action = event.get('event', 'Activity')
-    timestamp = event.get('timestamp', datetime.now().isoformat())
-    uid = event.get('uid', 'unknown')
-    image_path = f"static/images/boats/{uid}.jpg"
-
-    recipients = load_alerts()
-    if not recipients:
-        return 0
-
-    # Build the email
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from email.mime.image import MIMEImage
-    from email.utils import formataddr
-    import io
-    from PIL import Image
-
-    success = 0
-    for recipient in recipients:
-        try:
-            msg = MIMEMultipart("related")
-            msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
-            msg['To'] = recipient
-            msg['Subject'] = f"{boat} {action} at {timestamp}"
-
-            msg_alt = MIMEMultipart("alternative")
-            msg.attach(msg_alt)
-
-            text_body = f"🚤 {boat} {action}!\nTime: {timestamp}\n\nBigRock Live Alert"
-            msg_alt.attach(MIMEText(text_body, "plain"))
-
-            html_body = f"""
-            <html><body>
-                <p>🚤 <b>{boat}</b> {action}!<br>
-                Time: {timestamp}</p>
-                <img src="cid:boat_image" style="max-width: 600px; height: auto;">
-            </body></html>
-            """
-            msg_alt.attach(MIMEText(html_body, "html"))
-
-            if os.path.exists(image_path):
-                try:
-                    with Image.open(image_path) as img:
-                        img.thumbnail((600, 600))
-                        img_bytes = io.BytesIO()
-                        img.save(img_bytes, format="JPEG", quality=70)
-                        img_bytes.seek(0)
-                        image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
-                        image.add_header("Content-ID", "<boat_image>")
-                        image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
-                        msg.attach(image)
-                except Exception as e:
-                    print(f"⚠️ Could not resize/attach image for {boat}: {e}")
-
-            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(SMTP_USER, [recipient], msg.as_string())
-
-            print(f"✅ Email alert sent to {recipient} for {boat} {action}")
-            success += 1
-
-        except Exception as e:
-            print(f"❌ Failed to send alert to {recipient}: {e}")
-
-    return success
 
 def fetch_with_scraperapi(url):
     api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
@@ -221,57 +149,40 @@ from threading import Lock
 image_locks = {}
 
 def cache_boat_image(boat_name, image_url):
-    folder = BOAT_FOLDER
+    folder = 'static/images/boats'
     os.makedirs(folder, exist_ok=True)
     safe_name = normalize_boat_name(boat_name)
-
-    # Extract original file extension
+    
+    # Extract file extension, default to .jpg
     ext = os.path.splitext(image_url.split('?')[0])[-1].lower()
     if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
         ext = '.jpg'
-
     file_path = os.path.join(folder, f"{safe_name}{ext}")
 
+    # Thread-safe per-file lock
     lock = image_locks.setdefault(file_path, Lock())
     with lock:
-        # ✅ If WebP version already exists, return it
-        webp_path = os.path.join(folder, f"{safe_name}.webp")
-        if os.path.exists(webp_path) and os.path.getsize(webp_path) > 0:
-            return f"/{webp_path}"
-
-        # ✅ If original exists and WebP exists, return WebP
+        # If file already exists and is not empty, skip download
         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            optimize_boat_image(file_path)
-            if os.path.exists(webp_path):
-                return f"/{webp_path}"
-            return f"/{file_path}"
+            return f"/{file_path}"  # Return relative path
 
-        # 🔹 Download new image
+        # Download image
         try:
             response = requests.get(image_url, timeout=10)
             if response.status_code == 200:
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
                 print(f"✅ Downloaded image for {boat_name}: {file_path}")
-
-                # 🔹 Optimize + Create WebP
-                optimize_boat_image(file_path)
-
-                # Prefer WebP if created
-                if os.path.exists(webp_path):
-                    return f"/{webp_path}"
                 return f"/{file_path}"
-
             else:
                 print(f"⚠️ Failed to download image for {boat_name}: HTTP {response.status_code}")
                 return "/static/images/boats/default.jpg"
-
         except Exception as e:
             print(f"⚠️ Error downloading image for {boat_name}: {e}")
+            # Clean up any partially written file
             if os.path.exists(file_path):
                 os.remove(file_path)
             return "/static/images/boats/default.jpg"
-
 
 
 
@@ -636,50 +547,7 @@ def scrape_leaderboard(tournament):
     print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
     return leaderboard
 
-MAX_IMG_SIZE = (400, 400)  # Max width/height
-IMG_QUALITY = 70           # JPEG/WEBP quality
-BOAT_FOLDER = "static/images/boats"
 
-def optimize_boat_image(file_path):
-    """Resize and compress a single boat image and save WebP version."""
-    try:
-        if not os.path.exists(file_path):
-            return
-
-        # Skip very small files (~already optimized)
-        if os.path.getsize(file_path) < 50_000:
-            return
-
-        with Image.open(file_path) as img:
-            img_format = img.format or "JPEG"
-
-            # Resize in-place if larger than target
-            if img.width > MAX_IMG_SIZE[0] or img.height > MAX_IMG_SIZE[1]:
-                img.thumbnail(MAX_IMG_SIZE)
-
-            # Overwrite original with optimized JPEG/PNG
-            img.save(file_path, optimize=True, quality=IMG_QUALITY)
-
-            # Create WebP version for faster browsers
-            webp_path = os.path.splitext(file_path)[0] + ".webp"
-            img.save(webp_path, format="WEBP", optimize=True, quality=IMG_QUALITY)
-
-            print(f"✅ Optimized {os.path.basename(file_path)} ({img.width}x{img.height}) -> WebP saved")
-    except Exception as e:
-        print(f"⚠️ Failed to optimize {file_path}: {e}")
-
-
-def optimize_all_boat_images():
-    """Optimize all boat images in static folder (startup or fallback)."""
-    os.makedirs(BOAT_FOLDER, exist_ok=True)
-    optimized_count = 0
-    for fname in os.listdir(BOAT_FOLDER):
-        if fname.lower().endswith((".jpg", ".jpeg", ".png")):
-            fpath = os.path.join(BOAT_FOLDER, fname)
-            optimize_boat_image(fpath)
-            optimized_count += 1
-    print(f"🎉 Boat image optimization complete ({optimized_count} checked)")
-    
 # Routes
 @app.route('/')
 def homepage():
@@ -710,67 +578,37 @@ def participants_data():
     print("📥 /participants_data requested")
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
-    master_file = "participants_master.json"
+
     participants = []
 
     try:
-        # 1️⃣ Load per-tournament participants cache first
-        if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
-            with open(participants_file) as f:
-                participants = json.load(f)
+        if not os.path.exists(participants_file):
+            raise FileNotFoundError("🚫 No participants cache found")
 
-        # 2️⃣ Fallback: master participants list
-        elif os.path.exists(master_file):
-            with open(master_file) as f:
-                master = json.load(f)
-            participants = [
-                p for p in master
-                if tournament.lower() in p.get("display_name", "").lower()
-            ]
+        with open(participants_file) as f:
+            participants = json.load(f)
 
-        # 3️⃣ Fallback: scan static images folder
-        if not participants:
-            folder = BOAT_FOLDER
-            os.makedirs(folder, exist_ok=True)
-            for fname in os.listdir(folder):
-                if fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                    uid = os.path.splitext(fname)[0]
-                    participants.append({
-                        "uid": uid,
-                        "boat": uid.replace("_", " ").replace("-", " ").title(),
-                        "type": "",
-                        "image_path": f"/{folder}/{fname}"
-                    })
-            print(f"🛟 Fallback loaded {len(participants)} participants from images")
-
-        # 🔹 Fix image paths & prefer WebP if available
+        # Check if image paths are missing or broken
+        missing_images = 0
         for p in participants:
             path = p.get("image_path", "")
-            local_path = path.lstrip("/") if path.startswith("/") else path
-
-            # If missing or invalid -> default image
+            local_path = path[1:] if path.startswith("/") else path
             if not path or not os.path.exists(local_path):
-                p["image_path"] = "/static/images/boats/default.jpg"
-                continue
+                missing_images += 1
 
-            # Prefer .webp if it exists
-            base, ext = os.path.splitext(local_path)
-            webp_local = base + ".webp"
-            if os.path.exists(webp_local):
-                p["image_path"] = "/" + webp_local
-
-        # 🔹 Sort alphabetically by boat name
-        participants.sort(key=lambda p: p.get("boat", "").lower())
+        if missing_images > 0:
+            print(f"🚨 Detected {missing_images} missing or broken images — rescraping...")
+            participants = scrape_participants(force=True)
 
     except Exception as e:
-        print(f"⚠️ Error loading participants: {e}")
+        print(f"⚠️ Error loading participants, rescraping: {e}")
+        participants = scrape_participants(force=True)
 
     return jsonify({
         "status": "ok",
         "participants": participants,
         "count": len(participants)
     })
-
 
 
 
@@ -1107,7 +945,8 @@ def get_hooked_up_events():
 
     # Load events
     if data_source == "demo":
-        events = load_demo_data(tournament).get("events", [])
+        data = load_demo_data(tournament)
+        events = data.get("events", [])
     else:
         events_file = get_cache_path(tournament, "events.json")
         if not os.path.exists(events_file):
@@ -1115,7 +954,7 @@ def get_hooked_up_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    # Sort chronologically to process in order
+    # Sort by timestamp ascending to process sequentially
     try:
         events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     except:
@@ -1124,9 +963,7 @@ def get_hooked_up_events():
     unresolved = []
 
     if data_source == "demo":
-        global sent_demo_alerts
-
-        # Step 1: Build resolution lookup
+        # Existing demo logic (hookup_id based)
         resolution_lookup = set()
         for e in events:
             if e["event"] in ["Released", "Boated"] or \
@@ -1134,16 +971,15 @@ def get_hooked_up_events():
                "wrong species" in e.get("details", "").lower():
                 try:
                     ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                    if ts.time() <= now.time():  # ignore future demo events
-                        resolution_lookup.add((e["uid"], ts.isoformat()))
+                    if ts.time() > now.time():  # future events in demo mode are ignored
+                        continue
+                    resolution_lookup.add((e["uid"], ts.isoformat()))
                 except:
                     continue
 
-        # Step 2: Process Hooked Up events
         for e in events:
             if e["event"] != "Hooked Up":
                 continue
-
             try:
                 ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
                 if ts.time() > now.time():
@@ -1158,15 +994,8 @@ def get_hooked_up_events():
                 unresolved.append(e)
                 continue
 
-            # Add unresolved events (no resolution yet)
             if (uid, target_ts) not in resolution_lookup:
                 unresolved.append(e)
-
-                # Step 3: Send email alert if not already sent
-                key = (uid, ts.isoformat())
-                if key not in sent_demo_alerts:
-                    sent_demo_alerts.add(key)
-                    send_boat_email_alert(e)  # <- uses your inline image email helper
 
     else:
         # 🔹 Live mode: sequential clearing logic
@@ -1178,12 +1007,16 @@ def get_hooked_up_events():
                 continue
 
             if e["event"] == "Hooked Up":
+                # Add this hooked event to unresolved list for that boat
                 boat_hooks.setdefault(uid, []).append(e)
+
             else:
-                # Resolve oldest Hooked Up for that boat
+                # This is a resolution event: Boated / Released / Pulled Hook / Wrong Species
                 if uid in boat_hooks and boat_hooks[uid]:
+                    # Remove oldest unresolved hooked event for that boat
                     boat_hooks[uid].pop(0)
 
+        # Collect all unresolved events in chronological order
         for hooks in boat_hooks.values():
             unresolved.extend(hooks)
 
@@ -1435,6 +1268,4 @@ def release_summary_data():
 
 
 if __name__ == '__main__':
-    print("🚀 Optimizing boat images on startup...")
-    optimize_all_boat_images()
     app.run(host='0.0.0.0', port=5000, debug=True)

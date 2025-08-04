@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Leaderboard</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -27,13 +27,14 @@
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
-      <a href="/" class="text-white font-semibold hover:underline">Back</a>
+      <a href="/" class="bg-white/10 hover:bg-white/20 rounded px-3 py-1 text-sm font-semibold">Back</a>
     </header>
 
     <div class="p-6">
       <!-- Top 3 -->
-      <h2 class="text-xl font-bold mb-4">Top 3 Leaderboard</h2>
-      <div v-if="top3.length" class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+      <h2 class="text-xl font-bold mb-4 text-brand-blue">Top 3 Leaderboard</h2>
+      <div v-if="loading" class="placeholder">Loading leaderboard...</div>
+      <div v-else-if="top3.length" class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         <div v-for="(entry, idx) in top3" :key="entry.uid || idx"
              class="bg-white rounded-lg shadow-md p-4 flex flex-col items-center leaderboard-tile">
           <img :src="getBoatImage(entry)" :alt="entry.boat"
@@ -46,8 +47,8 @@
       <div v-else class="placeholder">No leaderboard data available.</div>
 
       <!-- Full Leaderboard -->
-      <h2 class="text-xl font-bold mb-4">Full Leaderboard</h2>
-      <div v-if="leaderboard.length" class="scroll-container">
+      <h2 class="text-xl font-bold mb-4 text-brand-blue">Full Leaderboard</h2>
+      <div v-if="!loading && leaderboard.length" class="scroll-container">
         <div v-for="(entry, idx) in leaderboard" :key="entry.uid || idx"
              class="bg-white rounded-lg shadow-md p-4 flex items-center space-x-4 mb-3 leaderboard-tile">
           <div class="flex-shrink-0">
@@ -61,7 +62,7 @@
           </div>
         </div>
       </div>
-      <div v-else class="placeholder">No leaderboard data available.</div>
+      <div v-else-if="!loading" class="placeholder">No leaderboard data available.</div>
     </div>
   </div>
 
@@ -75,13 +76,17 @@
           top3: [],
           tournament: localStorage.getItem('selectedTournament') || 'BigRock',
           tournamentLogo: '',
-          boatImages: {}
+          boatImages: {},
+          loading: true
         }
       },
       methods: {
+        normalize(uidOrName) {
+          return (uidOrName || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        },
         getBoatImage(entry) {
-          const uid = (entry.uid || entry.boat || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-          return this.boatImages[uid] || `/static/images/boats/${uid}.jpg`;
+          const uid = this.normalize(entry.uid || entry.boat);
+          return this.boatImages[uid] || `/static/images/boats/${uid}.webp`;
         },
         getBorderClass(idx) {
           if (idx === 0) return 'border-yellow-400';
@@ -93,11 +98,10 @@
           try {
             const res = await fetch(`/participants/${this.tournament}`);
             const data = await res.json();
-            console.log("Participants data:", data);
             const images = {};
             (data.participants || data || []).forEach(p => {
-              const uid = (p.uid || p.boat || '').toLowerCase();
-              images[uid] = p.image_path || `/static/images/boats/${uid}.jpg`;
+              const uid = this.normalize(p.uid || p.boat);
+              images[uid] = p.image_path || `/static/images/boats/${uid}.webp`;
             });
             this.boatImages = images;
           } catch (e) {
@@ -106,28 +110,26 @@
         }
       },
       async mounted() {
-        console.log("Tournament selected:", this.tournament);
-
         // Load logo with fallback
         try {
           const settings = await fetch('https://js9467.github.io/Brtourney/settings.json').then(r => r.json());
           this.tournamentLogo = settings[this.tournament]?.logo || '/static/images/logo.png';
         } catch (e) {
-          console.warn("Logo fetch failed, using local fallback");
           this.tournamentLogo = '/static/images/logo.png';
         }
 
         // Load boat images
         await this.loadBoatImages();
 
-        // Load leaderboard with fallback handling
+        // Load leaderboard
         try {
           const data = await fetch(`/leaderboard/${this.tournament}`).then(r => r.json());
-          console.log("Leaderboard data:", data);
           this.leaderboard = data.leaderboard || data || [];
           this.top3 = this.leaderboard.slice(0, 3);
         } catch (e) {
           console.error("Failed to load leaderboard:", e);
+        } finally {
+          this.loading = false;
         }
       }
     }).mount("#app");

@@ -393,7 +393,6 @@ def scrape_participants(force=False):
 
 
 
-
 def scrape_events(force=False, tournament=None):
     cache = load_cache()
     settings = load_settings()

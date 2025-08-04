@@ -877,12 +877,18 @@ def get_events():
             if date_parser.parse(e["timestamp"]).time() <= now.time()
         ]
         filtered = sorted(filtered, key=lambda e: e["timestamp"], reverse=True)
+
+        # 🔹 Trigger email alerts for demo events
+        for e in filtered[:100]:
+            process_new_event(e)
+
         return jsonify({
             "status": "ok",
             "count": len(filtered),
-            "events": filtered 
+            "events": filtered
         })
 
+    # Live mode
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force, tournament=tournament)
 
@@ -890,18 +896,17 @@ def get_events():
         with open(events_file, "r") as f:
             events = json.load(f)
 
-   events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
+    events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
 
-# 🔹 Trigger email alerts for each new/recent event
-for e in events[:100]:  # Limit to avoid spamming old historical events
-    process_new_event(e)
+    # 🔹 Trigger email alerts for each new/recent event
+    for e in events[:100]:  # limit to recent events to prevent spam
+        process_new_event(e)
 
     return jsonify({
         "status": "ok" if events else "error",
         "count": len(events),
         "events": events[:100]
     })
-
 
 
 

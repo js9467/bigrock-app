@@ -59,7 +59,7 @@
           >
             <!-- Rank Badge -->
             <div class="absolute top-2 left-2 bg-yellow-400 text-black font-bold px-2 py-1 rounded text-sm shadow">
-              {{ entry.rank }}
+              {{ entry.displayRank }}
             </div>
 
             <!-- Boat Image -->
@@ -104,10 +104,30 @@
           if (!grouped[cat]) grouped[cat] = [];
           grouped[cat].push(entry);
         });
-        // Sort by numeric rank if possible
+
+        // Sort by points desc and assign displayRank with tie logic
         Object.keys(grouped).forEach(cat => {
-          grouped[cat].sort((a,b) => parseFloat(a.rank) - parseFloat(b.rank));
+          // Sort by numeric points (desc)
+          grouped[cat].sort((a,b) => {
+            const getNum = e => parseFloat((e.points || '0').replace(/[^0-9.]/g,'')) || 0;
+            return getNum(b) - getNum(a);
+          });
+
+          // Assign displayRank considering ties
+          let lastPoints = null;
+          let lastRank = 0;
+          grouped[cat].forEach((entry, idx) => {
+            const pointsVal = parseFloat((entry.points || '0').replace(/[^0-9.]/g,'')) || 0;
+            if (pointsVal === lastPoints) {
+              entry.displayRank = `${lastRank}.`;
+            } else {
+              lastRank = idx + 1;
+              entry.displayRank = `${lastRank}.`;
+            }
+            lastPoints = pointsVal;
+          });
         });
+
         return grouped;
       },
       groupedLeaderboardKeys() {

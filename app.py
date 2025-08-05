@@ -634,7 +634,7 @@ def scrape_leaderboard(tournament=None, force=False):
     tournament = tournament or get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
 
-    # ✅ Check cache (15 min)
+    # ✅ Use cache if <15 min old
     if not force and os.path.exists(lb_file):
         age = time.time() - os.path.getmtime(lb_file)
         if age < 900:
@@ -666,7 +666,7 @@ def scrape_leaderboard(tournament=None, force=False):
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    # ✅ Parse rows like your test_lb.py
+    # ✅ Parse rows like test_lb.py
     for row in soup.select("table.table.table-striped tbody tr.montserrat"):
         cols = row.find_all("td")
         if len(cols) < 3:
@@ -698,11 +698,13 @@ def scrape_leaderboard(tournament=None, force=False):
         match = next((p for p in participants if p["uid"] == lb["uid"]), None)
         lb["image_path"] = match["image_path"] if match else "/static/images/boats/default.jpg"
 
+    # ✅ Cache to file
     with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
     print(f"✅ Leaderboard cached ({len(leaderboard)} boats) for {tournament}")
     return leaderboard
+
 
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality

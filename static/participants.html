@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/base.css" />
+  <style>[v-cloak]{display:none}</style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
   <div id="app" v-cloak>
@@ -42,14 +43,27 @@
           :key="p.uid"
           class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col"
         >
-          <!-- Lazy loaded image -->
-          <img
-            class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
-            :data-src="p.image_path ? p.image_path : '/static/images/bigrock.png'"
-            src="/static/images/bigrock.png"
-            loading="lazy"
-            alt="Boat Image"
-          />
+          <!-- Image with Spinner Overlay -->
+          <div class="relative w-full h-48 bg-gray-200 flex items-center justify-center">
+            <!-- Spinner -->
+            <div v-if="!p.loaded" class="absolute inset-0 flex items-center justify-center transition-opacity duration-500">
+              <svg class="animate-spin h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+            </div>
+
+            <!-- Lazy loaded image -->
+            <img
+              class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
+              :data-src="p.image_path || '/static/images/bigrock.png'"
+              :data-uid="p.uid"
+              src="/static/images/bigrock.png"
+              loading="lazy"
+              alt="Boat Image"
+            />
+          </div>
+
           <div class="p-4 flex-1 flex flex-col justify-between">
             <div>
               <h2 class="text-xl font-semibold truncate">{{ p.boat }}</h2>
@@ -86,14 +100,16 @@
         followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
         tournamentLogo: '',
         search: '',
-        loading: false
+        loading: false,
+        pollInterval: null,
       };
     },
     computed: {
       filteredParticipants() {
         const q = this.search.toLowerCase();
         return this.participants.filter(p =>
-          (p.boat || '').toLowerCase().includes(q) || (p.type || '').toLowerCase().includes(q)
+          (p.boat || '').toLowerCase().includes(q) ||
+          (p.type || '').toLowerCase().includes(q)
         );
       }
     },
@@ -111,13 +127,19 @@
       },
       async loadParticipants() {
         this.loading = true;
-        const res = await fetch('/participants_data?limit=1000&offset=0');
-        const data = await res.json();
-        this.participants = (data.participants || []).sort((a,b)=>a.boat.localeCompare(b.boat));
-        this.loading = false;
-
-        // Lazy-load after DOM is ready
-        this.$nextTick(() => this.initLazyLoading());
+        try {
+          const res = await fetch('/participants_data');
+          const data = await res.json();
+          this.participants = (data.participants || []).map(p => ({
+            ...p,
+            loaded: false // Track image load state
+          })).sort((a,b)=>a.boat.localeCompare(b.boat));
+        } catch(e) {
+          console.error('Failed to load participants', e);
+        } finally {
+          this.loading = false;
+          this.$nextTick(() => this.initLazyLoading());
+        }
       },
       async loadLogo() {
         try {
@@ -127,7 +149,9 @@
           const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
           const allTournaments = await configRes.json();
           this.tournamentLogo = allTournaments[tournament]?.logo || '';
-        } catch(e) { console.error('Logo load failed', e); }
+        } catch(e) { 
+          console.error('Logo load failed', e); 
+        }
       },
       launchKeyboard() { fetch('/launch_keyboard').catch(()=>{}); },
       hideKeyboard() { fetch('/hide_keyboard').catch(()=>{}); },
@@ -140,24 +164,54 @@
           entries.forEach(entry => {
             if (entry.isIntersecting) {
               const img = entry.target;
-              img.src = img.dataset.src;
-              img.onload = () => img.classList.add('opacity-100');
+              img.src = img.dataset.src || '/static/images/bigrock.png';
+              img.onload = () => {
+                img.classList.add('opacity-100');
+                const uid = img.getAttribute('data-uid');
+                if (uid) {
+                  const participant = this.participants.find(p => p.uid === uid);
+                  if (participant) participant.loaded = true;
+                }
+              };
               observer.unobserve(img);
             }
           });
         }, { threshold: 0.1 });
 
         images.forEach(img => observer.observe(img));
+      },
+
+      startPolling() {
+        // Poll every 5 seconds for updated participants/images
+        this.pollInterval = setInterval(async () => {
+          try {
+            const res = await fetch('/participants_data');
+            const data = await res.json();
+            const updated = (data.participants || []).map(p => {
+              const existing = this.participants.find(x => x.uid === p.uid);
+              return {
+                ...p,
+                loaded: existing ? existing.loaded : false
+              };
+            }).sort((a,b)=>a.boat.localeCompare(b.boat));
+            this.participants = updated;
+            this.$nextTick(() => this.initLazyLoading());
+          } catch(e) {
+            console.error('Polling failed', e);
+          }
+        }, 5000);
       }
     },
     mounted() {
       this.loadLogo();
       this.loadParticipants();
+      this.startPolling();
+    },
+    beforeUnmount() {
+      if (this.pollInterval) clearInterval(this.pollInterval);
     }
   });
   app.mount('#app');
   </script>
-
-  <style>[v-cloak]{display:none}</style>
 </body>
-</html> 
+</html>

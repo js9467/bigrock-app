@@ -418,7 +418,9 @@ def scrape_participants(force=False):
     cache = load_cache()
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
+    os.makedirs(os.path.dirname(participants_file), exist_ok=True)
 
+    # ✅ Step 1: Respect cache freshness (1 day)
     if not force and is_cache_fresh(cache, f"{tournament}_participants", 1440):
         print("✅ Participant cache is fresh — skipping scrape.")
         if os.path.exists(participants_file):
@@ -427,6 +429,7 @@ def scrape_participants(force=False):
         return []
 
     try:
+        # ✅ Step 2: Load tournament settings
         settings_url = "https://js9467.github.io/Brtourney/settings.json"
         settings = requests.get(settings_url, timeout=30).json()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
@@ -439,12 +442,7 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
-        existing_participants = {}
-        if os.path.exists(participants_file):
-            with open(participants_file, "r") as f:
-                for p in json.load(f):
-                    existing_participants[p["uid"]] = p
-
+        # ✅ Step 3: Fetch HTML
         html = fetch_with_scraperapi(participants_url)
         if not html:
             raise Exception("No HTML returned from ScraperAPI")
@@ -457,6 +455,7 @@ def scrape_participants(force=False):
         seen_boats = set()
         download_tasks = []
 
+        # ✅ Step 4: Parse all boats
         for article in soup.select("article.post.format-image"):
             name_tag = article.select_one("h2.post-title")
             type_tag = article.select_one("ul.post-meta li")
@@ -474,55 +473,47 @@ def scrape_participants(force=False):
             seen_boats.add(boat_name.lower())
 
             image_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
-            image_path = existing_participants.get(uid, {}).get("image_path", "")
-            local_path = image_path[1:] if image_path.startswith('/') else image_path
 
-            force_download = (
-                uid not in existing_participants or
-                not image_path or
-                not os.path.exists(local_path)
-            )
-
-            if force_download:
-                if image_url:
-                    download_tasks.append((uid, boat_name, image_url))
-                    image_path = ""
-                else:
-                    image_path = "/static/images/boats/default.jpg"
-
+            # Initially, no image_path — UI can load immediately with placeholders
             updated_participants[uid] = {
                 "uid": uid,
                 "boat": boat_name,
                 "type": boat_type,
-                "image_path": image_path
+                "image_path": ""  # Will fill after download
             }
 
-        if download_tasks:
-            print(f"📸 Downloading {len(download_tasks)} new boat images...")
-            with ThreadPoolExecutor(max_workers=6) as executor:
-                futures = {
-                    executor.submit(cache_boat_image, bname, url): uid
-                    for uid, bname, url in download_tasks
-                }
-                for future in futures:
-                    uid = futures[future]
-                    try:
-                        result_path = future.result()
-                        updated_participants[uid]["image_path"] = result_path
-                    except Exception as e:
-                        print(f"❌ Error downloading image for {uid}: {e}")
-                        updated_participants[uid]["image_path"] = "/static/images/boats/default.jpg"
+            if image_url:
+                download_tasks.append((uid, boat_name, image_url))
 
+        # ✅ Step 5: Save JSON immediately so UI can load rapidly
         updated_list = list(updated_participants.values())
-        if updated_list != list(existing_participants.values()):
-            with open(participants_file, "w") as f:
-                json.dump(updated_list, f, indent=2)
-            print(f"✅ Updated and saved {len(updated_list)} participants")
-        else:
-            print(f"✅ No changes detected — {len(updated_list)} participants up-to-date")
+        with open(participants_file, "w") as f:
+            json.dump(updated_list, f, indent=2)
+        print(f"💾 Initial participants.json written with {len(updated_list)} entries (images pending)")
 
+        # ✅ Step 6: Start background image downloads
+        if download_tasks:
+            print(f"📸 Downloading {len(download_tasks)} boat images in background...")
+
+            def download_and_update(uid, boat_name, url):
+                try:
+                    result_path = cache_boat_image(boat_name, url)
+                    updated_participants[uid]["image_path"] = result_path
+                    # Update JSON incrementally for UI refresh
+                    with open(participants_file, "w") as f:
+                        json.dump(list(updated_participants.values()), f, indent=2)
+                except Exception as e:
+                    print(f"❌ Error downloading image for {uid}: {e}")
+                    updated_participants[uid]["image_path"] = "/static/images/boats/default.jpg"
+
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                for uid, bname, url in download_tasks:
+                    executor.submit(download_and_update, uid, bname, url)
+
+        # ✅ Step 7: Update cache timestamp
         cache[f"{tournament}_participants"] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
+
         return updated_list
 
     except Exception as e:

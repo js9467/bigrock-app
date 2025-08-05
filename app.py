@@ -1348,10 +1348,10 @@ def api_leaderboard():
                 "rank": "1.",
                 "boat": "Palmer Lou",
                 "uid": "palmer_lou",
-                "type": "58' Viking",
+                "type": "35' Xcelerator",
                 "angler": None,
                 "points": "487.2 lb",
-                "image_path": "/static/images/boats/palmer_lou.webp",
+                "image_path": "/static/images/palmer_lou.webp",
                 "category": "Heaviest Blue Marlin"
             },
             {

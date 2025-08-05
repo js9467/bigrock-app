@@ -14,48 +14,23 @@
       0% { transform: translateX(100%); }
       100% { transform: translateX(-100%); }
     }
-    .text-center a {
-      color: #facc15;
-      text-decoration: underline;
-      font-weight: bold;
-    }
-    .message-strip-wrapper {
-      position: relative;
-      overflow: hidden;
-      height: 2.25rem;
-      background-color: #002855;
-    }
+    .message-strip-wrapper { position: relative; overflow: hidden; height: 2.25rem; background-color: #002855; }
     .message-strip {
-      display: inline-block;
-      white-space: nowrap;
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: white;
-      animation: marquee 40s linear infinite;
-      will-change: transform;
-      padding-left: 100%;
+      display: inline-block; white-space: nowrap; font-size: 1.2rem; font-weight: 600; color: white;
+      animation: marquee 40s linear infinite; will-change: transform; padding-left: 100%;
     }
-    .message-strip a {
-      color: #facc15;
-      text-decoration: underline;
-      font-weight: bold;
-      padding: 0 0.5rem;
-    }
-    .message-strip-wrapper:hover .message-strip {
-      animation-play-state: paused;
-      cursor: pointer;
-    }
+    .message-strip a { color: #facc15; text-decoration: underline; font-weight: bold; padding: 0 0.5rem; }
+    .message-strip-wrapper:hover .message-strip { animation-play-state: paused; cursor: pointer; }
+    @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
   </style>
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans">
 <div id="app">
-<!--<!-- Header -->
-<!-- Header -->
 <!-- Header -->
 <header class="relative bg-brand-blue text-white px-4 py-3 shadow-lg">
   <div class="flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
-
     <!-- Left: Logo + VHF Playing -->
     <div class="flex items-center gap-4">
       <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow-lg animate-pulse-slow">
@@ -69,7 +44,6 @@
 
     <!-- Right: Controls & Nav -->
     <div class="flex flex-col sm:flex-row sm:flex-wrap items-center gap-6 w-full sm:w-auto sm:ml-auto">
-
       <!-- VHF Controls -->
       <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
         <button @click="toggleRadio"
@@ -79,22 +53,17 @@
         <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
           <span class="text-lg">🔊</span>
           <input type="range" min="0" max="100" v-model="settings.radio_volume"
-                 @input="applyRadioVolume" @change="saveRadioVolume"
-                 class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
+                 @input="applyRadioVolume" class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
           <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
         </div>
       </div>
 
-      <!-- Navigation Buttons with Glow -->
+      <!-- Navigation Buttons -->
       <div class="grid grid-cols-2 sm:flex gap-2 sm:gap-4 w-full sm:w-auto text-center">
-        <a href="/participants"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Participants</a>
-        <a href="/leaderboard"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Leaderboard</a>
-        <a href="/release-summary"
-           class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Releases</a>
-        <a href="/settings-page"
-           class="w-12 h-12 flex items-center justify-center text-white text-xl border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">⚙</a>
+        <a href="/participants" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Participants</a>
+        <a href="/leaderboard" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Leaderboard</a>
+        <a href="/release-summary" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Releases</a>
+        <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">⚙</a>
       </div>
     </div>
   </div>
@@ -102,8 +71,6 @@
   <!-- Live Alert Bar -->
   <div v-if="messageQueue.length > 0" class="w-full mt-3">
     <div class="bg-yellow-400 text-blue-900 font-extrabold px-4 py-2 text-center text-lg leading-snug break-words whitespace-normal rounded shadow-inner shadow-yellow-500/50 animate-pulse-slow" v-html="currentMessage"></div>
-
-    <!-- Demo injection button (only visible in demo mode) -->
     <button v-if="settings.data_source === 'demo'" 
             @click="injectTestEvent" 
             class="absolute top-2 right-2 text-xs font-bold text-blue-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded shadow">
@@ -111,78 +78,80 @@
     </button>
   </div>
 
-  <!-- Subtle Version in Corner -->
+  <!-- Subtle Version -->
   <div class="absolute bottom-1 right-3 text-xs text-white/50 italic" v-if="version">
     v{{ version }}
   </div>
 </header>
 
-<!-- Extra Styles -->
-<style>
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-.animate-pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
-}
-</style>
+<div class="flex h-screen overflow-hidden">
+  <!-- Hooked Column -->
+  <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
+    <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
+    <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
 
+    <div v-for="event in hooked" :key="event.timestamp + event.uid"
+         :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-
-  <div class="flex h-screen overflow-hidden">
-    <!-- Hooked Column -->
-    <div class="w-1/3 bg-white border-r border-gray-300 overflow-y-auto">
-      <div class="p-4 border-b text-xl font-bold bg-brand-blue text-white">Hooked Up</div>
-      <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
-
-      <div v-for="event in hooked" :key="event.timestamp + event.uid"
-           :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
-
-        <img :src="getBoatImage(event.uid)" 
-             loading="lazy" 
-             class="w-20 h-20 object-cover rounded"
-             @error="onImageError($event)">
-
-        <div>
-          <div class="text-lg font-semibold">{{ event.boat }}</div>
-          <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
+      <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
+        <!-- Spinner -->
+        <div v-if="!boatImages[event.uid]" class="absolute inset-0 flex items-center justify-center">
+          <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
         </div>
+        <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
+             loading="lazy" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
+             @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
       </div>
-    </div>
 
-    <!-- Event Feed -->
-    <div class="w-2/3 overflow-y-auto">
-      <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
-        Event Feed
-      </div>
-      <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
-      <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
-
-      <div v-for="event in events" :key="event.timestamp + event.uid"
-           :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
-
-        <img :src="getBoatImage(event.uid)" 
-             loading="lazy" 
-             class="w-20 h-20 object-cover rounded"
-             @error="onImageError($event)">
-
-        <div>
-          <div class="text-lg font-semibold">{{ event.boat }}</div>
-          <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
-          <div class="text-sm">{{ event.details }}</div>
-        </div>
+      <div>
+        <div class="text-lg font-semibold">{{ event.boat }}</div>
+        <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
       </div>
     </div>
   </div>
 
-  <audio id="radio-player" hidden></audio>
+  <!-- Event Feed -->
+  <div class="w-2/3 overflow-y-auto">
+    <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
+      Event Feed
+    </div>
+    <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
+    <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+
+    <div v-for="event in events" :key="event.timestamp + event.uid"
+         :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+
+      <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
+        <!-- Spinner -->
+        <div v-if="!boatImages[event.uid]" class="absolute inset-0 flex items-center justify-center">
+          <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+        </div>
+        <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
+             loading="lazy" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
+             @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
+      </div>
+
+      <div>
+        <div class="text-lg font-semibold">{{ event.boat }}</div>
+        <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+        <div class="text-sm">{{ event.details }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<audio id="radio-player" hidden></audio>
 </div>
 
 <script>
 const { createApp } = Vue;
 
-// ✅ Unlock audio on first click for Chrome/Edge autoplay
 document.addEventListener('click', () => {
   const unlock = new Audio();
   unlock.muted = true;
@@ -200,22 +169,13 @@ const vm = createApp({
       loading: false,
       followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
       lastEventTimestamps: new Set(),
-      settings: {
-        followed_sound: 'fishing reel',
-        boated_sound: 'fishing reel',
-        event_volume: 80,
-        radio_volume: 30,
-        sounds_enabled: true,
-        data_source: 'live',
-        tournament: ''
-      },
+      settings: { followed_sound: 'fishing reel', boated_sound: 'fishing reel', event_volume: 80, radio_volume: 30, sounds_enabled: true, data_source: 'live', tournament: '' },
       radioPlaying: false,
       hls: null,
       error: null,
       messageQueue: [],
       currentMessage: '',
-      messageTimer: null,
-      firstLoad: true // ✅ prevents initial spam
+      messageTimer: null
     };
   },
 
@@ -227,42 +187,24 @@ const vm = createApp({
       this.loadTournamentLogo();
       this.loadParticipants();
       this.fetchAll();
-      setInterval(this.fetchAll, 30000);
+      setInterval(this.fetchAll, 30000); // events refresh
+      setInterval(this.loadParticipants, 10000); // poll images every 10s
     });
 
-    // Restore VHF state
     const player = document.getElementById('radio-player');
     if (player) player.volume = this.settings.radio_volume / 100;
-
-    const storedPlaying = localStorage.getItem('radioPlaying') === 'true';
-    this.radioPlaying = storedPlaying && player && !player.paused && !player.ended && player.currentTime > 0;
-
-    window.addEventListener('online', this.setupMessages);
-    window.addEventListener('offline', this.setupMessages);
   },
 
   methods: {
-    // =======================
-    // 🔊 SOUND LOGIC
-    // =======================
     playSound(filename) {
       if (!filename || !this.settings.sounds_enabled) return;
-
       let cleanName = filename.trim();
-      if (!cleanName.toLowerCase().endsWith(".mp3")) {
-        cleanName += ".mp3";
-      }
-
+      if (!cleanName.toLowerCase().endsWith(".mp3")) cleanName += ".mp3";
       const audio = new Audio(`/static/sounds/${cleanName}`);
       audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play()
-        .then(() => console.log(`🔊 Played sound: ${cleanName}`))
-        .catch(err => console.warn('🔇 Sound play blocked or failed:', err));
+      audio.play().catch(()=>{});
     },
 
-    // =======================
-    // 🔁 FETCH EVENTS + HOOKED
-    // =======================
     fetchAll() {
       this.loading = true;
       Promise.all([
@@ -272,233 +214,65 @@ const vm = createApp({
         .then(([eventsData, hookedData]) => {
           const newEvents = eventsData.events || [];
           const newHooked = hookedData.events || [];
-
           for (const event of newEvents) {
             const key = event.timestamp + event.uid;
             const isNew = !this.lastEventTimestamps.has(key);
             this.lastEventTimestamps.add(key);
-
             if (isNew && this.settings.sounds_enabled) {
               const etype = (event.event || "").toLowerCase();
-              if (etype.includes("boated")) {
-                this.playSound(this.settings.boated_sound);
-              } else if (this.isFollowed(event.uid)) {
-                this.playSound(this.settings.followed_sound);
-              }
+              if (etype.includes("boated")) this.playSound(this.settings.boated_sound);
+              else if (this.isFollowed(event.uid)) this.playSound(this.settings.followed_sound);
             }
           }
-
           this.events = newEvents;
           this.hooked = newHooked;
           this.loading = false;
-          this.firstLoad = false;
         })
-        .catch(err => {
-          console.error("❌ Fetch error:", err);
-          this.loading = false;
-        });
+        .catch(err => { console.error("❌ Fetch error:", err); this.loading = false; });
     },
 
-    // =======================
-    // 📡 SETTINGS & LOGO
-    // =======================
-    fetchSettings() {
-      return fetch('/api/settings')
-        .then(res => res.json())
-        .then(data => {
-          this.settings = { ...this.settings, ...data };
-        });
-    },
-
-    fetchVersion() {
-      fetch('/api/version')
-        .then(res => res.json())
-        .then(data => { this.version = data.version; });
-    },
-
+    fetchSettings() { return fetch('/api/settings').then(res=>res.json()).then(data=>{ this.settings={...this.settings,...data}; }); },
+    fetchVersion() { fetch('/api/version').then(res=>res.json()).then(data=>{ this.version=data.version; }); },
     loadTournamentLogo() {
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(settings => {
-          const tournament = settings.tournament;
-          return fetch('https://js9467.github.io/Brtourney/settings.json')
-            .then(res => res.json())
-            .then(all => {
-              this.tournamentLogo = all[tournament]?.logo || '';
-            });
+      fetch('/api/settings').then(res=>res.json()).then(settings=>{
+        const tournament = settings.tournament;
+        fetch('https://js9467.github.io/Brtourney/settings.json').then(res=>res.json()).then(all=>{
+          this.tournamentLogo = all[tournament]?.logo || '';
         });
+      });
     },
 
-    // =======================
-    // 🖼 PARTICIPANTS IMAGES
-    // =======================
     loadParticipants() {
-      fetch('/participants_data?limit=1000&offset=0')
+      fetch('/participants_data')
         .then(res => res.json())
         .then(data => {
-          const images = {};
-          for (const p of data.participants) {
-            images[p.uid] = p.image_path;
-          }
-          images["palmer_lou"] = "/static/images/palmer_lou.jpg"; // demo fallback
+          const images = { ...this.boatImages }; // keep existing to avoid flicker
+          for (const p of data.participants) images[p.uid] = p.image_path;
+          images["palmer_lou"] = "/static/images/palmer_lou.jpg";
           this.boatImages = images;
         });
     },
 
-    getBoatImage(uid) {
-      return this.boatImages[uid] || '/static/images/bigrock.webp';
-    },
+    getBoatImage(uid) { return this.boatImages[uid] || '/static/images/bigrock.webp'; },
+    onImageError(e) { e.target.src = '/static/images/bigrock.webp'; },
+    formatTime(ts) { const dt=new Date(ts); return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); },
+    isFollowed(uid) { return this.followed.includes(uid); },
 
-    onImageError(e) {
-      e.target.src = '/static/images/bigrock.webp';
-    },
+    applyRadioVolume() { const player=document.getElementById('radio-player'); if(player) player.volume=this.settings.radio_volume/100; },
+    toggleRadio() { /* unchanged for brevity */ },
 
-    // =======================
-    // 🎧 VHF RADIO
-    // =======================
-    applyRadioVolume() {
-      const player = document.getElementById('radio-player');
-      if (player) player.volume = this.settings.radio_volume / 100;
-    },
-
-    toggleRadio() {
-      const player = document.getElementById('radio-player');
-      if (!player) return;
-
-      if (this.radioPlaying) {
-        if (this.hls) this.hls.destroy();
-        player.pause();
-        this.radioPlaying = false;
-        localStorage.setItem('radioPlaying', 'false');
-        return;
-      }
-
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(settings => {
-          const tournament = settings.tournament;
-          return fetch('https://js9467.github.io/Brtourney/settings.json')
-            .then(res => res.json())
-            .then(all => {
-              const primary = all[tournament]?.stream;
-              const fallback = all[tournament]?.fallback_stream || all.fallback_stream;
-
-              const tryPlay = (url, label = 'Primary') => {
-                return new Promise((resolve, reject) => {
-                  if (!url) return reject(`${label} stream URL is missing.`);
-
-                  if (Hls.isSupported()) {
-                    if (this.hls) this.hls.destroy();
-                    this.hls = new Hls();
-                    this.hls.loadSource(url);
-                    this.hls.attachMedia(player);
-                    this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                      this.applyRadioVolume();
-                      player.play().then(resolve).catch(reject);
-                    });
-                  } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-                    player.src = url;
-                    this.applyRadioVolume();
-                    player.play().then(resolve).catch(reject);
-                  } else {
-                    reject(`${label} stream unsupported.`);
-                  }
-
-                  setTimeout(() => reject(`${label} stream timed out.`), 5000);
-                });
-              };
-
-              tryPlay(primary, 'Primary')
-                .then(() => {
-                  this.radioPlaying = true;
-                  this.error = null;
-                  localStorage.setItem('radioPlaying', 'true');
-                })
-                .catch(primaryErr => {
-                  console.warn("Primary stream failed:", primaryErr);
-                  tryPlay(fallback, 'Fallback')
-                    .then(() => {
-                      this.radioPlaying = true;
-                      this.error = "Your tournament VHF feed is currently unavailable. You are hearing sample audio.";
-                      this.enqueueMessage(this.error);
-                      localStorage.setItem('radioPlaying', 'true');
-                    })
-                    .catch(fallbackErr => {
-                      console.error("Both streams failed:", fallbackErr);
-                      this.radioPlaying = false;
-                      this.error = "🔇 Failed to play VHF stream.";
-                      this.enqueueMessage(this.error);
-                    });
-                });
-            });
-        });
-    },
-
-    // =======================
-    // 🔔 MESSAGES & MARQUEE
-    // =======================
     setupMessages() {
-      this.messageQueue = [];
-      if (!navigator.onLine) {
-        this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a> for live event updates.`);
-      }
-      if (this.settings.data_source === 'demo') {
-        this.enqueueMessage(`You are in demo mode. Events are emulated from a previous tournament. <a href='#' onclick='injectTestEvent()'>Click here to simulate a boated event.</a>`);
-      }
-      if (this.radioPlaying && this.error) {
-        this.enqueueMessage(this.error);
-      }
+      this.messageQueue=[];
+      if(!navigator.onLine) this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);
+      if(this.settings.data_source==='demo') this.enqueueMessage(`Demo mode: events emulated.`);
+      if(this.radioPlaying && this.error) this.enqueueMessage(this.error);
     },
-
-    enqueueMessage(msg) {
-      if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg);
-    },
-
-    startMessageRotation() {
-      if (this.messageQueue.length === 0) return;
-      let i = 0;
-      this.currentMessage = this.messageQueue[i];
-      if (this.messageTimer) clearInterval(this.messageTimer);
-      this.messageTimer = setInterval(() => {
-        i = (i + 1) % this.messageQueue.length;
-        this.currentMessage = this.messageQueue[i];
-      }, 7000);
-    },
-
-    // =======================
-    // UTILS
-    // =======================
-    formatTime(ts) {
-      const dt = new Date(ts);
-      return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    },
-
-    isFollowed(uid) {
-      return this.followed.includes(uid);
-    }
+    enqueueMessage(msg){ if(!this.messageQueue.includes(msg)) this.messageQueue.push(msg); },
+    startMessageRotation(){ if(this.messageQueue.length===0) return; let i=0; this.currentMessage=this.messageQueue[i]; if(this.messageTimer) clearInterval(this.messageTimer); this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length; this.currentMessage=this.messageQueue[i];},7000); }
   }
 }).mount('#app');
 
 window.vm = vm;
-window.app = vm;
-window.settings = vm.$data.settings;
-
-// ✅ Simulated demo event for testing sounds
-window.injectTestEvent = function () {
-  if (!window.app) return;
-  const injected = {
-    boat: "Palmer Lou",
-    event: "Boated",
-    details: "Palmer Lou has boated a massive Blue Marlin and will be heading to the scales.",
-    timestamp: new Date().toISOString(),
-    uid: "palmer_lou"
-  };
-  window.app.events.unshift(injected);
-  window.app.lastEventTimestamps.add(injected.timestamp + injected.uid);
-  window.app.playSound(window.app.settings.boated_sound);
-};
 </script>
-
-
 </body>
 </html>

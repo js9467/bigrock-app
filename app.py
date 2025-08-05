@@ -1140,7 +1140,6 @@ def generate_demo():
         print(f"❌ Error generating demo data: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
-
 from flask import render_template
 
 from flask import send_from_directory
@@ -1202,98 +1201,76 @@ def get_leaderboard(tournament):
         json.dump(leaderboard, f, indent=2)
 
     return jsonify({"status": "ok", "leaderboard": leaderboard})
+
 @app.route("/hooked")
 def get_hooked_up_events():
-    """Return unresolved Hooked Up events for the current tournament."""
+    settings = load_settings()
+    tournament = get_current_tournament()
+    data_source = settings.get("data_source", "live")
+    now = datetime.now()
+
+    # Load events
+    if data_source == "demo":
+        events = load_demo_data(tournament).get("events", [])
+    else:
+        events_file = get_cache_path(tournament, "events.json")
+        if not os.path.exists(events_file):
+            return jsonify({"status": "ok", "count": 0, "events": []})
+        with open(events_file, "r") as f:
+            events = json.load(f)
+
+    # Sort by timestamp ascending for processing
     try:
-        settings = load_settings()
-        tournament = get_current_tournament()
-        data_source = settings.get("data_source", "live")
-        now = datetime.now()
+        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
+    except:
+        pass
 
-        # Load events
-        if data_source == "demo":
-            events = load_demo_data(tournament).get("events", [])
-        else:
-            events_file = get_cache_path(tournament, "events.json")
-            if not os.path.exists(events_file):
-                return jsonify({"status": "ok", "count": 0, "events": []})
-            with open(events_file, "r") as f:
-                events = json.load(f)
+    unresolved = []
 
-        # Sort by timestamp ascending
-        try:
-            events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-        except Exception:
-            pass
+    if data_source == "demo":
+        resolution_lookup = set()
+        for e in events:
+            event_type = e.get("event", "")
+            ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+            if ts.time() > now.time():  # skip future demo events
+                continue
+            if event_type in ["Released", "Boated"] or \
+               "pulled hook" in e.get("details", "").lower() or \
+               "wrong species" in e.get("details", "").lower():
+                resolution_lookup.add((e["uid"], ts.isoformat()))
 
-        unresolved = []
+        for e in events:
+            if e.get("event") != "Hooked Up":
+                continue
+            ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+            if ts.time() > now.time():
+                continue
+            unresolved.append(e)
 
-        if data_source == "demo":
-            # Track resolutions with timestamp
-            resolution_lookup = set()
-            for e in events:
-                event_type = e.get("event", "")
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if ts.time() > now.time():  # skip future demo events
-                    continue
-                if event_type in ["Released", "Boated"] or \
-                   "pulled hook" in e.get("details", "").lower() or \
-                   "wrong species" in e.get("details", "").lower():
-                    # Lookup key: uid + iso timestamp of the event
-                    resolution_lookup.add((e["uid"], ts.isoformat()))
+    else:
+        # Live mode
+        boat_hooks = {}
+        for e in events:
+            uid = e.get("uid")
+            if not uid:
+                continue
+            etype = e.get("event")
+            if etype == "Hooked Up":
+                boat_hooks.setdefault(uid, []).append(e)
+            elif etype in ["Released", "Boated"] or \
+                 "pulled hook" in e.get("details", "").lower() or \
+                 "wrong species" in e.get("details", "").lower():
+                if uid in boat_hooks and boat_hooks[uid]:
+                    boat_hooks[uid].pop(0)
 
-            for e in events:
-                if e.get("event") != "Hooked Up":
-                    continue
-                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-                if ts.time() > now.time():
-                    continue
+        for hooks in boat_hooks.values():
+            unresolved.extend(hooks)
 
-                # Parse the intended resolution timestamp from hookup_id if present
-                hook_id = e.get("hookup_id", "")
-                try:
-                    uid, ts_str = hook_id.rsplit("_", 1)
-                    target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
-                except Exception:
-                    unresolved.append(e)
-                    continue
-
-                if (uid, target_ts) not in resolution_lookup:
-                    unresolved.append(e)
-
-        else:
-            # Live mode: track hooks per boat and clear when resolved
-            boat_hooks = {}  # uid -> list of unresolved hooked events
-            for e in events:
-                uid = e.get("uid")
-                if not uid:
-                    continue
-
-                ev_type = e.get("event")
-                if ev_type == "Hooked Up":
-                    boat_hooks.setdefault(uid, []).append(e)
-                elif ev_type in ["Released", "Boated"] or \
-                     "pulled hook" in e.get("details", "").lower() or \
-                     "wrong species" in e.get("details", "").lower():
-                    if uid in boat_hooks and boat_hooks[uid]:
-                        # Pop the oldest unresolved hook for that boat
-                        boat_hooks[uid].pop(0)
-
-            # Collect all remaining unresolved hooks
-            for hooks in boat_hooks.values():
-                unresolved.extend(hooks)
-
-        # ✅ Return clean JSON
-        return jsonify({
-            "status": "ok",
-            "count": len(unresolved),
-            "events": sorted(unresolved, key=lambda e: e["timestamp"], reverse=True)
-        })
-
-    except Exception as e:
-        print(f"❌ Error in /hooked: {e}")
-        return jsonify({"status": "error", "count": 0, "events": []})
+    return jsonify({
+        "status": "ok",
+        "count": len(unresolved),
+        "events": sorted(unresolved, key=lambda e: e["timestamp"], reverse=True)
+    })
 
 
 @app.route('/bluetooth/status')

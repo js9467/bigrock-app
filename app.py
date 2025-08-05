@@ -709,107 +709,93 @@ def split_boat_and_type(raw_text):
     return raw_text, ""
 
 def scrape_leaderboard(tournament=None, force=False):
-    """
-    Scrape leaderboard with proper categories, separating boat name and type.
-    """
+    """Scrape leaderboard and return list of entries with category, boat, angler, points."""
     tournament = tournament or get_current_tournament()
-    cache_file = get_cache_path(tournament, "leaderboard.json")
 
-    # ✅ Cache check
-    if not force and os.path.exists(cache_file):
-        age = time.time() - os.path.getmtime(cache_file)
-        if age < 60:
-            with open(cache_file) as f:
-                return json.load(f)
-
-    # 🔹 Load leaderboard URL from master JSON
-    settings_url = "https://js9467.github.io/Brtourney/settings.json"
-    remote = requests.get(settings_url, timeout=15).json()
-    key = next(
-        (k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)),
-        None
-    )
-    if not key or not remote[key].get("leaderboard"):
-        print(f"⚠️ No leaderboard URL for tournament: {tournament}")
+    # 1️⃣ Load master JSON to get leaderboard URL
+    try:
+        remote = requests.get(MASTER_JSON_URL, timeout=30).json()
+    except Exception as e:
+        print(f"❌ Failed to load master JSON: {e}")
         return []
 
-    leaderboard_url = remote[key]["leaderboard"]
-    print(f"📡 Scraping leaderboard: {leaderboard_url}")
-    html = fetch_with_scraperapi(leaderboard_url)
+    key = next((k for k in remote if k.lower() == tournament.lower()), None)
+    if not key:
+        print(f"❌ Tournament '{tournament}' not found in master JSON.")
+        return []
+
+    leaderboard_url = remote[key].get("leaderboard")
+    if not leaderboard_url:
+        print(f"❌ No leaderboard URL for '{tournament}'.")
+        return []
+
+    print(f"📡 Scraping leaderboard for {tournament} → {leaderboard_url}")
+    html = fetch_html(leaderboard_url)
     if not html:
-        print("❌ Failed to fetch leaderboard HTML")
         return []
+
+    # Save debug HTML
+    os.makedirs("debug", exist_ok=True)
+    with open("debug/leaderboard_debug.html", "w", encoding="utf-8") as f:
+        f.write(html)
 
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    # Define headings to ignore
-    ignore_keywords = ["big rock", "annual", "leader board", "tournament", "june", "may"]
+    categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav")]
+    print(f"Found {len(categories)} categories: {categories}")
 
-    for heading in soup.find_all(["h2", "h3"]):
-        category_name = heading.get_text(strip=True)
-
-        # Skip non-categories
-        if any(x in category_name.lower() for x in ignore_keywords):
+    for category in categories:
+        tab_link = soup.find("a", string=lambda x: x and x.strip() == category)
+        if not tab_link:
             continue
 
-        table = heading.find_next("table")
-        if not table:
+        tab_id = tab_link.get("href")
+        tab = soup.select_one(tab_id)
+        if not tab:
             continue
 
-        rows = table.find_all("tr")[1:]  # Skip header row
-        for row in rows:
-            cols = [c.get_text(strip=True) for c in row.find_all("td")]
+        for row in tab.select("tr.montserrat"):
+            cols = row.find_all("td")
             if len(cols) < 2:
                 continue
 
-            rank = cols[0]
-            angler, boat_raw, points = None, "", ""
+            rank = cols[0].get_text(strip=True)
+            boat_block = cols[1]
+            points = cols[-1].get_text(strip=True)
 
-            # Detect column structure
-            if len(cols) == 5:
-                # Rank | Angler | Boat | Weight | Points
-                angler, boat_raw, points = cols[1], cols[2], cols[3]
-            elif len(cols) == 4:
-                if "junior" in category_name.lower() or "lady" in category_name.lower():
-                    # Rank | Angler | Boat | Points
-                    angler, boat_raw, points = cols[1], cols[2], cols[3]
-                else:
-                    # Rank | Boat | Weight | Points
-                    boat_raw, points = cols[1], cols[2]
-            elif len(cols) == 3:
-                # Rank | Boat | Points
-                boat_raw, points = cols[1], cols[2]
-            else:
-                continue
+            # Extract boat/angler info
+            h4 = boat_block.find("h4")
+            name = h4.get_text(strip=True) if h4 else ""
+            text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
 
-            # 🔹 Split boat name and type
-            match = re.match(r"^([A-Za-z0-9' \-]+)\s*(\d{2,2}.*)?$", boat_raw)
-            boat_name = match.group(1).strip() if match else boat_raw
-            boat_type = match.group(2).strip() if match and match.group(2) else ""
+            # Heuristic: Angler vs Boat
+            angler, boat, btype = None, name, text_after
+            if "lb" in points.lower() and "'" not in text_after:
+                angler, boat, btype = name, None, None
 
-            uid = normalize_boat_name(boat_name)
+            uid = normalize_boat_name(boat or angler or f"rank_{rank}")
 
             leaderboard.append({
                 "rank": rank,
-                "boat": boat_name,
-                "uid": uid,
-                "type": boat_type,
-                "angler": angler if angler else None,
+                "category": category,
+                "angler": angler,
+                "boat": boat,
+                "type": btype,
                 "points": points,
-                "image_path": f"/static/images/boats/{uid}.webp" if boat_name else "",
-                "category": category_name
+                "uid": uid,
+                "image_path": f"/static/images/boats/{uid}.webp" if boat else ""
             })
 
-    # ✅ Save cache
-    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-    with open(cache_file, "w") as f:
+    print(f"✅ Scraped {len(leaderboard)} leaderboard entries for {tournament}")
+
+    # Cache for your API
+    lb_file = get_cache_path(tournament, "leaderboard.json")
+    os.makedirs(os.path.dirname(lb_file), exist_ok=True)
+    with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    print(f"✅ Scraped {len(leaderboard)} leaderboard entries for {tournament}")
-    return leaderboard
-
-
+    return leaderboard 
 
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality

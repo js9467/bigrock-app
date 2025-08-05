@@ -8,50 +8,90 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
+    /* Category header strip */
+    .category-strip {
+      background: linear-gradient(90deg, #002855 0%, #00509e 100%);
+      color: white;
+      padding: 0.75rem 1rem;
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin: 2rem 0 1rem;
+      border-radius: 0.5rem;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Card styling */
     .leaderboard-tile {
-      transition: transform 0.2s ease-in-out;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .leaderboard-tile:hover {
-      transform: scale(1.03);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
     }
+
+    /* Rank badge */
     .rank-badge {
       background: #facc15; /* yellow-400 */
-      color: black;
+      color: #1a1a1a;
       font-weight: bold;
       padding: 0.25rem 0.5rem;
       border-radius: 0.25rem;
-      font-size: 0.9rem;
+      font-size: 0.95rem;
+      position: absolute;
+      top: 0.5rem;
+      left: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
-    .category-title {
-      @apply text-2xl font-bold text-brand-blue mt-8 mb-4;
+
+    .boat-image {
+      width: 100%;
+      height: 12rem;
+      object-fit: cover;
+      border-radius: 0.5rem;
     }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-<div id="app" class="p-4">
 
-  <!-- Header -->
-  <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md mb-4">
-    <h1 class="text-2xl font-bold">Leaderboard</h1>
-    <a href="/" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">Back</a>
+<div id="app" class="flex flex-col min-h-screen">
+
+  <!-- Branded Header -->
+  <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md">
+    <div class="flex items-center space-x-4">
+      <img src="/static/images/logo.png" alt="Logo" class="h-10 w-auto">
+      <h1 class="text-2xl font-bold tracking-wide">Tournament Leaderboard</h1>
+    </div>
+    <div class="flex items-center space-x-4">
+      <a href="/settings.html" class="p-2 rounded-full hover:bg-blue-700">
+        <img src="/static/images/icons/gear.svg" class="h-6 w-6" alt="Settings">
+      </a>
+    </div>
   </header>
 
-  <div v-if="loading" class="text-center text-gray-600 py-8">Loading leaderboard...</div>
-  <div v-else>
-    <div v-for="(entries, category) in groupedLeaderboard" :key="category">
-      <h2 class="category-title">{{ category }}</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <div v-for="entry in entries" :key="entry.uid + entry.rank" class="leaderboard-tile bg-white rounded-lg shadow hover:shadow-lg p-4 flex flex-col items-center">
-          <img :src="entry.image_path || '/static/images/boats/default.jpg'" alt="Boat Image" class="w-full h-40 object-cover rounded-md mb-2">
-          <div class="rank-badge mb-2">{{ entry.rank }}</div>
-          <h2 class="text-xl font-semibold mb-1">{{ entry.boat }}</h2>
-          <p v-if="entry.angler" class="text-brand-gold font-medium mb-1">{{ entry.angler }}</p>
-          <p class="text-gray-600 mb-1">{{ entry.type || 'Unknown Type' }}</p>
-          <p class="text-brand-gold font-bold text-lg">{{ entry.points }}</p>
+  <main class="flex-1 p-4">
+    <div v-if="loading" class="text-center text-gray-600 py-8 text-xl animate-pulse">
+      Loading leaderboard...
+    </div>
+
+    <div v-else>
+      <div v-for="(entries, category) in groupedLeaderboard" :key="category">
+        <div class="category-strip">{{ category }}</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div v-for="entry in entries" :key="entry.uid + entry.rank"
+               class="leaderboard-tile bg-white rounded-lg shadow relative p-4 flex flex-col items-center">
+            <span class="rank-badge">{{ entry.rank }}</span>
+            <img :src="entry.image_path || '/static/images/boats/default.jpg'" class="boat-image mb-3" alt="Boat Image">
+            <h2 class="text-xl font-semibold text-center mb-1">{{ entry.boat }}</h2>
+            <p v-if="entry.angler" class="text-brand-gold font-medium mb-1">{{ entry.angler }}</p>
+            <p class="text-gray-600 mb-1 text-sm">{{ entry.type || 'Unknown Type' }}</p>
+            <p class="text-brand-gold font-bold text-lg">{{ entry.points }}</p>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </main>
+
 </div>
 
 <script>
@@ -65,11 +105,21 @@ const app = Vue.createApp({
   computed: {
     groupedLeaderboard() {
       const grouped = {};
+      // Group entries by category and sort by rank
       this.leaderboard.forEach(entry => {
-        const category = entry.category || 'Uncategorized';
-        if (!grouped[category]) grouped[category] = [];
-        grouped[category].push(entry);
+        const cat = entry.category || 'Uncategorized';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(entry);
       });
+
+      // Sort each category by numeric rank
+      for (const cat in grouped) {
+        grouped[cat].sort((a, b) => {
+          const ra = parseFloat(a.rank) || 999;
+          const rb = parseFloat(b.rank) || 999;
+          return ra - rb;
+        });
+      }
       return grouped;
     }
   },

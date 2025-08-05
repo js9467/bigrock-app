@@ -630,80 +630,70 @@ from bs4 import BeautifulSoup
 
 CACHE_DIR = "cache"
 
-def scrape_leaderboard(tournament=None, force=False):
-    tournament = tournament or get_current_tournament()
-    lb_file = get_cache_path(tournament, "leaderboard.json")
+import re
 
-    # ✅ Use cache if <15 min old
-    if not force and os.path.exists(lb_file):
-        age = time.time() - os.path.getmtime(lb_file)
-        if age < 900:
-            with open(lb_file) as f:
-                return json.load(f)
+def categorize_entry(entry):
+    """Guess leaderboard category based on points format."""
+    points = str(entry.get("points", "")).lower()
 
-    # Load leaderboard URL from settings.json
-    settings_url = "https://js9467.github.io/Brtourney/settings.json"
-    try:
-        settings = requests.get(settings_url, timeout=10).json()
-    except:
-        print("⚠️ Could not fetch settings.json")
-        return []
+    # Weighted catches
+    if "lb" in points:
+        weight = float(re.sub(r"[^0-9.]", "", points) or 0)
+        if weight > 200:
+            return "blue_marlin"
+        elif weight > 40:
+            return "tuna"
+        elif weight > 20:
+            return "dolphin"
+        elif weight > 10:
+            return "wahoo"
+        else:
+            return "misc_weight"
+    else:
+        # Numeric points = Release/Billfish
+        return "release"
 
-    t_info = settings.get(tournament)
-    if not t_info or not t_info.get("leaderboard"):
-        print(f"⚠️ No leaderboard URL for {tournament}")
-        return []
-
-    url = t_info["leaderboard"]
-    print(f"📊 Scraping leaderboard for {tournament}: {url}")
-
-    try:
-        html = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15, verify=False).text
-    except Exception as e:
-        print(f"❌ Failed to fetch leaderboard: {e}")
-        return []
-
-    soup = BeautifulSoup(html, "html.parser")
+def scrape_leaderboard():
+    """Scrape leaderboard and categorize entries."""
     leaderboard = []
 
-    # ✅ Parse rows like test_lb.py
-    for row in soup.select("table.table.table-striped tbody tr.montserrat"):
-        cols = row.find_all("td")
-        if len(cols) < 3:
-            continue
+    try:
+        # Your existing scraping logic here
+        # leaderboard = [ ...dicts of boat info... ]
 
-        rank = cols[0].get_text(strip=True).replace('.', '')
-        boat_name = cols[1].find("h4").get_text(strip=True)
-        boat_type = cols[1].get_text(separator=' ', strip=True).replace(boat_name, '').strip()
-        points = cols[2].get_text(strip=True)
+        # Example: leaderboard already populated
 
-        uid = normalize_boat_name(boat_name)
+        # Deduplicate by (uid, points)
+        seen = set()
+        deduped = []
+        for entry in leaderboard:
+            key = (entry['uid'], entry['points'])
+            if key in seen:
+                continue
+            seen.add(key)
 
-        leaderboard.append({
-            "rank": rank,
-            "boat": boat_name,
-            "type": boat_type,
-            "points": points,
-            "uid": uid
-        })
+            # Assign category
+            entry['category'] = categorize_entry(entry)
+            deduped.append(entry)
 
-    # ✅ Merge image paths from participants cache
-    participants_file = get_cache_path(tournament, "participants.json")
-    participants = []
-    if os.path.exists(participants_file):
-        with open(participants_file) as f:
-            participants = json.load(f)
+        leaderboard = deduped
 
-    for lb in leaderboard:
-        match = next((p for p in participants if p["uid"] == lb["uid"]), None)
-        lb["image_path"] = match["image_path"] if match else "/static/images/boats/default.jpg"
+        # Sort overall leaderboard by numeric points
+        def points_val(e):
+            p = e.get("points", "0").lower()
+            return float(re.sub(r"[^0-9.]", "", p) or 0)
+        leaderboard.sort(key=points_val, reverse=True)
 
-    # ✅ Cache to file
-    with open(lb_file, "w") as f:
-        json.dump(leaderboard, f, indent=2)
+        # Save to cache
+        with open("cache/leaderboard.json", "w") as f:
+            json.dump({"leaderboard": leaderboard, "status": "ok"}, f, indent=2)
 
-    print(f"✅ Leaderboard cached ({len(leaderboard)} boats) for {tournament}")
-    return leaderboard
+        return leaderboard
+
+    except Exception as e:
+        print(f"❌ Error in scrape_leaderboard: {e}")
+        return []
+
 
 
 MAX_IMG_SIZE = (400, 400)  # Max width/height

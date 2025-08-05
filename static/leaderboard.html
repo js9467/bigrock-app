@@ -1,121 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Big Rock Leaderboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leaderboard</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css">
-  <style>
-    body { background: linear-gradient(to right, #001F54, #00337A); }
-    .glow {
-      box-shadow: 0 0 15px gold;
-      border: 2px solid gold;
-    }
-    .hover-zoom:hover { transform: scale(1.05); transition: 0.2s; }
-  </style>
+  <link rel="stylesheet" href="/static/css/base.css" />
 </head>
-<body class="text-white font-sans">
+<body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
+  <div id="app" v-cloak>
+    <!-- Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
+      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
+    </header>
 
-<div id="app" class="p-4 max-w-7xl mx-auto">
-  <h1 class="text-4xl font-bold mb-6 text-center">🏆 Big Rock Leaderboard</h1>
+    <div class="p-4 max-w-screen-xl mx-auto">
+      <!-- Page Title -->
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <h1 class="text-4xl font-bold text-yellow-600">Live Leaderboard</h1>
+      </header>
 
-  <!-- Heaviest Blue Marlin Hero -->
-  <h2 class="text-2xl font-semibold mb-3 text-yellow-400">Heaviest Blue Marlin (Top 3)</h2>
-  <div class="grid md:grid-cols-3 gap-4 mb-10">
-    <div v-for="(boat, idx) in topBlueMarlin" :key="boat.uid"
-         class="bg-white text-gray-900 rounded-xl overflow-hidden hover-zoom shadow-xl"
-         :class="{'glow': true}">
-      <img :src="boat.image_path" class="w-full h-48 object-cover">
-      <div class="p-3">
-        <div class="flex justify-between items-center mb-1">
-          <span class="font-bold">{{ boat.boat }}</span>
-          <span class="bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">#{{ idx+1 }}</span>
+      <!-- Top 3 Weighed Blue Marlins -->
+      <section class="mb-10">
+        <h2 class="text-2xl font-semibold text-blue-900 mb-4">Top 3 Weighed Blue Marlins</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div v-for="(boat, idx) in topBlueMarlin" :key="boat.uid"
+            class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col border-2 border-yellow-400">
+            <img
+              class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
+              :data-src="boat.image_path || '/static/images/bigrock.png'"
+              src="/static/images/bigrock.png"
+              loading="lazy"
+              alt="Boat Image"
+            />
+            <div class="p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <h2 class="text-xl font-semibold truncate">{{ boat.boat }}</h2>
+                  <span class="bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">#{{ idx+1 }}</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3 truncate">{{ boat.type || '' }}</p>
+                <p class="font-bold text-lg text-yellow-600">{{ boat.points }}</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <p class="text-sm">{{ boat.type }}</p>
-        <p class="font-bold text-lg text-yellow-500">{{ boat.points }}</p>
+      </section>
+
+      <!-- Remaining Categories -->
+      <section v-for="cat in categories" :key="cat.name" class="mb-10">
+        <h2 class="text-2xl font-semibold text-blue-900 mb-4">{{ cat.name }}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div v-for="(boat, idx) in cat.top3" :key="boat.uid"
+            class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col">
+            <img
+              class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
+              :data-src="boat.image_path || '/static/images/bigrock.png'"
+              src="/static/images/bigrock.png"
+              loading="lazy"
+              alt="Boat Image"
+            />
+            <div class="p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <h2 class="text-xl font-semibold truncate">{{ boat.boat }}</h2>
+                  <span class="bg-gray-200 text-gray-900 px-2 py-1 rounded text-xs font-bold">#{{ idx+1 }}</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3 truncate">{{ boat.type || '' }}</p>
+                <p class="font-bold text-lg text-yellow-600">{{ boat.points }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status Messages -->
+      <div v-if="!loading && topBlueMarlin.length === 0" class="text-center py-6 text-red-600 text-sm">
+        No leaderboard data available.
+      </div>
+      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
+        Loading leaderboard...
       </div>
     </div>
   </div>
 
-  <!-- Categories -->
-  <div v-for="cat in categories" :key="cat.name" class="mb-10">
-    <h2 class="text-xl font-semibold mb-3">{{ cat.name }}</h2>
-    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div v-for="boat in cat.top3" :key="boat.uid"
-           class="bg-white text-gray-900 rounded-xl overflow-hidden hover-zoom shadow"
-           :class="{'glow': boat.points.includes('lb')}">
-        <img :src="boat.image_path" class="w-full h-40 object-cover">
-        <div class="p-3">
-          <p class="font-bold">{{ boat.boat }}</p>
-          <p class="text-sm">{{ boat.type }}</p>
-          <p class="font-bold text-lg text-yellow-500">{{ boat.points }}</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-const app = Vue.createApp({
-  data() {
-    return {
-      leaderboard: [],
-      categories: []
-    };
-  },
-  computed: {
-    topBlueMarlin() {
-      return this.leaderboard
-        .filter(b => b.points.includes('lb'))
-        .sort((a, b) => parseFloat(b.points) - parseFloat(a.points))
-        .slice(0, 3);
-    }
-  },
-  methods: {
-    async fetchLeaderboard() {
-      try {
-        const res = await fetch('/leaderboard');
-        const data = await res.json();
-        this.leaderboard = data.leaderboard || [];
-        this.computeCategories();
-      } catch (e) {
-        console.error('Leaderboard fetch failed', e);
-      }
+  <script>
+  const app = Vue.createApp({
+    data() {
+      return {
+        leaderboard: [],
+        tournamentLogo: '',
+        loading: false,
+        categories: []
+      };
     },
-    computeCategories() {
-      this.categories = [
-        { name: 'Heaviest Dolphin', key: 'dolphin' },
-        { name: 'Heaviest Tuna', key: 'tuna' },
-        { name: 'Heaviest Wahoo', key: 'wahoo' },
-        { name: 'Overall Billfish Release', key: 'release' }
-      ].map(cat => ({
-        ...cat,
-        top3: this.getTop3(cat.key)
-      }));
-    },
-    getTop3(category) {
-      if(category === 'release') {
+    computed: {
+      topBlueMarlin() {
         return this.leaderboard
-          .filter(b => !b.points.includes('lb'))
-          .sort((a,b) => parseFloat(b.points) - parseFloat(a.points))
-          .slice(0,3);
+          .filter(b => b.category === 'blue_marlin')
+          .sort((a, b) => parseFloat(b.points) - parseFloat(a.points))
+          .slice(0, 3);
       }
-      // For species (Dolphin/Tuna/Wahoo), we can filter by weight now
-      return this.leaderboard
-        .filter(b => b.points.includes('lb'))
-        .sort((a,b) => parseFloat(b.points) - parseFloat(a.points))
-        .slice(0,3);
-    }
-  },
-  mounted() {
-    this.fetchLeaderboard();
-    setInterval(this.fetchLeaderboard, 60000);
-  }
-});
-app.mount('#app');
-</script>
+    },
+    methods: {
+      async loadLeaderboard() {
+        this.loading = true;
+        try {
+          const res = await fetch('/leaderboard');
+          const data = await res.json();
+          this.leaderboard = data.leaderboard || [];
 
+          this.categories = [
+            { name: 'Heaviest Dolphin', key: 'dolphin' },
+            { name: 'Heaviest Tuna', key: 'tuna' },
+            { name: 'Heaviest Wahoo', key: 'wahoo' },
+            { name: 'Overall Billfish Release', key: 'release' }
+          ].map(cat => ({
+            name: cat.name,
+            top3: this.leaderboard
+              .filter(b => b.category === cat.key)
+              .sort((a, b) => parseFloat(b.points) - parseFloat(a.points))
+              .slice(0, 3)
+          }));
+
+          this.$nextTick(() => this.initLazyLoading());
+        } catch (e) {
+          console.error('Failed to load leaderboard', e);
+        } finally {
+          this.loading = false;
+        }
+      },
+      async loadLogo() {
+        try {
+          const settingsRes = await fetch('/api/settings');
+          const settings = await settingsRes.json();
+          const tournament = settings.tournament;
+          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const allTournaments = await configRes.json();
+          this.tournamentLogo = allTournaments[tournament]?.logo || '';
+        } catch(e) { console.error('Logo load failed', e); }
+      },
+      initLazyLoading() {
+        const images = document.querySelectorAll('img.lazy');
+        if (!images.length) return;
+        const observer = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              img.src = img.dataset.src;
+              img.onload = () => img.classList.add('opacity-100');
+              observer.unobserve(img);
+            }
+          });
+        }, { threshold: 0.1 });
+        images.forEach(img => observer.observe(img));
+      }
+    },
+    mounted() {
+      this.loadLogo();
+      this.loadLeaderboard();
+    }
+  });
+  app.mount('#app');
+  </script>
+
+  <style>[v-cloak]{display:none}</style>
 </body>
 </html>

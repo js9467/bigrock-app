@@ -630,8 +630,18 @@ from bs4 import BeautifulSoup
 
 CACHE_DIR = "cache"
 
-def scrape_leaderboard(tournament):
-    # Load settings.json from GitHub
+def scrape_leaderboard(tournament=None, force=False):
+    tournament = tournament or get_current_tournament()
+    lb_file = get_cache_path(tournament, "leaderboard.json")
+
+    # ✅ Check cache (15 min)
+    if not force and os.path.exists(lb_file):
+        age = time.time() - os.path.getmtime(lb_file)
+        if age < 900:  # 15 minutes
+            with open(lb_file) as f:
+                return json.load(f)
+
+    # Load leaderboard URL from settings.json
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     try:
         settings = requests.get(settings_url, timeout=10).json()
@@ -639,58 +649,56 @@ def scrape_leaderboard(tournament):
         print("⚠️ Could not fetch settings.json")
         return []
 
-    # ✅ Use the tournament key exactly as in the JSON
-    if tournament not in settings:
-        print(f"⚠️ Tournament '{tournament}' not found in settings.json")
-        return []
-
-    t_info = settings[tournament]
-    url = t_info.get("leaderboard")
-    if not url:
+    t_info = settings.get(tournament)
+    if not t_info or not t_info.get("leaderboard"):
         print(f"⚠️ No leaderboard URL for {tournament}")
         return []
 
-    print(f"🔄 Scraping leaderboard for {tournament}: {url}")
+    url = t_info["leaderboard"]
+    print(f"📊 Scraping leaderboard for {tournament}: {url}")
 
     try:
-        r = requests.get(url, timeout=10, verify=False)
-        r.raise_for_status()
-        html = r.text
+        html = requests.get(url, timeout=15, verify=False).text
     except Exception as e:
         print(f"❌ Failed to fetch leaderboard: {e}")
         return []
 
     soup = BeautifulSoup(html, "html.parser")
-
     leaderboard = []
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10 entries
+
+    for row in soup.select("article.m-b-20"):
         name_tag = row.select_one("h4.montserrat")
         if not name_tag:
             continue
-        boat_name = name_tag.get_text(strip=True)
 
+        boat_name = name_tag.get_text(strip=True)
         points_tag = row.select_one("p.pull-right")
         points = points_tag.get_text(strip=True) if points_tag else ""
 
-        uid = boat_name.lower().replace(" ", "_").replace("'", "")
-        image_path = f"/static/images/boats/{uid}.jpg"
-
+        uid = normalize_boat_name(boat_name)
         leaderboard.append({
             "boat": boat_name,
             "uid": uid,
-            "points": points,
-            "image": image_path
+            "points": points
         })
 
-    # Cache results
-    t_dir = os.path.join(CACHE_DIR, tournament)
-    os.makedirs(t_dir, exist_ok=True)
-    lb_file = os.path.join(t_dir, "leaderboard.json")
+    # ✅ Merge image paths from participants cache
+    participants_file = get_cache_path(tournament, "participants.json")
+    participants = []
+    if os.path.exists(participants_file):
+        with open(participants_file) as f:
+            participants = json.load(f)
+
+    for lb in leaderboard:
+        match = next((p for p in participants if p["uid"] == lb["uid"]), None)
+        lb["image_path"] = match["image_path"] if match else "/static/images/boats/default.jpg"
+
     with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    print(f"✅ Saved {len(leaderboard)} leaderboard entries for {tournament}")
+    print(f"✅ Leaderboard cached ({len(leaderboard)} boats) for {tournament}")
     return leaderboard
+
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"
@@ -759,6 +767,14 @@ def scrape_participants_route():
         "participants": sliced,
         "status": "ok"
     })
+
+@app.route("/scrape/leaderboard")
+def scrape_leaderboard_route():
+    force = request.args.get("force") == "1"
+    tournament = get_current_tournament()
+    data = scrape_leaderboard(tournament, force=force)
+    return jsonify({"status": "ok" if data else "error", "leaderboard": data})
+
 
 @app.route("/participants_data")
 def participants_data():
@@ -1145,58 +1161,23 @@ def leaderboard_page():
     return send_from_directory('static', 'leaderboard.html')
 
 # Serve JSON data
-@app.route("/api/leaderboard/<tournament>")
-def get_leaderboard(tournament):
-    """Always scrape leaderboard fresh from master JSON."""
-    settings_url = "https://js9467.github.io/Brtourney/settings.json"
-    try:
-        settings = requests.get(settings_url, timeout=10).json()
-    except Exception as e:
-        return jsonify({"status": "error", "message": "Failed to load settings.json"}), 500
+@app.route("/api/leaderboard")
+def api_leaderboard():
+    """Return leaderboard for current tournament from cache (scrape if older than 15 min)."""
+    tournament = get_current_tournament()
+    lb_file = get_cache_path(tournament, "leaderboard.json")
 
-    t_info = settings.get(tournament)
-    if not t_info or not t_info.get("leaderboard"):
-        return jsonify({"status": "error", "message": f"No leaderboard URL for {tournament}"}), 404
+    # ✅ Use cached file if <15 min old
+    if os.path.exists(lb_file) and (time.time() - os.path.getmtime(lb_file)) < 900:
+        with open(lb_file) as f:
+            leaderboard = json.load(f)
+        return jsonify({"status": "ok", "leaderboard": leaderboard})
 
-    url = t_info["leaderboard"]
-    print(f"🔄 Scraping leaderboard for {tournament}: {url}")
+    # ✅ Scrape fresh and cache
+    leaderboard = scrape_leaderboard(tournament, force=True)
+    return jsonify({"status": "ok" if leaderboard else "error", "leaderboard": leaderboard})
 
-    try:
-        html = requests.get(url, timeout=15, verify=False).text
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to fetch leaderboard: {e}"}), 500
 
-    soup = BeautifulSoup(html, "html.parser")
-    leaderboard = []
-
-    # Example parsing — adjust selectors if needed
-    for row in soup.select("article.m-b-20")[:10]:  # Top 10 boats
-        name_tag = row.select_one("h4.montserrat")
-        if not name_tag:
-            continue
-
-        boat_name = name_tag.get_text(strip=True)
-        points_tag = row.select_one("p.pull-right")
-        points = points_tag.get_text(strip=True) if points_tag else ""
-
-        uid = boat_name.lower().replace(" ", "_").replace("'", "")
-        image_path = f"/static/images/boats/{uid}.jpg"
-
-        leaderboard.append({
-            "boat": boat_name,
-            "uid": uid,
-            "points": points,
-            "image": image_path
-        })
-
-    # Save to cache for optional reuse
-    t_dir = os.path.join(CACHE_DIR, tournament)
-    os.makedirs(t_dir, exist_ok=True)
-    lb_file = os.path.join(t_dir, "leaderboard.json")
-    with open(lb_file, "w") as f:
-        json.dump(leaderboard, f, indent=2)
-
-    return jsonify({"status": "ok", "leaderboard": leaderboard})
 
 @app.route("/hooked")
 def get_hooked_up_events():

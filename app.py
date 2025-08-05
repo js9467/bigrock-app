@@ -645,37 +645,43 @@ CATEGORY_MAP = {
     "mahi": "DOLPHIN",
     "wahoo": "WAHOO"
 }
+import re
+
+def split_boat_and_type(raw_text):
+    """
+    Split 'Rebelette64' Jarrett Bay' -> ('Rebelette', "64' Jarrett Bay")
+    """
+    match = re.match(r"^([A-Za-z0-9' \-]+?)(\d{2,2}.*)?$", raw_text.strip())
+    if match:
+        boat = match.group(1).strip()
+        btype = (match.group(2) or "").strip()
+        return boat, btype
+    return raw_text.strip(), ""
+
 def scrape_leaderboard(tournament=None, force=False):
-    """
-    Scrape full leaderboard with all categories, boats & anglers, weights & points.
-    """
     tournament = tournament or get_current_tournament()
     cache_file = get_cache_path(tournament, "leaderboard.json")
 
-    # ✅ Use cache if fresh (< 1 min)
     if not force and os.path.exists(cache_file):
         age = time.time() - os.path.getmtime(cache_file)
         if age < 60:
             with open(cache_file) as f:
                 return json.load(f)
 
-    print(f"🔄 Scraping FULL leaderboard for {tournament}...")
+    print(f"🔄 Scraping fixed leaderboard for {tournament}...")
 
-    # Get leaderboard URL from settings
+    # Get leaderboard URL
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     remote = requests.get(settings_url, timeout=15).json()
     key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
     if not key:
-        print(f"⚠️ Tournament {tournament} not in settings.json")
         return []
     leaderboard_url = remote[key].get("leaderboard")
     if not leaderboard_url:
-        print("⚠️ No leaderboard URL for this tournament")
         return []
 
     html = fetch_with_scraperapi(leaderboard_url)
     if not html:
-        print("❌ Failed to fetch leaderboard HTML")
         return []
 
     soup = BeautifulSoup(html, "html.parser")
@@ -684,40 +690,31 @@ def scrape_leaderboard(tournament=None, force=False):
     for heading in soup.select("h2, h3"):
         category = heading.get_text(strip=True)
         table = heading.find_next("table")
+        if not table:
+            continue
 
-        # Fallback to articles if table missing
-        if table:
-            rows = table.select("tr")[1:]  # Skip header
-        else:
-            section = heading.find_next("div", class_="leaderboard-section")
-            rows = section.select("article, li") if section else []
-
+        rows = table.select("tr")[1:]  # skip header
         for row in rows:
             cols = [c.get_text(strip=True) for c in row.select("td")]
-            if not cols:
-                # fallback for <article>
-                cols = [c.get_text(strip=True) for c in row.select("span, h4, p")]
-
-            # Skip empty or header rows
             if len(cols) < 2:
                 continue
 
-            # Detect angler categories
             angler = None
             boat = ""
+            boat_type = ""
             score_val = cols[-1]
+            rank = cols[0]
 
-            is_angler_category = any(x in category.lower() for x in ["junior", "lady", "angler"])
-
-            if is_angler_category:
-                # Usually rank, angler, boat, score
-                if len(cols) >= 4:
-                    rank, angler, boat, score_val = cols[0], cols[1], cols[2], cols[-1]
-                else:
-                    rank, angler, boat = cols[0], cols[1], ""
+            if len(cols) == 4:
+                # Rank | Angler | Boat | Points/Weight
+                angler = cols[1]
+                boat, boat_type = split_boat_and_type(cols[2])
+            elif len(cols) == 3:
+                # Rank | Boat | Points/Weight
+                boat, boat_type = split_boat_and_type(cols[1])
             else:
-                # Usually rank, boat, score
-                rank, boat, score_val = cols[0], cols[1], cols[-1]
+                # Unexpected format
+                continue
 
             uid = normalize_boat_name(boat)
             score_type = "points" if score_val.replace(".", "", 1).isdigit() else "weight_lbs"
@@ -725,19 +722,20 @@ def scrape_leaderboard(tournament=None, force=False):
             leaderboard.append({
                 "category": category,
                 "rank": rank,
-                "boat": boat,
                 "angler": angler,
+                "boat": boat,
+                "type": boat_type,
                 "uid": uid,
                 score_type: score_val,
                 "image_path": f"/static/images/boats/{uid}.webp" if boat else ""
             })
 
-    # ✅ Save cache
+    # Save cache
     os.makedirs(os.path.dirname(cache_file), exist_ok=True)
     with open(cache_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    print(f"✅ Leaderboard scraped: {len(leaderboard)} entries across {len(set(e['category'] for e in leaderboard))} categories")
+    print(f"✅ Leaderboard scraped: {len(leaderboard)} entries in {len(set(e['category'] for e in leaderboard))} categories")
     return leaderboard
 
 

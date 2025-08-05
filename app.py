@@ -1205,72 +1205,64 @@ def get_leaderboard(tournament):
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()
-    tournament = get_current_tournament()
-    data_source = settings.get("data_source", "live")
-    now = datetime.now()
+    tournament = settings.get("tournament", "Big Rock")
 
-    # Load events
-    if data_source == "demo":
-        events = load_demo_data(tournament).get("events", [])
+    if settings.get("data_source") == "demo":
+        data = load_demo_data(tournament)
+        events = data.get("events", [])
     else:
         events_file = get_cache_path(tournament, "events.json")
         if not os.path.exists(events_file):
-            return jsonify({"status": "ok", "count": 0, "events": []})
+            return jsonify({"status": "ok", "events": [], "count": 0})
         with open(events_file, "r") as f:
             events = json.load(f)
 
-    # Sort by timestamp ascending for processing
-    try:
-        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-    except:
-        pass
+    now = datetime.now()
+
+    resolution_lookup = set()
+    for e in events:
+        if e["event"] in ["Released", "Boated"] or \
+           "pulled hook" in e.get("details", "").lower() or \
+           "wrong species" in e.get("details", "").lower():
+            try:
+                ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+                if settings.get("data_source") == "demo" and ts.time() > now.time():
+                    continue
+                resolution_lookup.add((e["uid"], ts.isoformat()))
+            except:
+                continue
 
     unresolved = []
+    for e in events:
+        if e["event"] != "Hooked Up":
+            continue
 
-    if data_source == "demo":
-        resolution_lookup = set()
-        for e in events:
-            event_type = e.get("event", "")
-            ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-            if ts.time() > now.time():  # skip future demo events
+        # Filter future Hooked Up timestamps in demo mode
+        try:
+            hookup_ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
+            if settings.get("data_source") == "demo" and hookup_ts.time() > now.time():
                 continue
-            if event_type in ["Released", "Boated"] or \
-               "pulled hook" in e.get("details", "").lower() or \
-               "wrong species" in e.get("details", "").lower():
-                resolution_lookup.add((e["uid"], ts.isoformat()))
+        except Exception as ex:
+            print(f"⚠️ Failed to parse hookup timestamp in demo mode: {ex}")
+            continue
 
-        for e in events:
-            if e.get("event") != "Hooked Up":
-                continue
-            ts = date_parser.parse(e["timestamp"]).replace(microsecond=0)
-            if ts.time() > now.time():
-                continue
+        # Attempt to extract resolution timestamp from hookup_id
+        try:
+            uid, ts_str = e.get("hookup_id", "").rsplit("_", 1)
+            target_ts = date_parser.parse(ts_str).replace(microsecond=0).isoformat()
+        except:
             unresolved.append(e)
+            continue
 
-    else:
-        # Live mode
-        boat_hooks = {}
-        for e in events:
-            uid = e.get("uid")
-            if not uid:
-                continue
-            etype = e.get("event")
-            if etype == "Hooked Up":
-                boat_hooks.setdefault(uid, []).append(e)
-            elif etype in ["Released", "Boated"] or \
-                 "pulled hook" in e.get("details", "").lower() or \
-                 "wrong species" in e.get("details", "").lower():
-                if uid in boat_hooks and boat_hooks[uid]:
-                    boat_hooks[uid].pop(0)
-
-        for hooks in boat_hooks.values():
-            unresolved.extend(hooks)
+        if (uid, target_ts) not in resolution_lookup:
+            unresolved.append(e)
 
     return jsonify({
         "status": "ok",
         "count": len(unresolved),
-        "events": sorted(unresolved, key=lambda e: e["timestamp"], reverse=True)
+        "events": unresolved
     })
+
 
 
 @app.route('/bluetooth/status')

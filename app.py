@@ -1121,8 +1121,8 @@ def settings_page():
 def generate_demo():
     try:
         tournament = get_current_tournament()
-        events = scrape_events(force=True)
-        leaderboard = scrape_leaderboard(tournament)
+        events = scrape_events(force=True, skip_timestamp_check=True)
+        leaderboard = scrape_leaderboard(force=True)
         injected = inject_hooked_up_events(events, tournament)
         demo_data = {}
         if os.path.exists(DEMO_DATA_FILE):

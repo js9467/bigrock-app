@@ -6,168 +6,138 @@
   <title>Leaderboard</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css">
-  <style>
-    .modal-bg { background-color: rgba(0,0,0,0.6); }
-    .leaderboard-tile { transition: transform 0.2s; }
-    .leaderboard-tile:hover { transform: scale(1.05); }
-  </style>
+  <link rel="stylesheet" href="/static/css/base.css" />
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-<div id="app">
-
-  <!-- Header: Logo + Back -->
-  <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
-    <div class="flex items-center space-x-4">
-      <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
-      <span v-else class="text-white text-base">Loading Logo...</span>
-    </div>
-    <div class="flex items-center gap-3">
+  <div id="app" v-cloak>
+    <!-- Header -->
+    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
+      <div class="flex items-center space-x-4">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
+        <span v-else class="text-white text-base">Loading Logo...</span>
+      </div>
       <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
-    </div>
-  </header>
+    </header>
 
-  <!-- Demo Banner -->
-  <div v-if="demoMode" class="bg-yellow-400 text-black font-semibold p-2 text-center">
-    DEMO MODE — Data is simulated from a previous tournament
-  </div>
+    <div class="p-4 max-w-screen-2xl mx-auto">
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <h1 class="text-4xl font-bold text-yellow-600 drop-shadow">Live Leaderboard</h1>
+        <input
+          v-model="search"
+          type="text"
+          placeholder="Search boats..."
+          class="px-4 py-2 border rounded w-full sm:w-64"
+        />
+      </header>
 
-  <!-- Leaderboard -->
-  <div class="p-6 max-w-5xl mx-auto w-full">
-    <h1 class="text-2xl font-bold text-brand-blue mb-4">Leaderboard</h1>
-
-    <div v-if="loading" class="text-gray-500 italic">Loading leaderboard...</div>
-    <div v-else>
-      
-      <!-- Top 3 Cards -->
-      <div v-if="top3.length" class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-        <div v-for="(entry, idx) in top3" :key="entry.uid || idx"
-             class="bg-white rounded-lg shadow-md p-4 flex flex-col items-center leaderboard-tile border">
-          <img :src="getBoatImage(entry.uid || entry.boat)" :alt="entry.boat"
-               class="w-28 h-28 object-cover rounded-full border-4"
-               :class="getBorderClass(idx)">
-          <h3 class="mt-3 text-lg font-semibold text-center">{{ entry.boat || 'Unknown Boat' }}</h3>
-          <p class="text-sm text-gray-600">{{ entry.points || 0 }} pts</p>
+      <!-- Leaderboard Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div
+          v-for="(boat, idx) in filteredLeaderboard"
+          :key="boat.uid"
+          class="relative rounded-2xl shadow-lg overflow-hidden group transition-transform transform hover:scale-[1.02]"
+          :class="{
+            'ring-4 ring-yellow-400': idx < 10
+          }"
+        >
+          <div class="relative">
+            <img
+              :src="boat.image_path || '/static/images/bigrock.png'"
+              alt="Boat Image"
+              class="w-full h-48 object-cover group-hover:opacity-80 transition"
+            />
+            <div class="absolute top-2 left-2 bg-black/70 text-white px-3 py-1 rounded-lg text-lg font-bold">
+              #{{ boat.rank }}
+            </div>
+          </div>
+          <div class="p-4 bg-white flex flex-col justify-between flex-1">
+            <div>
+              <h2 class="text-xl font-bold truncate">{{ boat.boat }}</h2>
+              <p class="text-sm text-gray-600 truncate">{{ boat.type }}</p>
+            </div>
+            <div class="mt-2 flex justify-between items-center">
+              <span class="text-lg font-semibold text-blue-600">{{ boat.points }}</span>
+              <button
+                @click="toggleFollow(boat.uid)"
+                :class="{
+                  'bg-green-600 hover:bg-green-700': isFollowed(boat.uid),
+                  'bg-gray-300 hover:bg-gray-400': !isFollowed(boat.uid)
+                }"
+                class="px-3 py-1 text-white rounded"
+              >
+                {{ isFollowed(boat.uid) ? 'Following' : 'Follow' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Full Leaderboard Table -->
-      <table v-if="leaderboard.length" class="w-full border border-gray-300 bg-white rounded shadow-md overflow-hidden">
-        <thead class="bg-brand-blue text-white">
-          <tr>
-            <th class="p-2">Rank</th>
-            <th class="p-2">Boat</th>
-            <th class="p-2">Points</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(entry, idx) in leaderboard" :key="entry.uid || idx"
-              class="border-b hover:bg-gray-50 cursor-pointer" @click="openDrilldown(entry)">
-            <td class="p-2 font-bold text-center">{{ idx+1 }}</td>
-            <td class="p-2 flex items-center space-x-3">
-              <img :src="getBoatImage(entry.uid || entry.boat)" class="w-10 h-10 rounded-full object-cover border" />
-              <span>{{ entry.boat || 'Unknown Boat' }}</span>
-            </td>
-            <td class="p-2 text-center font-semibold">{{ entry.points || 0 }}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div v-else class="text-gray-500 italic">No leaderboard data available.</div>
-    </div>
-  </div>
-
-  <!-- Drilldown Modal -->
-  <div v-if="showModal" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
-    <div class="bg-white rounded-lg p-6 w-11/12 max-w-3xl shadow-lg overflow-y-auto max-h-[90vh]">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-brand-blue">{{ selectedBoat?.boat }} Details</h2>
-        <button @click="closeModal" class="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
+      <!-- Status Messages -->
+      <div v-if="!loading && filteredLeaderboard.length === 0" class="text-center py-6 text-red-600 text-sm">
+        No boats match your search.
       </div>
-      <div class="flex flex-col items-center">
-        <img :src="getBoatImage(selectedBoat?.uid || selectedBoat?.boat)" class="w-32 h-32 rounded-full object-cover border mb-4" />
-        <p class="text-gray-700">Points: {{ selectedBoat?.points || 0 }}</p>
+      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
+        Loading leaderboard...
       </div>
     </div>
   </div>
 
-</div>
-
-<script>
-const { createApp } = Vue;
-
-createApp({
-  data() {
-    return {
-      leaderboard: [],
-      top3: [],
-      loading: true,
-      tournamentLogo: '',
-      demoMode: false,
-      showModal: false,
-      selectedBoat: null,
-      boatImages: {},
-    };
-  },
-  mounted() {
-    this.fetchLeaderboard();
-    this.loadTournamentLogo();
-    this.loadParticipants();
-  },
-  methods: {
-    async fetchLeaderboard() {
-      try {
-        const data = await fetch('/leaderboard-data').then(r=>r.json());
-        this.leaderboard = data.leaderboard || [];
-        this.top3 = this.leaderboard.slice(0,3);
-        this.demoMode = data.demo_mode || false;
-        this.loading = false;
-      } catch (err) {
-        console.error('❌ Failed to load leaderboard:', err);
-        this.loading = false;
+  <script>
+  const app = Vue.createApp({
+    data() {
+      return {
+        leaderboard: [],
+        followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+        tournamentLogo: '',
+        search: '',
+        loading: false
+      };
+    },
+    computed: {
+      filteredLeaderboard() {
+        const q = this.search.toLowerCase();
+        return this.leaderboard.filter(b =>
+          (b.boat || '').toLowerCase().includes(q) ||
+          (b.type || '').toLowerCase().includes(q)
+        );
       }
     },
-    loadParticipants() {
-      fetch('/participants_data')
-        .then(res => res.json())
-        .then(data => {
-          const images = {};
-          for (const p of data.participants || []) {
-            images[p.uid] = p.image_path;
-          }
-          this.boatImages = images;
-        });
-    },
-    loadTournamentLogo() {
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(settings => {
+    methods: {
+      toggleFollow(uid) {
+        if (this.followed.includes(uid)) {
+          this.followed = this.followed.filter(id => id !== uid);
+        } else {
+          this.followed.push(uid);
+        }
+        localStorage.setItem('followedBoats', JSON.stringify(this.followed));
+      },
+      isFollowed(uid) { return this.followed.includes(uid); },
+      async loadLeaderboard() {
+        this.loading = true;
+        const res = await fetch('/leaderboard');
+        const data = await res.json();
+        this.leaderboard = (data.leaderboard || []).sort((a,b)=>parseInt(a.rank)-parseInt(b.rank));
+        this.loading = false;
+      },
+      async loadLogo() {
+        try {
+          const settingsRes = await fetch('/api/settings');
+          const settings = await settingsRes.json();
           const tournament = settings.tournament;
-          return fetch('https://js9467.github.io/Brtourney/settings.json')
-            .then(res => res.json())
-            .then(all => { this.tournamentLogo = all[tournament]?.logo || ''; });
-        });
+          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const allTournaments = await configRes.json();
+          this.tournamentLogo = allTournaments[tournament]?.logo || '';
+        } catch(e) { console.error('Logo load failed', e); }
+      }
     },
-    getBoatImage(uidOrName) {
-      return this.boatImages[uidOrName] || '/static/images/boats/default.jpg';
-    },
-    getBorderClass(idx) {
-      if (idx===0) return 'border-yellow-400';
-      if (idx===1) return 'border-gray-400';
-      if (idx===2) return 'border-orange-400';
-      return 'border-gray-300';
-    },
-    openDrilldown(entry) {
-      this.selectedBoat = entry;
-      this.showModal = true;
-    },
-    closeModal() {
-      this.showModal = false;
-      this.selectedBoat = null;
+    mounted() {
+      this.loadLogo();
+      this.loadLeaderboard();
     }
-  }
-}).mount('#app');
-</script>
+  });
+  app.mount('#app');
+  </script>
 
+  <style>[v-cloak]{display:none}</style>
 </body>
 </html>

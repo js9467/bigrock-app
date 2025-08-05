@@ -1205,17 +1205,26 @@ def api_leaderboard():
     lb_file = get_cache_path(tournament, "leaderboard.json")
 
     leaderboard = []
-    # Load cache first
+    cache_valid = False
+
+    # 1️⃣ Load cached leaderboard if it exists
     if os.path.exists(lb_file) and os.path.getsize(lb_file) > 0:
         with open(lb_file) as f:
             leaderboard = json.load(f)
+        # Consider cache valid if category doesn't look like weight
+        if leaderboard and not any("lb" in (e.get("category") or "").lower() for e in leaderboard):
+            cache_valid = True
 
-    # Scrape if cache empty
-    if not leaderboard:
+    # 2️⃣ Force scrape if cache missing or invalid
+    if not cache_valid:
+        print("⚠️ Leaderboard cache invalid or empty — scraping fresh")
         leaderboard = scrape_leaderboard(tournament, force=True)
 
-    return jsonify({"status": "ok" if leaderboard else "error", "leaderboard": leaderboard})
-
+    return jsonify({
+        "status": "ok" if leaderboard else "error",
+        "leaderboard": leaderboard
+    })
+    
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()

@@ -689,8 +689,9 @@ def split_boat_and_type(raw_text):
 
 def scrape_leaderboard(tournament=None, force=False):
     """
-    Scrape leaderboard for a tournament and categorize entries.
-    Saves JSON cache to cache/<tournament>/leaderboard.json
+    Scrape leaderboard for the current tournament.
+    Supports both table and div-based layouts.
+    Saves cache to cache/<tournament>/leaderboard.json
     """
     tournament = tournament or get_current_tournament()
     cache_file = get_cache_path(tournament, "leaderboard.json")
@@ -704,9 +705,14 @@ def scrape_leaderboard(tournament=None, force=False):
 
     print(f"🔄 Scraping leaderboard for {tournament}...")
 
-    # Load leaderboard URL from GitHub settings.json
+    # Load leaderboard URL from settings.json
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
-    remote = requests.get(settings_url, timeout=15).json()
+    try:
+        remote = requests.get(settings_url, timeout=15).json()
+    except Exception as e:
+        print(f"❌ Failed to load remote settings.json: {e}")
+        return []
+
     key = next(
         (k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)),
         None
@@ -720,19 +726,27 @@ def scrape_leaderboard(tournament=None, force=False):
         print(f"⚠️ No leaderboard URL for {tournament}")
         return []
 
+    # Fetch HTML
     html = fetch_with_scraperapi(leaderboard_url)
     if not html:
         print("❌ Failed to fetch leaderboard HTML")
         return []
 
+    # Save debug for inspection
+    os.makedirs("debug", exist_ok=True)
+    debug_path = f"debug/debug_leaderboard.html"
+    with open(debug_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"📝 Saved debug HTML to {debug_path}")
+
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    # 🔹 Loop through all leaderboard tables under headings
-    for heading in soup.select(".leaderboard-title, h2.leaderboard-title, h3.leaderboard-title"):
+    # 1️⃣ Table-based leaderboard parsing
+    for heading in soup.find_all(['h2', 'h3'], class_='leaderboard-title'):
         category_name = heading.get_text(strip=True)
 
-        # Skip headings that are not real categories
+        # Skip non-categories
         if any(x in category_name.lower() for x in [
             "big rock", "annual", "leader board", "june", "may", "tournament"
         ]):
@@ -742,40 +756,28 @@ def scrape_leaderboard(tournament=None, force=False):
         if not table:
             continue
 
-        rows = table.select("tr")[1:]  # Skip header row
-
+        rows = table.select("tr")[1:]  # Skip header
         for row in rows:
             cols = [c.get_text(strip=True) for c in row.select("td")]
             if len(cols) < 2:
                 continue
 
+            # Detect format
             rank = cols[0]
-            angler = None
-            boat = ""
-            boat_type = ""
-            weight_lbs = None
-            points = None
+            angler, boat_raw, weight_lbs, points = None, "", None, None
 
-            # Determine table type by column count
             if len(cols) == 5:
                 # Rank | Angler | Boat | Weight | Points
                 angler, boat_raw, weight_lbs, points = cols[1], cols[2], cols[3], cols[4]
             elif len(cols) == 4:
-                # Could be Rank | Angler | Boat | Points  OR  Rank | Boat | Weight | Points
                 if any(x in category_name.lower() for x in ["junior", "lady", "angler"]):
                     angler, boat_raw, points = cols[1], cols[2], cols[3]
                 else:
                     boat_raw, weight_lbs, points = cols[1], cols[2], cols[3]
             elif len(cols) == 3:
-                # Rank | Boat | Points
                 boat_raw, points = cols[1], cols[2]
-            else:
-                continue
 
-            # Assign boat if missing
-            if not boat and 'boat_raw' in locals():
-                boat, boat_type = split_boat_and_type(boat_raw)
-
+            boat, boat_type = split_boat_and_type(boat_raw)
             uid = normalize_boat_name(boat)
 
             entry = {
@@ -785,16 +787,46 @@ def scrape_leaderboard(tournament=None, force=False):
                 "boat": boat,
                 "type": boat_type,
                 "uid": uid,
-                "image_path": f"/static/images/boats/{uid}.webp" if boat else ""
+                "image_path": f"/static/images/boats/{uid}.webp" if boat else "",
             }
             if weight_lbs:
-                entry["points"] = weight_lbs  # store weight as points string for categorization
+                entry["points"] = weight_lbs
             if points:
                 entry["points"] = points
 
-            # Assign derived category
+            # Derived category for API
             entry["derived_category"] = categorize_leaderboard_entry(entry)
+            leaderboard.append(entry)
 
+    # 2️⃣ Div-based fallback (handles modern BigRock pages)
+    if not leaderboard:
+        for div in soup.select("div.leaderboard-row"):
+            cols = [c.get_text(strip=True) for c in div.select("div")]
+            if len(cols) < 2:
+                continue
+
+            rank = cols[0]
+            angler, boat_raw, points = None, "", None
+
+            if len(cols) >= 4:
+                angler, boat_raw, points = cols[1], cols[2], cols[-1]
+            else:
+                boat_raw, points = cols[1], cols[-1]
+
+            boat, boat_type = split_boat_and_type(boat_raw)
+            uid = normalize_boat_name(boat)
+
+            entry = {
+                "category": "Unknown",
+                "rank": rank,
+                "angler": angler,
+                "boat": boat,
+                "type": boat_type,
+                "uid": uid,
+                "points": points,
+                "image_path": f"/static/images/boats/{uid}.webp" if boat else "",
+            }
+            entry["derived_category"] = categorize_leaderboard_entry(entry)
             leaderboard.append(entry)
 
     # ✅ Save cache
@@ -802,7 +834,7 @@ def scrape_leaderboard(tournament=None, force=False):
     with open(cache_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    print(f"✅ Leaderboard scraped: {len(leaderboard)} entries across {len(set(e['category'] for e in leaderboard))} categories")
+    print(f"✅ Leaderboard scraped: {len(leaderboard)} entries")
     return leaderboard
     
     

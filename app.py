@@ -646,10 +646,36 @@ CATEGORY_MAP = {
     "wahoo": "WAHOO"
 }
 import re
+import time
+import json
+import os
+from bs4 import BeautifulSoup
+
+def categorize_leaderboard_entry(entry):
+    """Guess category based on points or weight string."""
+    points = str(entry.get("points", "")).lower()
+
+    # Heaviest catches have "lb"
+    if "lb" in points:
+        weight = float(re.sub(r"[^0-9.]", "", points) or 0)
+        if weight > 200:
+            return "blue_marlin"
+        elif weight > 40:
+            return "tuna"
+        elif weight > 20:
+            return "dolphin"
+        elif weight > 10:
+            return "wahoo"
+        else:
+            return "misc_weight"
+    else:
+        # Numeric points = Billfish Release category
+        return "release"
+
 
 def split_boat_and_type(raw_text):
     """
-    Split 'Rebelette64' Jarrett Bay' -> ('Rebelette', "64' Jarrett Bay")
+    Split 'Rebelette 64' Jarrett Bay' -> ('Rebelette', "64' Jarrett Bay")
     """
     raw_text = raw_text.strip()
     # Match: name + (length/type)
@@ -660,13 +686,11 @@ def split_boat_and_type(raw_text):
         return boat, btype
     return raw_text, ""
 
+
 def scrape_leaderboard(tournament=None, force=False):
     """
-    Scrape leaderboard with:
-    - Real category from <h2>/<h3> or .leaderboard-title
-    - Weight + points columns handled separately
-    - Boat/type split and angler detection
-    - Per-tournament caching
+    Scrape leaderboard for a tournament and categorize entries.
+    Saves JSON cache to cache/<tournament>/leaderboard.json
     """
     tournament = tournament or get_current_tournament()
     cache_file = get_cache_path(tournament, "leaderboard.json")
@@ -680,13 +704,17 @@ def scrape_leaderboard(tournament=None, force=False):
 
     print(f"🔄 Scraping leaderboard for {tournament}...")
 
-    # Load leaderboard URL from settings.json
+    # Load leaderboard URL from GitHub settings.json
     settings_url = "https://js9467.github.io/Brtourney/settings.json"
     remote = requests.get(settings_url, timeout=15).json()
-    key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
+    key = next(
+        (k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)),
+        None
+    )
     if not key:
         print(f"⚠️ Tournament {tournament} not in settings.json")
         return []
+
     leaderboard_url = remote[key].get("leaderboard")
     if not leaderboard_url:
         print(f"⚠️ No leaderboard URL for {tournament}")
@@ -700,11 +728,11 @@ def scrape_leaderboard(tournament=None, force=False):
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    # 🔹 Only real leaderboard headings
+    # 🔹 Loop through all leaderboard tables under headings
     for heading in soup.select(".leaderboard-title, h2.leaderboard-title, h3.leaderboard-title"):
         category_name = heading.get_text(strip=True)
 
-        # Skip headings that are tournament name, dates, or "Leader Boards"
+        # Skip headings that are not real categories
         if any(x in category_name.lower() for x in [
             "big rock", "annual", "leader board", "june", "may", "tournament"
         ]):
@@ -714,7 +742,7 @@ def scrape_leaderboard(tournament=None, force=False):
         if not table:
             continue
 
-        rows = table.select("tr")[1:]  # Skip header
+        rows = table.select("tr")[1:]  # Skip header row
 
         for row in rows:
             cols = [c.get_text(strip=True) for c in row.select("td")]
@@ -742,7 +770,6 @@ def scrape_leaderboard(tournament=None, force=False):
                 # Rank | Boat | Points
                 boat_raw, points = cols[1], cols[2]
             else:
-                # Skip unexpected row format
                 continue
 
             # Assign boat if missing
@@ -761,9 +788,12 @@ def scrape_leaderboard(tournament=None, force=False):
                 "image_path": f"/static/images/boats/{uid}.webp" if boat else ""
             }
             if weight_lbs:
-                entry["weight_lbs"] = weight_lbs
+                entry["points"] = weight_lbs  # store weight as points string for categorization
             if points:
                 entry["points"] = points
+
+            # Assign derived category
+            entry["derived_category"] = categorize_leaderboard_entry(entry)
 
             leaderboard.append(entry)
 
@@ -774,6 +804,8 @@ def scrape_leaderboard(tournament=None, force=False):
 
     print(f"✅ Leaderboard scraped: {len(leaderboard)} entries across {len(set(e['category'] for e in leaderboard))} categories")
     return leaderboard
+    
+    
 
 
 MAX_IMG_SIZE = (400, 400)  # Max width/height
@@ -1247,7 +1279,7 @@ def leaderboard_page():
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    """Return leaderboard for current tournament with image paths, using cache if fresh."""
+    """Return categorized leaderboard for current tournament."""
     tournament = get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
     participants_file = get_cache_path(tournament, "participants.json")
@@ -1258,14 +1290,15 @@ def api_leaderboard():
         with open(participants_file) as f:
             participants = {p["uid"]: p for p in json.load(f)}
 
-    # ✅ Load from cache if <15 min old
+    # Load leaderboard (cache or scrape)
     if os.path.exists(lb_file) and (time.time() - os.path.getmtime(lb_file)) < 900:
         with open(lb_file) as f:
             leaderboard = json.load(f)
     else:
         leaderboard = scrape_leaderboard(tournament, force=True)
 
-    # ✅ Ensure each entry has the correct image path
+    # Ensure image paths and categorize
+    categorized = {}
     for entry in leaderboard:
         uid = entry["uid"]
         if uid in participants:
@@ -1273,15 +1306,26 @@ def api_leaderboard():
         else:
             entry["image_path"] = "/static/images/boats/default.jpg"
 
-    # ✅ Overwrite cache with enriched data
+        cat = categorize_leaderboard_entry(entry)
+        entry["category"] = cat
+        categorized.setdefault(cat, []).append(entry)
+
+    # Sort each category by points or weight
+    for cat, items in categorized.items():
+        def points_val(e):
+            p = e.get("points", "0").lower()
+            return float(re.sub(r"[^0-9.]", "", p) or 0)
+        categorized[cat] = sorted(items, key=points_val, reverse=True)
+
+    # Cache enriched leaderboard
     with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    return jsonify({"status": "ok", "leaderboard": leaderboard})
-
-
-
-
+    return jsonify({
+        "status": "ok" if leaderboard else "error",
+        "leaderboard": leaderboard,
+        "categorized": categorized
+    })
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()

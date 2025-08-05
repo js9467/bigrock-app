@@ -41,6 +41,19 @@ DEMO_DATA_FILE = 'demo_data.json'
 
 
 
+MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
+API_KEY = "e6f354c9c073ceba04c0fe82e4243ebd"
+
+def fetch_html(url):
+    """Fetch page HTML using ScraperAPI to bypass SSL issues."""
+    full_url = f"http://api.scraperapi.com?api_key={API_KEY}&url={url}"
+    print(f"📡 Fetching via ScraperAPI: {url}")
+    resp = requests.get(full_url, timeout=60)
+    if resp.status_code == 200:
+        return resp.text
+    print(f"⚠️ Failed to fetch HTML: {resp.status_code}")
+    return ""
+
 def load_alerts():
     if os.path.exists(ALERTS_FILE):
         with open(ALERTS_FILE) as f:

@@ -7,6 +7,17 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/base.css" />
+  <style>
+    [v-cloak]{ display:none; }
+    /* Animate entry for leaderboard tiles */
+    .fade-enter-active, .fade-leave-active { transition: all 0.5s ease; }
+    .fade-enter-from { opacity: 0; transform: translateY(10px); }
+    .fade-leave-to { opacity: 0; transform: translateY(-10px); }
+    /* Glow for followed boats */
+    .followed-glow {
+      box-shadow: 0 0 15px 4px rgba(255, 215, 0, 0.6);
+    }
+  </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
   <div id="app" v-cloak>
@@ -31,13 +42,14 @@
       </header>
 
       <!-- Leaderboard Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <transition-group name="fade" tag="div" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <div
           v-for="(boat, idx) in filteredLeaderboard"
           :key="boat.uid"
           class="relative rounded-2xl shadow-lg overflow-hidden group transition-transform transform hover:scale-[1.02]"
           :class="{
-            'ring-4 ring-yellow-400': idx < 10
+            'ring-4 ring-yellow-400': idx < 10,
+            'followed-glow': isFollowed(boat.uid)
           }"
         >
           <div class="relative">
@@ -57,20 +69,11 @@
             </div>
             <div class="mt-2 flex justify-between items-center">
               <span class="text-lg font-semibold text-blue-600">{{ boat.points }}</span>
-              <button
-                @click="toggleFollow(boat.uid)"
-                :class="{
-                  'bg-green-600 hover:bg-green-700': isFollowed(boat.uid),
-                  'bg-gray-300 hover:bg-gray-400': !isFollowed(boat.uid)
-                }"
-                class="px-3 py-1 text-white rounded"
-              >
-                {{ isFollowed(boat.uid) ? 'Following' : 'Follow' }}
-              </button>
+              <span v-if="isFollowed(boat.uid)" class="text-yellow-500 font-bold">★ Followed</span>
             </div>
           </div>
         </div>
-      </div>
+      </transition-group>
 
       <!-- Status Messages -->
       <div v-if="!loading && filteredLeaderboard.length === 0" class="text-center py-6 text-red-600 text-sm">
@@ -90,7 +93,8 @@
         followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
         tournamentLogo: '',
         search: '',
-        loading: false
+        loading: false,
+        pollInterval: null
       };
     },
     computed: {
@@ -103,21 +107,33 @@
       }
     },
     methods: {
-      toggleFollow(uid) {
-        if (this.followed.includes(uid)) {
-          this.followed = this.followed.filter(id => id !== uid);
-        } else {
-          this.followed.push(uid);
-        }
-        localStorage.setItem('followedBoats', JSON.stringify(this.followed));
+      isFollowed(uid) {
+        return this.followed.includes(uid);
       },
-      isFollowed(uid) { return this.followed.includes(uid); },
       async loadLeaderboard() {
         this.loading = true;
-        const res = await fetch('/leaderboard');
-        const data = await res.json();
-        this.leaderboard = (data.leaderboard || []).sort((a,b)=>parseInt(a.rank)-parseInt(b.rank));
+        try {
+          const res = await fetch('/leaderboard');
+          const data = await res.json();
+          const newBoard = (data.leaderboard || []).sort((a,b)=>parseInt(a.rank)-parseInt(b.rank));
+          this.updateLeaderboard(newBoard);
+        } catch (e) {
+          console.error('Leaderboard fetch failed', e);
+        }
         this.loading = false;
+      },
+      updateLeaderboard(newBoard) {
+        // Smooth replace for transition-group animations
+        const oldUids = this.leaderboard.map(b=>b.uid);
+        const newUids = newBoard.map(b=>b.uid);
+        if(JSON.stringify(oldUids) !== JSON.stringify(newUids)) {
+          this.leaderboard = newBoard;
+        } else {
+          // Update points in-place to animate less
+          this.leaderboard.forEach((boat, idx) => {
+            boat.points = newBoard[idx].points;
+          });
+        }
       },
       async loadLogo() {
         try {
@@ -133,11 +149,13 @@
     mounted() {
       this.loadLogo();
       this.loadLeaderboard();
+      this.pollInterval = setInterval(this.loadLeaderboard, 20000); // update every 20s
+    },
+    beforeUnmount() {
+      if (this.pollInterval) clearInterval(this.pollInterval);
     }
   });
   app.mount('#app');
   </script>
-
-  <style>[v-cloak]{display:none}</style>
 </body>
 </html>

@@ -625,88 +625,25 @@ def scrape_events(force=False, tournament=None):
         return []
 
 
-import requests, os, json
-from bs4 import BeautifulSoup
-
-CACHE_DIR = "cache"
-
-import os, json, time
-from bs4 import BeautifulSoup
-import requests
-
-LEADERBOARD_CACHE = "cache/leaderboard.json"
-LEADERBOARD_URL = "https://tournament.thebigrock.com/leaderboard"  # Replace with your live URL
-
-CATEGORY_MAP = {
-    "blue marlin": "BLUE_MARLIN",
-    "release": "RELEASE",
-    "tuna": "TUNA",
-    "dolphin": "DOLPHIN",
-    "mahi": "DOLPHIN",
-    "wahoo": "WAHOO"
-}
-import re
-import time
-import json
 import os
+import json
+import re
+import requests
 from bs4 import BeautifulSoup
 
-import re
-
-def categorize_entry(entry):
-    """Guess category based on points or boat name context."""
-    points = str(entry.get("points", "")).lower()
-
-    # Heaviest catches have "lb"
-    if "lb" in points:
-        weight = float(re.sub(r"[^0-9.]", "", points) or 0)
-        # Heuristic for species:
-        if weight > 200:
-            return "blue_marlin"
-        elif weight > 40:
-            return "tuna"
-        elif weight > 20:
-            return "dolphin"
-        elif weight > 10:
-            return "wahoo"
-        else:
-            return "misc_weight"
-    else:
-        # Numeric points = Billfish Release category
-        return "release"
-
-
-def categorize_leaderboard(leaderboard):
-    """Attach category to each leaderboard entry and return dict by category."""
-    categorized = {}
-
-    for entry in leaderboard:
-        cat = categorize_entry(entry)
-        entry["category"] = cat
-        categorized.setdefault(cat, []).append(entry)
-
-    # Sort within categories by points (numeric if possible)
-    for cat, items in categorized.items():
-        def points_val(e):
-            p = e.get("points", "0").lower()
-            return float(re.sub(r"[^0-9.]", "", p) or 0)
-        categorized[cat] = sorted(items, key=points_val, reverse=True)
-
-    return categorized
-
-
-def split_boat_and_type(raw_text):
+def split_boat_and_type(boat_name: str, trailing_text: str):
     """
-    Split 'Rebelette 64' Jarrett Bay' -> ('Rebelette', "64' Jarrett Bay")
+    Split something like:
+        boat_name = "Doc Fees"
+        trailing_text = "60' Ritchie Howell"
+    Returns: ("Doc Fees", "60' Ritchie Howell")
+
+    If trailing_text doesn't start with a length, return (boat_name + trailing_text, "")
     """
-    raw_text = raw_text.strip()
-    # Match: name + (length/type)
-    match = re.match(r"^([A-Za-z0-9' \-]+?)(\d{2,2}.*)?$", raw_text)
-    if match:
-        boat = match.group(1).strip()
-        btype = (match.group(2) or "").strip()
-        return boat, btype
-    return raw_text, ""
+    trailing_text = trailing_text.strip()
+    if trailing_text and re.match(r"^\d{2,2}'", trailing_text):
+        return boat_name, trailing_text
+    return f"{boat_name} {trailing_text}".strip(), ""
 
 def scrape_leaderboard(tournament=None, force=False):
     """Scrape leaderboard and return list of entries with category, boat, angler, points."""
@@ -742,6 +679,7 @@ def scrape_leaderboard(tournament=None, force=False):
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
+    # Extract all leaderboard categories from dropdown
     categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav")]
     print(f"Found {len(categories)} categories: {categories}")
 
@@ -764,21 +702,25 @@ def scrape_leaderboard(tournament=None, force=False):
             boat_block = cols[1]
             points = cols[-1].get_text(strip=True)
 
-            # Extract boat/angler info
+            # Extract primary name (h4)
             h4 = boat_block.find("h4")
             name = h4.get_text(strip=True) if h4 else ""
             text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
 
-            # Heuristic: Angler vs Boat
             angler, boat, btype = None, name, text_after
+
+            # Heuristic: Angler if points is weight and no boat type
             if "lb" in points.lower() and "'" not in text_after:
                 angler, boat, btype = name, None, None
+            else:
+                # Properly split boat and type
+                boat, btype = split_boat_and_type(name, text_after)
 
             uid = normalize_boat_name(boat or angler or f"rank_{rank}")
 
             leaderboard.append({
                 "rank": rank,
-                "category": category,
+                "category": category,   # ✅ Actual leaderboard category
                 "angler": angler,
                 "boat": boat,
                 "type": btype,
@@ -795,8 +737,8 @@ def scrape_leaderboard(tournament=None, force=False):
     with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    return leaderboard 
-
+    return leaderboard
+    
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"

@@ -909,20 +909,26 @@ def get_events():
 
 @app.route("/scrape/all")
 def scrape_all():
+    """Force-scrape all data (events, participants, leaderboard) for the current tournament."""
     tournament = get_current_tournament()
     print(f"🔁 Starting full scrape for tournament: {tournament}")
 
-    events = scrape_events(force=True)
+    # ✅ Force scrape participants first (ensures images for leaderboard)
     participants = scrape_participants(force=True)
-    run_in_thread(scrape_leaderboard, "leaderboard")
-    run_in_thread(scrape_gallery, "gallery")
+
+    # ✅ Force scrape events
+    events = scrape_events(force=True, tournament=tournament)
+
+    # ✅ Force scrape leaderboard (caches images from participants)
+    leaderboard = scrape_leaderboard(tournament, force=True)
 
     return jsonify({
         "status": "ok",
         "tournament": tournament,
         "events": len(events),
         "participants": len(participants),
-        "message": "Scraped events & participants. Leaderboard & gallery running in background."
+        "leaderboard": len(leaderboard),
+        "message": "Scraped all data and cached it."
     })
 
 

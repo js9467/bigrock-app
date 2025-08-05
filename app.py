@@ -637,7 +637,7 @@ def scrape_leaderboard(tournament=None, force=False):
     # ✅ Check cache (15 min)
     if not force and os.path.exists(lb_file):
         age = time.time() - os.path.getmtime(lb_file)
-        if age < 900:  # 15 minutes
+        if age < 900:
             with open(lb_file) as f:
                 return json.load(f)
 
@@ -658,7 +658,7 @@ def scrape_leaderboard(tournament=None, force=False):
     print(f"📊 Scraping leaderboard for {tournament}: {url}")
 
     try:
-        html = requests.get(url, timeout=15, verify=False).text
+        html = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15, verify=False).text
     except Exception as e:
         print(f"❌ Failed to fetch leaderboard: {e}")
         return []
@@ -666,20 +666,25 @@ def scrape_leaderboard(tournament=None, force=False):
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    for row in soup.select("article.m-b-20"):
-        name_tag = row.select_one("h4.montserrat")
-        if not name_tag:
+    # ✅ Parse rows like your test_lb.py
+    for row in soup.select("table.table.table-striped tbody tr.montserrat"):
+        cols = row.find_all("td")
+        if len(cols) < 3:
             continue
 
-        boat_name = name_tag.get_text(strip=True)
-        points_tag = row.select_one("p.pull-right")
-        points = points_tag.get_text(strip=True) if points_tag else ""
+        rank = cols[0].get_text(strip=True).replace('.', '')
+        boat_name = cols[1].find("h4").get_text(strip=True)
+        boat_type = cols[1].get_text(separator=' ', strip=True).replace(boat_name, '').strip()
+        points = cols[2].get_text(strip=True)
 
         uid = normalize_boat_name(boat_name)
+
         leaderboard.append({
+            "rank": rank,
             "boat": boat_name,
-            "uid": uid,
-            "points": points
+            "type": boat_type,
+            "points": points,
+            "uid": uid
         })
 
     # ✅ Merge image paths from participants cache

@@ -630,69 +630,89 @@ from bs4 import BeautifulSoup
 
 CACHE_DIR = "cache"
 
-import re
+import os, json, time
+from bs4 import BeautifulSoup
+import requests
 
-def categorize_entry(entry):
-    """Guess leaderboard category based on points format."""
-    points = str(entry.get("points", "")).lower()
+LEADERBOARD_CACHE = "cache/leaderboard.json"
+LEADERBOARD_URL = "https://tournament.thebigrock.com/leaderboard"  # Replace with your live URL
 
-    # Weighted catches
-    if "lb" in points:
-        weight = float(re.sub(r"[^0-9.]", "", points) or 0)
-        if weight > 200:
-            return "blue_marlin"
-        elif weight > 40:
-            return "tuna"
-        elif weight > 20:
-            return "dolphin"
-        elif weight > 10:
-            return "wahoo"
-        else:
-            return "misc_weight"
-    else:
-        # Numeric points = Release/Billfish
-        return "release"
+CATEGORY_MAP = {
+    "blue marlin": "BLUE_MARLIN",
+    "release": "RELEASE",
+    "tuna": "TUNA",
+    "dolphin": "DOLPHIN",
+    "mahi": "DOLPHIN",
+    "wahoo": "WAHOO"
+}
 
-def scrape_leaderboard():
-    """Scrape leaderboard and categorize entries."""
+def scrape_leaderboard(force=False):
+    """Scrape leaderboard, categorize entries, dedupe, and cache results."""
+    # 1️⃣ Return cached if available
+    if not force and os.path.exists(LEADERBOARD_CACHE):
+        age = time.time() - os.path.getmtime(LEADERBOARD_CACHE)
+        if age < 60:  # 1‑minute cache
+            with open(LEADERBOARD_CACHE) as f:
+                return json.load(f).get("leaderboard", [])
+
+    print("🔄 Scraping leaderboard...")
+
+    # 2️⃣ Download page
+    try:
+        res = requests.get(LEADERBOARD_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+        res.raise_for_status()
+        html = res.text
+    except Exception as e:
+        print(f"❌ Leaderboard scrape failed: {e}")
+        return []
+
+    # 3️⃣ Parse leaderboard page
+    soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    try:
-        # Your existing scraping logic here
-        # leaderboard = [ ...dicts of boat info... ]
+    # Each entry is assumed in an <article> or <tr> – adjust for your source
+    for row in soup.select("article.m-b-20, tr"):
+        boat = row.select_one("h4.montserrat, td.boat")
+        points = row.select_one("p.pull-right, td.points")
+        rank = row.select_one("span.rank, td.rank")
 
-        # Example: leaderboard already populated
+        if not boat or not points:
+            continue
 
-        # Deduplicate by (uid, points)
-        seen = set()
-        deduped = []
-        for entry in leaderboard:
-            key = (entry['uid'], entry['points'])
-            if key in seen:
-                continue
-            seen.add(key)
+        boat_name = boat.text.strip()
+        points_val = points.text.strip()
+        rank_val = rank.text.strip() if rank else "?"
 
-            # Assign category
-            entry['category'] = categorize_entry(entry)
-            deduped.append(entry)
+        # Determine category by inspecting text (or other HTML hints)
+        category = "RELEASE"
+        lower = points_val.lower() + " " + boat_name.lower()
+        for key, mapped in CATEGORY_MAP.items():
+            if key in lower:
+                category = mapped
+                break
 
-        leaderboard = deduped
+        # Normalize UID for deduplication
+        uid = boat_name.lower().replace(" ", "_").replace("'", "").replace('"', "")
+        if any(b["uid"] == uid and b["category"] == category for b in leaderboard):
+            continue  # skip duplicates
 
-        # Sort overall leaderboard by numeric points
-        def points_val(e):
-            p = e.get("points", "0").lower()
-            return float(re.sub(r"[^0-9.]", "", p) or 0)
-        leaderboard.sort(key=points_val, reverse=True)
+        leaderboard.append({
+            "boat": boat_name,
+            "points": points_val,
+            "rank": rank_val,
+            "category": category,
+            "uid": uid,
+            "image_path": f"/static/images/boats/{uid}.webp"
+        })
 
-        # Save to cache
-        with open("cache/leaderboard.json", "w") as f:
-            json.dump({"leaderboard": leaderboard, "status": "ok"}, f, indent=2)
+    # 4️⃣ Save cache
+    os.makedirs("cache", exist_ok=True)
+    with open(LEADERBOARD_CACHE, "w") as f:
+        json.dump({"leaderboard": leaderboard}, f, indent=2)
 
-        return leaderboard
+    print(f"✅ Leaderboard scraped: {len(leaderboard)} entries")
+    return leaderboard
 
-    except Exception as e:
-        print(f"❌ Error in scrape_leaderboard: {e}")
-        return []
 
 
 

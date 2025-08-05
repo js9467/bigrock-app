@@ -6,169 +6,74 @@
   <title>Leaderboard</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/base.css">
+  <style>
+    .leaderboard-tile {
+      transition: transform 0.2s ease-in-out;
+    }
+    .leaderboard-tile:hover {
+      transform: scale(1.03);
+    }
+    .rank-badge {
+      background: #facc15; /* yellow-400 */
+      color: black;
+      font-weight: bold;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-  <div id="app" v-cloak>
-    <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
-      <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
-        <span v-else class="text-white text-base">Loading Logo...</span>
-      </div>
-      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
-    </header>
+<div id="app" class="p-4">
 
-    <div class="p-4 max-w-screen-xl mx-auto">
-      <!-- Page Title -->
-      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <h1 class="text-4xl font-bold text-yellow-600">Live Leaderboard</h1>
-      </header>
+  <!-- Header -->
+  <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md mb-4">
+    <h1 class="text-2xl font-bold">Leaderboard</h1>
+    <a href="/" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">Back</a>
+  </header>
 
-      <!-- Top 3 Weighed Blue Marlins -->
-      <section class="mb-10">
-        <h2 class="text-2xl font-semibold text-blue-900 mb-4">Top 3 Weighed Blue Marlins</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          <div v-for="(boat, idx) in topBlueMarlin" :key="boat.uid"
-            class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col border-2 border-yellow-400">
-            <img
-              class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
-              :data-src="boat.image_path || '/static/images/bigrock.png'"
-              src="/static/images/bigrock.png"
-              loading="lazy"
-              alt="Boat Image"
-            />
-            <div class="p-4 flex-1 flex flex-col justify-between">
-              <div>
-                <div class="flex justify-between items-center mb-1">
-                  <h2 class="text-xl font-semibold truncate">{{ boat.boat }}</h2>
-                  <span class="bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">#{{ idx+1 }}</span>
-                </div>
-                <p class="text-sm text-gray-600 mb-3 truncate">{{ boat.type || '' }}</p>
-                <p class="font-bold text-lg text-yellow-600">{{ boat.points }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Remaining Categories -->
-      <section v-for="cat in categories" :key="cat.name" class="mb-10">
-        <h2 class="text-2xl font-semibold text-blue-900 mb-4">{{ cat.name }}</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          <div v-for="(boat, idx) in cat.top3" :key="boat.uid"
-            class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col">
-            <img
-              class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
-              :data-src="boat.image_path || '/static/images/bigrock.png'"
-              src="/static/images/bigrock.png"
-              loading="lazy"
-              alt="Boat Image"
-            />
-            <div class="p-4 flex-1 flex flex-col justify-between">
-              <div>
-                <div class="flex justify-between items-center mb-1">
-                  <h2 class="text-xl font-semibold truncate">{{ boat.boat }}</h2>
-                  <span class="bg-gray-200 text-gray-900 px-2 py-1 rounded text-xs font-bold">#{{ idx+1 }}</span>
-                </div>
-                <p class="text-sm text-gray-600 mb-3 truncate">{{ boat.type || '' }}</p>
-                <p class="font-bold text-lg text-yellow-600">{{ boat.points }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Status Messages -->
-      <div v-if="!loading && topBlueMarlin.length === 0" class="text-center py-6 text-red-600 text-sm">
-        No leaderboard data available.
-      </div>
-      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
-        Loading leaderboard...
-      </div>
+  <div v-if="loading" class="text-center text-gray-600 py-8">Loading leaderboard...</div>
+  <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div v-for="entry in leaderboard" :key="entry.uid" class="leaderboard-tile bg-white rounded-lg shadow hover:shadow-lg p-4 flex flex-col items-center">
+      <img :src="entry.image_path || '/static/images/boats/default.jpg'" alt="Boat Image" class="w-full h-40 object-cover rounded-md mb-2">
+      <div class="rank-badge mb-2">{{ entry.rank }}</div>
+      <h2 class="text-xl font-semibold mb-1">{{ entry.boat }}</h2>
+      <p class="text-gray-600 mb-1">{{ entry.type || 'Unknown Type' }}</p>
+      <p class="text-gray-500 italic mb-1">{{ entry.category || 'No Category' }}</p>
+      <p class="text-brand-gold font-bold text-lg">{{ entry.points }}</p>
     </div>
   </div>
+</div>
 
-  <script>
-  const app = Vue.createApp({
-    data() {
-      return {
-        leaderboard: [],
-        tournamentLogo: '',
-        loading: false,
-        categories: []
-      };
-    },
-    computed: {
-      topBlueMarlin() {
-        return this.leaderboard
-          .filter(b => b.category === 'blue_marlin')
-          .sort((a, b) => parseFloat(b.points) - parseFloat(a.points))
-          .slice(0, 3);
+<script>
+const app = Vue.createApp({
+  data() {
+    return {
+      leaderboard: [],
+      loading: true
+    };
+  },
+  mounted() {
+    this.fetchLeaderboard();
+  },
+  methods: {
+    async fetchLeaderboard() {
+      try {
+        const res = await fetch('/api/leaderboard');
+        const data = await res.json();
+        this.leaderboard = data.leaderboard || [];
+      } catch (err) {
+        console.error('Failed to fetch leaderboard:', err);
+      } finally {
+        this.loading = false;
       }
-    },
-    methods: {
-      async loadLeaderboard() {
-        this.loading = true;
-        try {
-          const res = await fetch('/api/leaderboard');
-          const data = await res.json();
-          this.leaderboard = data.leaderboard || [];
-
-          this.categories = [
-            { name: 'Heaviest Dolphin', key: 'dolphin' },
-            { name: 'Heaviest Tuna', key: 'tuna' },
-            { name: 'Heaviest Wahoo', key: 'wahoo' },
-            { name: 'Overall Billfish Release', key: 'release' }
-          ].map(cat => ({
-            name: cat.name,
-            top3: this.leaderboard
-              .filter(b => b.category === cat.key)
-              .sort((a, b) => parseFloat(b.points) - parseFloat(a.points))
-              .slice(0, 3)
-          }));
-
-          this.$nextTick(() => this.initLazyLoading());
-        } catch (e) {
-          console.error('Failed to load leaderboard', e);
-        } finally {
-          this.loading = false;
-        }
-      },
-      async loadLogo() {
-        try {
-          const settingsRes = await fetch('/api/settings');
-          const settings = await settingsRes.json();
-          const tournament = settings.tournament;
-          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
-          const allTournaments = await configRes.json();
-          this.tournamentLogo = allTournaments[tournament]?.logo || '';
-        } catch(e) { console.error('Logo load failed', e); }
-      },
-      initLazyLoading() {
-        const images = document.querySelectorAll('img.lazy');
-        if (!images.length) return;
-        const observer = new IntersectionObserver(entries => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              const img = entry.target;
-              img.src = img.dataset.src;
-              img.onload = () => img.classList.add('opacity-100');
-              observer.unobserve(img);
-            }
-          });
-        }, { threshold: 0.1 });
-        images.forEach(img => observer.observe(img));
-      }
-    },
-    mounted() {
-      this.loadLogo();
-      this.loadLeaderboard();
     }
-  });
-  app.mount('#app');
-  </script>
+  }
+});
 
-  <style>[v-cloak]{display:none}</style>
+app.mount('#app');
+</script>
+
 </body>
 </html>

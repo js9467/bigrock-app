@@ -33,13 +33,22 @@
       <div v-for="category in groupedLeaderboardKeys" :key="category" class="mb-10">
         <h2 class="text-2xl font-bold text-white bg-brand-blue px-4 py-2 rounded shadow mb-4 flex justify-between items-center">
           {{ category }}
-          <button
-            v-if="showLimit[category] && groupedLeaderboard[category].length > 10"
-            @click="showLimit[category] = false"
-            class="text-xs px-2 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500 transition"
-          >
-            Show All
-          </button>
+          <div>
+            <button
+              v-if="showLimit[category] && groupedLeaderboard[category].length > 10"
+              @click="showLimit[category] = false"
+              class="text-xs px-2 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500 transition mr-1"
+            >
+              Show All
+            </button>
+            <button
+              v-else-if="!showLimit[category] && groupedLeaderboard[category].length > 10"
+              @click="showLimit[category] = true"
+              class="text-xs px-2 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500 transition"
+            >
+              Show Less
+            </button>
+          </div>
         </h2>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -84,7 +93,7 @@
         fullLeaderboard: [],
         tournamentLogo: '',
         loading: false,
-        showLimit: {} // Track per-category limit toggle
+        showLimit: {} // Tracks per-category Show All/Show Less
       };
     },
     computed: {
@@ -108,7 +117,7 @@
     methods: {
       displayEntries(category) {
         const entries = this.groupedLeaderboard[category] || [];
-        // Limit to 10 unless "Show All" clicked
+        // Limit to 10 unless Show All is active
         if (this.showLimit[category] && entries.length > 10) {
           return entries.slice(0, 10);
         }
@@ -119,8 +128,9 @@
         const res = await fetch('/api/leaderboard');
         const data = await res.json();
         this.fullLeaderboard = data.leaderboard || [];
-        // Initialize limited view to top 10
+        // Default view shows full leaderboard but sliced per category
         this.leaderboard = this.fullLeaderboard;
+        // Initialize Show Less mode for all categories
         this.groupedLeaderboardKeys.forEach(cat => {
           this.showLimit[cat] = true;
         });

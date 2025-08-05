@@ -1,161 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Leaderboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Leaderboard</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/base.css">
   <style>
-    [v-cloak]{ display:none; }
-    /* Animate entry for leaderboard tiles */
-    .fade-enter-active, .fade-leave-active { transition: all 0.5s ease; }
-    .fade-enter-from { opacity: 0; transform: translateY(10px); }
-    .fade-leave-to { opacity: 0; transform: translateY(-10px); }
-    /* Glow for followed boats */
-    .followed-glow {
-      box-shadow: 0 0 15px 4px rgba(255, 215, 0, 0.6);
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
     }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-  <div id="app" v-cloak>
-    <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
-      <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
-        <span v-else class="text-white text-base">Loading Logo...</span>
-      </div>
-      <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
-    </header>
 
-    <div class="p-4 max-w-screen-2xl mx-auto">
-      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <h1 class="text-4xl font-bold text-yellow-600 drop-shadow">Live Leaderboard</h1>
-        <input
-          v-model="search"
-          type="text"
-          placeholder="Search boats..."
-          class="px-4 py-2 border rounded w-full sm:w-64"
-        />
-      </header>
+  <!-- Header -->
+  <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md">
+    <div class="flex items-center space-x-4">
+      <img src="/static/images/logo.png" alt="Tournament Logo" class="h-10">
+      <h1 class="text-xl font-bold">Live Leaderboard</h1>
+    </div>
+    <input
+      type="text"
+      v-model="search"
+      placeholder="Search boats..."
+      class="rounded px-3 py-1 text-gray-800 focus:outline-none focus:ring focus:ring-brand-gold"
+    >
+  </header>
 
-      <!-- Leaderboard Grid -->
-      <transition-group name="fade" tag="div" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <div
-          v-for="(boat, idx) in filteredLeaderboard"
-          :key="boat.uid"
-          class="relative rounded-2xl shadow-lg overflow-hidden group transition-transform transform hover:scale-[1.02]"
-          :class="{
-            'ring-4 ring-yellow-400': idx < 10,
-            'followed-glow': isFollowed(boat.uid)
-          }"
-        >
-          <div class="relative">
-            <img
-              :src="boat.image_path || '/static/images/bigrock.png'"
-              alt="Boat Image"
-              class="w-full h-48 object-cover group-hover:opacity-80 transition"
-            />
-            <div class="absolute top-2 left-2 bg-black/70 text-white px-3 py-1 rounded-lg text-lg font-bold">
-              #{{ boat.rank }}
-            </div>
-          </div>
-          <div class="p-4 bg-white flex flex-col justify-between flex-1">
-            <div>
-              <h2 class="text-xl font-bold truncate">{{ boat.boat }}</h2>
-              <p class="text-sm text-gray-600 truncate">{{ boat.type }}</p>
-            </div>
-            <div class="mt-2 flex justify-between items-center">
-              <span class="text-lg font-semibold text-blue-600">{{ boat.points }}</span>
-              <span v-if="isFollowed(boat.uid)" class="text-yellow-500 font-bold">★ Followed</span>
-            </div>
-          </div>
-        </div>
-      </transition-group>
-
-      <!-- Status Messages -->
-      <div v-if="!loading && filteredLeaderboard.length === 0" class="text-center py-6 text-red-600 text-sm">
+  <!-- Leaderboard -->
+  <div id="app" class="p-4">
+    <div v-if="loading" class="text-center py-8 text-lg">Loading leaderboard...</div>
+    <div v-else>
+      <div v-if="filteredLeaderboard.length === 0" class="text-center py-8 text-lg text-gray-500">
         No boats match your search.
       </div>
-      <div v-if="loading" class="text-center py-6 text-gray-600 text-sm">
-        Loading leaderboard...
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="boat in filteredLeaderboard"
+          :key="boat.uid"
+          class="bg-white rounded-xl shadow-md p-4 flex items-center space-x-4 fade-in hover:shadow-lg transition"
+        >
+          <img
+            :src="boat.image_path || '/static/images/boats/default.jpg'"
+            alt="Boat"
+            class="w-20 h-20 rounded-lg object-cover border border-gray-300"
+          >
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <h2 class="font-bold text-lg">{{ boat.boat }}</h2>
+              <span class="bg-brand-blue text-white text-xs px-2 py-1 rounded">
+                #{{ boat.rank }}
+              </span>
+            </div>
+            <p class="text-sm text-gray-600">{{ boat.type }}</p>
+            <p class="font-semibold text-brand-gold">{{ boat.points }}</p>
+          </div>
+          <!-- Followed icon -->
+          <div v-if="followedBoats.includes(boat.uid)" class="text-yellow-400 text-xl">★</div>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
-  const app = Vue.createApp({
-    data() {
-      return {
-        leaderboard: [],
-        followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
-        tournamentLogo: '',
-        search: '',
-        loading: false,
-        pollInterval: null
-      };
-    },
-    computed: {
-      filteredLeaderboard() {
-        const q = this.search.toLowerCase();
-        return this.leaderboard.filter(b =>
-          (b.boat || '').toLowerCase().includes(q) ||
-          (b.type || '').toLowerCase().includes(q)
-        );
-      }
-    },
-    methods: {
-      isFollowed(uid) {
-        return this.followed.includes(uid);
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          leaderboard: [],
+          followedBoats: [], // This should come from participants or localStorage
+          search: "",
+          loading: true
+        };
       },
-      async loadLeaderboard() {
-        this.loading = true;
-        try {
-          const res = await fetch('/leaderboard');
-          const data = await res.json();
-          const newBoard = (data.leaderboard || []).sort((a,b)=>parseInt(a.rank)-parseInt(b.rank));
-          this.updateLeaderboard(newBoard);
-        } catch (e) {
-          console.error('Leaderboard fetch failed', e);
-        }
-        this.loading = false;
-      },
-      updateLeaderboard(newBoard) {
-        // Smooth replace for transition-group animations
-        const oldUids = this.leaderboard.map(b=>b.uid);
-        const newUids = newBoard.map(b=>b.uid);
-        if(JSON.stringify(oldUids) !== JSON.stringify(newUids)) {
-          this.leaderboard = newBoard;
-        } else {
-          // Update points in-place to animate less
-          this.leaderboard.forEach((boat, idx) => {
-            boat.points = newBoard[idx].points;
-          });
+      computed: {
+        filteredLeaderboard() {
+          const q = this.search.toLowerCase();
+          return this.leaderboard.filter(b =>
+            (b.boat || '').toLowerCase().includes(q) ||
+            (b.type || '').toLowerCase().includes(q)
+          );
         }
       },
-      async loadLogo() {
-        try {
-          const settingsRes = await fetch('/api/settings');
-          const settings = await settingsRes.json();
-          const tournament = settings.tournament;
-          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
-          const allTournaments = await configRes.json();
-          this.tournamentLogo = allTournaments[tournament]?.logo || '';
-        } catch(e) { console.error('Logo load failed', e); }
+      methods: {
+        async loadLeaderboard() {
+          try {
+            const res = await fetch('/api/leaderboard');
+            const data = await res.json();
+            this.leaderboard = data.leaderboard || [];
+            this.loading = false;
+          } catch (err) {
+            console.error('Failed to load leaderboard:', err);
+            this.loading = false;
+          }
+        }
+      },
+      mounted() {
+        // Load followed boats from localStorage or API
+        this.followedBoats = JSON.parse(localStorage.getItem('followedBoats') || '[]');
+        this.loadLeaderboard();
+        // Refresh every 60 seconds
+        setInterval(this.loadLeaderboard, 60000);
       }
-    },
-    mounted() {
-      this.loadLogo();
-      this.loadLeaderboard();
-      this.pollInterval = setInterval(this.loadLeaderboard, 20000); // update every 20s
-    },
-    beforeUnmount() {
-      if (this.pollInterval) clearInterval(this.pollInterval);
-    }
-  });
-  app.mount('#app');
+    }).mount("#app");
   </script>
 </body>
 </html>

@@ -306,51 +306,51 @@ def cache_boat_image(boat_name, image_url):
 
 def inject_hooked_up_events(events, tournament=None):
     """
-    Creates synthetic Hooked Up events for demo mode with
-    progressive timestamps to simulate live activity.
+    In demo mode, create Hooked Up events for each resolved event.
+    Hooked events are 5-120 minutes before the resolution and never in the future.
     """
     demo_events = []
     inserted_keys = set()
-    now = datetime.now()
 
-    # Sort original events by timestamp
-    try:
-        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-    except:
-        pass
+    # Sort original events chronologically
+    events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
 
-    for i, event in enumerate(events):
+    for event in events:
         event_type = event.get("event", "")
         details = event.get("details", "").lower()
         boat = event.get("boat", "Unknown")
 
-        # Identify resolution events
+        # Identify resolution events (Released, Boated, Pulled Hook, Wrong Species)
         is_resolution = (
-            event_type == "Boated"
-            or (event_type == "Released" and not re.search(r"\b\w+\s+\w+\s+released\b", details))
-            or ("pulled hook" in details)
-            or ("wrong species" in details)
+            event_type.lower() == "boated"
+            or event_type.lower() == "released"
+            or "pulled hook" in details
+            or "wrong species" in details
         )
         if not is_resolution:
             continue
 
         try:
-            # Resolution event time
+            # Parse resolution timestamp
             res_ts = date_parser.parse(event["timestamp"])
+            if res_ts > datetime.now():
+                # Cap resolution to "now" for demo realism
+                res_ts = datetime.now()
 
-            # Shift resolution into "future demo time"
-            # Each event appears 45s apart in playback
-            demo_res_time = now + timedelta(seconds=i * 45)
-            event["timestamp"] = demo_res_time.isoformat()
+            # Pick a random delta for hooked up before resolution
+            delta_minutes = random.randint(5, 120)
+            hookup_time = res_ts - timedelta(minutes=delta_minutes)
 
-            # Insert Hooked Up event 3–30 minutes before resolution in demo timeline
-            delta_minutes = random.randint(3, 30)
-            hookup_time = demo_res_time - timedelta(minutes=delta_minutes)
+            # Ensure we never generate a future Hooked event
+            if hookup_time > datetime.now():
+                hookup_time = datetime.now() - timedelta(minutes=1)
 
-            key = f"{event['uid']}_{event['timestamp']}"
+            # Unique key for pairing
+            key = f"{event['uid']}_{res_ts.isoformat()}"
             if key in inserted_keys:
                 continue
 
+            # Create hooked up event
             demo_event = {
                 "timestamp": hookup_time.isoformat(),
                 "event": "Hooked Up",
@@ -366,11 +366,12 @@ def inject_hooked_up_events(events, tournament=None):
         except Exception as e:
             print(f"⚠️ Demo injection failed for {boat}: {e}")
 
-    # Combine synthetic Hooked Up with actual events
-    all_events = sorted(demo_events + events, key=lambda e: e["timestamp"])
+    # Combine injected Hooked Up with original events
+    all_events = sorted(demo_events + events, key=lambda e: date_parser.parse(e["timestamp"]))
     print(f"📦 Returning {len(all_events)} total events (including {len(demo_events)} injected)")
 
     return all_events
+
 
 def save_demo_data_if_needed(settings, old_settings):
     if settings.get("data_source") == "demo":

@@ -3,113 +3,119 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Leaderboard</title>
+  <title>Big Rock Leaderboard</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+    body { background: linear-gradient(to right, #001F54, #00337A); }
+    .glow {
+      box-shadow: 0 0 15px gold;
+      border: 2px solid gold;
     }
-    .fade-in {
-      animation: fadeIn 0.5s ease forwards;
-    }
+    .hover-zoom:hover { transform: scale(1.05); transition: 0.2s; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
+<body class="text-white font-sans">
 
-  <!-- Header -->
-  <header class="bg-brand-blue text-white flex items-center justify-between px-6 py-3 shadow-md">
-    <div class="flex items-center space-x-4">
-      <img src="/static/images/logo.png" alt="Tournament Logo" class="h-10">
-      <h1 class="text-xl font-bold">Live Leaderboard</h1>
-    </div>
-    <input
-      type="text"
-      v-model="search"
-      placeholder="Search boats..."
-      class="rounded px-3 py-1 text-gray-800 focus:outline-none focus:ring focus:ring-brand-gold"
-    >
-  </header>
+<div id="app" class="p-4 max-w-7xl mx-auto">
+  <h1 class="text-4xl font-bold mb-6 text-center">🏆 Big Rock Leaderboard</h1>
 
-  <!-- Leaderboard -->
-  <div id="app" class="p-4">
-    <div v-if="loading" class="text-center py-8 text-lg">Loading leaderboard...</div>
-    <div v-else>
-      <div v-if="filteredLeaderboard.length === 0" class="text-center py-8 text-lg text-gray-500">
-        No boats match your search.
-      </div>
-
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
-          v-for="boat in filteredLeaderboard"
-          :key="boat.uid"
-          class="bg-white rounded-xl shadow-md p-4 flex items-center space-x-4 fade-in hover:shadow-lg transition"
-        >
-          <img
-            :src="boat.image_path || '/static/images/boats/default.jpg'"
-            alt="Boat"
-            class="w-20 h-20 rounded-lg object-cover border border-gray-300"
-          >
-          <div class="flex-1">
-            <div class="flex items-center justify-between">
-              <h2 class="font-bold text-lg">{{ boat.boat }}</h2>
-              <span class="bg-brand-blue text-white text-xs px-2 py-1 rounded">
-                #{{ boat.rank }}
-              </span>
-            </div>
-            <p class="text-sm text-gray-600">{{ boat.type }}</p>
-            <p class="font-semibold text-brand-gold">{{ boat.points }}</p>
-          </div>
-          <!-- Followed icon -->
-          <div v-if="followedBoats.includes(boat.uid)" class="text-yellow-400 text-xl">★</div>
+  <!-- Heaviest Blue Marlin Hero -->
+  <h2 class="text-2xl font-semibold mb-3 text-yellow-400">Heaviest Blue Marlin (Top 3)</h2>
+  <div class="grid md:grid-cols-3 gap-4 mb-10">
+    <div v-for="(boat, idx) in topBlueMarlin" :key="boat.uid"
+         class="bg-white text-gray-900 rounded-xl overflow-hidden hover-zoom shadow-xl"
+         :class="{'glow': true}">
+      <img :src="boat.image_path" class="w-full h-48 object-cover">
+      <div class="p-3">
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold">{{ boat.boat }}</span>
+          <span class="bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">#{{ idx+1 }}</span>
         </div>
+        <p class="text-sm">{{ boat.type }}</p>
+        <p class="font-bold text-lg text-yellow-500">{{ boat.points }}</p>
       </div>
     </div>
   </div>
 
-  <script>
-    const { createApp } = Vue;
-    createApp({
-      data() {
-        return {
-          leaderboard: [],
-          followedBoats: [], // This should come from participants or localStorage
-          search: "",
-          loading: true
-        };
-      },
-      computed: {
-        filteredLeaderboard() {
-          const q = this.search.toLowerCase();
-          return this.leaderboard.filter(b =>
-            (b.boat || '').toLowerCase().includes(q) ||
-            (b.type || '').toLowerCase().includes(q)
-          );
-        }
-      },
-      methods: {
-        async loadLeaderboard() {
-          try {
-            const res = await fetch('/api/leaderboard');
-            const data = await res.json();
-            this.leaderboard = data.leaderboard || [];
-            this.loading = false;
-          } catch (err) {
-            console.error('Failed to load leaderboard:', err);
-            this.loading = false;
-          }
-        }
-      },
-      mounted() {
-        // Load followed boats from localStorage or API
-        this.followedBoats = JSON.parse(localStorage.getItem('followedBoats') || '[]');
-        this.loadLeaderboard();
-        // Refresh every 60 seconds
-        setInterval(this.loadLeaderboard, 60000);
+  <!-- Categories -->
+  <div v-for="cat in categories" :key="cat.name" class="mb-10">
+    <h2 class="text-xl font-semibold mb-3">{{ cat.name }}</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-for="boat in cat.top3" :key="boat.uid"
+           class="bg-white text-gray-900 rounded-xl overflow-hidden hover-zoom shadow"
+           :class="{'glow': boat.points.includes('lb')}">
+        <img :src="boat.image_path" class="w-full h-40 object-cover">
+        <div class="p-3">
+          <p class="font-bold">{{ boat.boat }}</p>
+          <p class="text-sm">{{ boat.type }}</p>
+          <p class="font-bold text-lg text-yellow-500">{{ boat.points }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const app = Vue.createApp({
+  data() {
+    return {
+      leaderboard: [],
+      categories: []
+    };
+  },
+  computed: {
+    topBlueMarlin() {
+      return this.leaderboard
+        .filter(b => b.points.includes('lb'))
+        .sort((a, b) => parseFloat(b.points) - parseFloat(a.points))
+        .slice(0, 3);
+    }
+  },
+  methods: {
+    async fetchLeaderboard() {
+      try {
+        const res = await fetch('/leaderboard');
+        const data = await res.json();
+        this.leaderboard = data.leaderboard || [];
+        this.computeCategories();
+      } catch (e) {
+        console.error('Leaderboard fetch failed', e);
       }
-    }).mount("#app");
-  </script>
+    },
+    computeCategories() {
+      this.categories = [
+        { name: 'Heaviest Dolphin', key: 'dolphin' },
+        { name: 'Heaviest Tuna', key: 'tuna' },
+        { name: 'Heaviest Wahoo', key: 'wahoo' },
+        { name: 'Overall Billfish Release', key: 'release' }
+      ].map(cat => ({
+        ...cat,
+        top3: this.getTop3(cat.key)
+      }));
+    },
+    getTop3(category) {
+      if(category === 'release') {
+        return this.leaderboard
+          .filter(b => !b.points.includes('lb'))
+          .sort((a,b) => parseFloat(b.points) - parseFloat(a.points))
+          .slice(0,3);
+      }
+      // For species (Dolphin/Tuna/Wahoo), we can filter by weight now
+      return this.leaderboard
+        .filter(b => b.points.includes('lb'))
+        .sort((a,b) => parseFloat(b.points) - parseFloat(a.points))
+        .slice(0,3);
+    }
+  },
+  mounted() {
+    this.fetchLeaderboard();
+    setInterval(this.fetchLeaderboard, 60000);
+  }
+});
+app.mount('#app');
+</script>
+
 </body>
 </html>

@@ -646,18 +646,20 @@ CATEGORY_MAP = {
     "wahoo": "WAHOO"
 }
 
-def scrape_leaderboard(force=False):
+def scrape_leaderboard(tournament=None, force=False):
     """Scrape leaderboard, categorize entries, dedupe, and cache results."""
-    # 1️⃣ Return cached if available
-    if not force and os.path.exists(LEADERBOARD_CACHE):
-        age = time.time() - os.path.getmtime(LEADERBOARD_CACHE)
+    tournament = tournament or get_current_tournament()
+    cache_file = get_cache_path(tournament, "leaderboard.json")
+
+    # ✅ Use cache if fresh
+    if not force and os.path.exists(cache_file):
+        age = time.time() - os.path.getmtime(cache_file)
         if age < 60:  # 1‑minute cache
-            with open(LEADERBOARD_CACHE) as f:
-                return json.load(f).get("leaderboard", [])
+            with open(cache_file) as f:
+                return json.load(f)
 
-    print("🔄 Scraping leaderboard...")
+    print(f"🔄 Scraping leaderboard for {tournament}...")
 
-    # 2️⃣ Download page
     try:
         res = requests.get(LEADERBOARD_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         res.raise_for_status()
@@ -666,11 +668,9 @@ def scrape_leaderboard(force=False):
         print(f"❌ Leaderboard scrape failed: {e}")
         return []
 
-    # 3️⃣ Parse leaderboard page
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    # Each entry is assumed in an <article> or <tr> – adjust for your source
     for row in soup.select("article.m-b-20, tr"):
         boat = row.select_one("h4.montserrat, td.boat")
         points = row.select_one("p.pull-right, td.points")
@@ -683,18 +683,17 @@ def scrape_leaderboard(force=False):
         points_val = points.text.strip()
         rank_val = rank.text.strip() if rank else "?"
 
-        # Determine category by inspecting text (or other HTML hints)
+        # Detect category
         category = "RELEASE"
-        lower = points_val.lower() + " " + boat_name.lower()
+        lower = f"{points_val} {boat_name}".lower()
         for key, mapped in CATEGORY_MAP.items():
             if key in lower:
                 category = mapped
                 break
 
-        # Normalize UID for deduplication
-        uid = boat_name.lower().replace(" ", "_").replace("'", "").replace('"', "")
+        uid = normalize_boat_name(boat_name)
         if any(b["uid"] == uid and b["category"] == category for b in leaderboard):
-            continue  # skip duplicates
+            continue
 
         leaderboard.append({
             "boat": boat_name,
@@ -705,10 +704,9 @@ def scrape_leaderboard(force=False):
             "image_path": f"/static/images/boats/{uid}.webp"
         })
 
-    # 4️⃣ Save cache
-    os.makedirs("cache", exist_ok=True)
-    with open(LEADERBOARD_CACHE, "w") as f:
-        json.dump({"leaderboard": leaderboard}, f, indent=2)
+    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump(leaderboard, f, indent=2)
 
     print(f"✅ Leaderboard scraped: {len(leaderboard)} entries")
     return leaderboard

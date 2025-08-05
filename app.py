@@ -1204,46 +1204,81 @@ def get_leaderboard(tournament):
 
 @app.route("/hooked")
 def get_hooked_up_events():
-    """Return unresolved Hooked Up events for the current tournament."""
     settings = load_settings()
-    tournament = settings.get("tournament", "Big Rock")
+    tournament = get_current_tournament()
+    data_source = settings.get("data_source", "live").lower()
 
-    # Load events from demo or live
-    if settings.get("data_source") == "demo":
+    now = datetime.now()
+    events = []
+
+    # Load events from appropriate source
+    if data_source == "demo":
         data = load_demo_data(tournament)
-        all_events = data.get("events", [])
-        now = datetime.now()
-
-        # Filter out future demo events
-        events = []
-        for e in all_events:
-            try:
-                ts = date_parser.parse(e["timestamp"])
-                if ts <= now:
-                    events.append(e)
-            except:
-                continue
+        events = data.get("events", [])
+        # Only consider events that have "occurred" in demo timeline
+        events = [
+            e for e in events
+            if date_parser.parse(e["timestamp"]) <= now
+        ]
     else:
         events_file = get_cache_path(tournament, "events.json")
-        if not os.path.exists(events_file):
-            return jsonify({"status": "ok", "events": [], "count": 0})
-        with open(events_file, "r") as f:
-            events = json.load(f)
+        if os.path.exists(events_file):
+            with open(events_file, "r") as f:
+                events = json.load(f)
 
-    # Identify unresolved Hooked Up events
-    resolved = set()
-    for e in events:
-        etype = e.get("event", "").lower()
-        details = e.get("details", "").lower()
-        if etype in ["boated", "released"] or "pulled hook" in details or "wrong species" in details:
-            resolved.add(e["uid"])
+    # Sort events chronologically
+    events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
 
-    unresolved = [e for e in events if e.get("event") == "Hooked Up" and e.get("uid") not in resolved]
+    hooked_feed = []
+
+    if data_source == "demo":
+        # ✅ DEMO MODE: resolve using hookup_id
+        resolved_ids = set()
+
+        # Collect all resolution event keys
+        for e in events:
+            if e["event"] in ["Released", "Boated"] or \
+               "pulled hook" in e.get("details", "").lower() or \
+               "wrong species" in e.get("details", "").lower():
+                # In demo mode, use event uid+timestamp as resolution key
+                key = f"{e['uid']}_{date_parser.parse(e['timestamp']).replace(microsecond=0).isoformat()}"
+                resolved_ids.add(key)
+
+        for e in events:
+            if e["event"] != "Hooked Up":
+                continue
+
+            key = e.get("hookup_id")
+            if not key or key not in resolved_ids:
+                hooked_feed.append(e)
+
+    else:
+        # ✅ LIVE MODE: resolve oldest hooked per boat
+        active_hooks = {}  # boat_uid -> list of hooked events
+        for e in events:
+            uid = e.get("uid")
+            etype = e.get("event", "").lower()
+
+            if etype == "hooked up":
+                active_hooks.setdefault(uid, []).append(e)
+            elif etype in ["boated", "released"] or \
+                 "pulled hook" in e.get("details", "").lower() or \
+                 "wrong species" in e.get("details", "").lower():
+                # Resolve oldest hooked for that boat if any
+                if uid in active_hooks and active_hooks[uid]:
+                    active_hooks[uid].pop(0)
+
+        # Remaining hooked events are unresolved
+        for boat_hooks in active_hooks.values():
+            hooked_feed.extend(boat_hooks)
+
+    # ✅ Sort newest first for feed
+    hooked_feed.sort(key=lambda e: date_parser.parse(e["timestamp"]), reverse=True)
 
     return jsonify({
         "status": "ok",
-        "count": len(unresolved),
-        "events": unresolved
+        "count": len(hooked_feed),
+        "events": hooked_feed[:50]  # limit to 50 to keep feed clean
     })
 
 

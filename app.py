@@ -633,12 +633,8 @@ from bs4 import BeautifulSoup
 
 def split_boat_and_type(boat_name: str, trailing_text: str):
     """
-    Split something like:
-        boat_name = "Doc Fees"
-        trailing_text = "60' Ritchie Howell"
-    Returns: ("Doc Fees", "60' Ritchie Howell")
-
-    If trailing_text doesn't start with a length, return (boat_name + trailing_text, "")
+    Cleanly split boat name and type.
+    e.g. boat_name='Magic Moment', trailing_text="55' Jarrett Bay"
     """
     trailing_text = trailing_text.strip()
     if trailing_text and re.match(r"^\d{2,2}'", trailing_text):
@@ -646,10 +642,9 @@ def split_boat_and_type(boat_name: str, trailing_text: str):
     return f"{boat_name} {trailing_text}".strip(), ""
 
 def scrape_leaderboard(tournament=None, force=False):
-    """Scrape leaderboard and return list of entries with category, boat, angler, points."""
     tournament = tournament or get_current_tournament()
 
-    # 1️⃣ Load master JSON to get leaderboard URL
+    # 1️⃣ Load master JSON
     try:
         remote = requests.get(MASTER_JSON_URL, timeout=30).json()
     except Exception as e:
@@ -671,7 +666,6 @@ def scrape_leaderboard(tournament=None, force=False):
     if not html:
         return []
 
-    # Save debug HTML
     os.makedirs("debug", exist_ok=True)
     with open("debug/leaderboard_debug.html", "w", encoding="utf-8") as f:
         f.write(html)
@@ -679,7 +673,7 @@ def scrape_leaderboard(tournament=None, force=False):
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
-    # Extract all leaderboard categories from dropdown
+    # ✅ Use dropdown category names
     categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav")]
     print(f"Found {len(categories)} categories: {categories}")
 
@@ -702,25 +696,24 @@ def scrape_leaderboard(tournament=None, force=False):
             boat_block = cols[1]
             points = cols[-1].get_text(strip=True)
 
-            # Extract primary name (h4)
             h4 = boat_block.find("h4")
             name = h4.get_text(strip=True) if h4 else ""
             text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
 
+            # Default assignment
             angler, boat, btype = None, name, text_after
 
-            # Heuristic: Angler if points is weight and no boat type
+            # If points is weight and text_after has no length → it's an angler
             if "lb" in points.lower() and "'" not in text_after:
                 angler, boat, btype = name, None, None
             else:
-                # Properly split boat and type
                 boat, btype = split_boat_and_type(name, text_after)
 
             uid = normalize_boat_name(boat or angler or f"rank_{rank}")
 
             leaderboard.append({
                 "rank": rank,
-                "category": category,   # ✅ Actual leaderboard category
+                "category": category,           # ✅ Real dropdown category
                 "angler": angler,
                 "boat": boat,
                 "type": btype,
@@ -731,7 +724,7 @@ def scrape_leaderboard(tournament=None, force=False):
 
     print(f"✅ Scraped {len(leaderboard)} leaderboard entries for {tournament}")
 
-    # Cache for your API
+    # Save to per-tournament cache
     lb_file = get_cache_path(tournament, "leaderboard.json")
     os.makedirs(os.path.dirname(lb_file), exist_ok=True)
     with open(lb_file, "w") as f:
@@ -1208,55 +1201,20 @@ def leaderboard_page():
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    """Return leaderboard for current tournament, with fallback demo data."""
     tournament = get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
 
     leaderboard = []
-    # Try to load cache
+    # Load cache first
     if os.path.exists(lb_file) and os.path.getsize(lb_file) > 0:
         with open(lb_file) as f:
             leaderboard = json.load(f)
 
-    # 🔹 Fallback if empty
+    # Scrape if cache empty
     if not leaderboard:
-        leaderboard = [
-            {
-                "rank": "1.",
-                "boat": "Palmer Lou",
-                "uid": "palmer_lou",
-                "type": "35' Xcelerator",
-                "angler": None,
-                "points": "487.2 lb",
-                "image_path": "/static/images/palmer_lou.webp",
-                "category": "Heaviest Blue Marlin"
-            },
-            {
-                "rank": "2.",
-                "boat": "Bankwalker",
-                "uid": "bankwalker",
-                "type": "60' Sportsman",
-                "angler": None,
-                "points": "449.7 lb",
-                "image_path": "/static/images/boats/bankwalker.webp",
-                "category": "Heaviest Blue Marlin"
-            },
-            {
-                "rank": "3.",
-                "boat": "Speculator",
-                "uid": "speculator",
-                "type": "64' Spencer",
-                "angler": None,
-                "points": "410.5 lb",
-                "image_path": "/static/images/boats/speculator.webp",
-                "category": "Heaviest Blue Marlin"
-            }
-        ]
+        leaderboard = scrape_leaderboard(tournament, force=True)
 
-    # Always respond with status ok
-    return jsonify({"status": "ok", "leaderboard": leaderboard})
-
-
+    return jsonify({"status": "ok" if leaderboard else "error", "leaderboard": leaderboard})
 
 @app.route("/hooked")
 def get_hooked_up_events():

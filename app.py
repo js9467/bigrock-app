@@ -1307,11 +1307,9 @@ from flask import send_from_directory
 def leaderboard_page():
     return send_from_directory('static', 'leaderboard.html')
 
-# Serve JSON data
-
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    """Return categorized leaderboard for current tournament."""
+    """Return leaderboard for current tournament with image paths and categories."""
     tournament = get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
     participants_file = get_cache_path(tournament, "participants.json")
@@ -1322,34 +1320,34 @@ def api_leaderboard():
         with open(participants_file) as f:
             participants = {p["uid"]: p for p in json.load(f)}
 
-    # Load leaderboard (cache or scrape)
+    # ✅ Load leaderboard from cache if fresh, otherwise scrape
     if os.path.exists(lb_file) and (time.time() - os.path.getmtime(lb_file)) < 900:
         with open(lb_file) as f:
             leaderboard = json.load(f)
     else:
         leaderboard = scrape_leaderboard(tournament, force=True)
 
-    # Ensure image paths and categorize
+    # ✅ Enrich leaderboard with images and categories
     categorized = {}
     for entry in leaderboard:
-        uid = entry["uid"]
+        uid = entry.get("uid")
         if uid in participants:
             entry["image_path"] = participants[uid].get("image_path", "/static/images/boats/default.jpg")
         else:
             entry["image_path"] = "/static/images/boats/default.jpg"
 
-        cat = categorize_leaderboard_entry(entry)
+        cat = categorize_entry(entry)
         entry["category"] = cat
         categorized.setdefault(cat, []).append(entry)
 
-    # Sort each category by points or weight
+    # ✅ Sort each category by points descending
     for cat, items in categorized.items():
         def points_val(e):
             p = e.get("points", "0").lower()
             return float(re.sub(r"[^0-9.]", "", p) or 0)
         categorized[cat] = sorted(items, key=points_val, reverse=True)
 
-    # Cache enriched leaderboard
+    # ✅ Save enriched leaderboard back to cache
     with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
@@ -1358,6 +1356,10 @@ def api_leaderboard():
         "leaderboard": leaderboard,
         "categorized": categorized
     })
+
+
+
+
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()

@@ -23,6 +23,7 @@ sent_demo_alerts = set()
 
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
+MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
 
 SMTP_USER = "bigrockapp@gmail.com"
 SMTP_PASS = "coslxivgfqohjvto"  # Gmail App Password

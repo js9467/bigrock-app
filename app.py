@@ -1167,21 +1167,41 @@ def leaderboard_page():
     return send_from_directory('static', 'leaderboard.html')
 
 # Serve JSON data
+
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    """Return leaderboard for current tournament from cache (scrape if older than 15 min)."""
+    """Return leaderboard for current tournament with image paths, using cache if fresh."""
     tournament = get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
+    participants_file = get_cache_path(tournament, "participants.json")
 
-    # ✅ Use cached file if <15 min old
+    # Load participants for image mapping
+    participants = {}
+    if os.path.exists(participants_file):
+        with open(participants_file) as f:
+            participants = {p["uid"]: p for p in json.load(f)}
+
+    # ✅ Load from cache if <15 min old
     if os.path.exists(lb_file) and (time.time() - os.path.getmtime(lb_file)) < 900:
         with open(lb_file) as f:
             leaderboard = json.load(f)
-        return jsonify({"status": "ok", "leaderboard": leaderboard})
+    else:
+        leaderboard = scrape_leaderboard(tournament, force=True)
 
-    # ✅ Scrape fresh and cache
-    leaderboard = scrape_leaderboard(tournament, force=True)
-    return jsonify({"status": "ok" if leaderboard else "error", "leaderboard": leaderboard})
+    # ✅ Ensure each entry has the correct image path
+    for entry in leaderboard:
+        uid = entry["uid"]
+        if uid in participants:
+            entry["image_path"] = participants[uid].get("image_path", "/static/images/boats/default.jpg")
+        else:
+            entry["image_path"] = "/static/images/boats/default.jpg"
+
+    # ✅ Overwrite cache with enriched data
+    with open(lb_file, "w") as f:
+        json.dump(leaderboard, f, indent=2)
+
+    return jsonify({"status": "ok", "leaderboard": leaderboard})
+
 
 
 

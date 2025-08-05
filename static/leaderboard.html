@@ -10,7 +10,7 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
   <div id="app" v-cloak>
-    <!-- Header (duplicated from participants page) -->
+    <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">
         <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
@@ -31,11 +31,20 @@
 
       <!-- Leaderboard Sections -->
       <div v-for="category in groupedLeaderboardKeys" :key="category" class="mb-10">
-        <h2 class="text-2xl font-bold text-white bg-brand-blue px-4 py-2 rounded shadow mb-4">{{ category }}</h2>
+        <h2 class="text-2xl font-bold text-white bg-brand-blue px-4 py-2 rounded shadow mb-4 flex justify-between items-center">
+          {{ category }}
+          <button
+            v-if="showLimit[category] && groupedLeaderboard[category].length > 10"
+            @click="showLimit[category] = false"
+            class="text-xs px-2 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500 transition"
+          >
+            Show All
+          </button>
+        </h2>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           <div
-            v-for="entry in groupedLeaderboard[category]"
+            v-for="entry in displayEntries(category)"
             :key="entry.uid + entry.rank"
             class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col relative"
           >
@@ -55,8 +64,8 @@
 
             <div class="p-4 flex-1 flex flex-col justify-between">
               <div>
-                <h2 class="text-xl font-semibold truncate">{{ entry.boat }}</h2>
-                <p v-if="entry.angler" class="text-brand-gold font-medium truncate">{{ entry.angler }}</p>
+                <h2 class="text-xl font-semibold truncate">{{ entry.boat || entry.angler }}</h2>
+                <p v-if="entry.angler && entry.boat" class="text-brand-gold font-medium truncate">{{ entry.angler }}</p>
                 <p class="text-sm text-gray-600 mb-3 truncate">{{ entry.type || '' }}</p>
               </div>
               <div class="text-lg font-bold text-yellow-600">{{ entry.points }}</div>
@@ -72,8 +81,10 @@
     data() {
       return {
         leaderboard: [],
+        fullLeaderboard: [],
         tournamentLogo: '',
-        loading: false
+        loading: false,
+        showLimit: {} // Track per-category limit toggle
       };
     },
     computed: {
@@ -95,11 +106,24 @@
       }
     },
     methods: {
+      displayEntries(category) {
+        const entries = this.groupedLeaderboard[category] || [];
+        // Limit to 10 unless "Show All" clicked
+        if (this.showLimit[category] && entries.length > 10) {
+          return entries.slice(0, 10);
+        }
+        return entries;
+      },
       async loadLeaderboard() {
         this.loading = true;
         const res = await fetch('/api/leaderboard');
         const data = await res.json();
-        this.leaderboard = data.leaderboard || [];
+        this.fullLeaderboard = data.leaderboard || [];
+        // Initialize limited view to top 10
+        this.leaderboard = this.fullLeaderboard;
+        this.groupedLeaderboardKeys.forEach(cat => {
+          this.showLimit[cat] = true;
+        });
         this.loading = false;
         this.$nextTick(() => this.initLazyLoading());
       },

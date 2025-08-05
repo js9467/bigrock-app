@@ -306,24 +306,26 @@ def cache_boat_image(boat_name, image_url):
 
 def inject_hooked_up_events(events, tournament=None):
     """
-    In demo mode, create Hooked Up events for each resolved event.
-    Hooked events are 5-120 minutes before the resolution and never in the future.
+    Create synthetic Hooked Up events 5–120 min before resolution events.
+    Does NOT alter the original resolution timestamps.
     """
     demo_events = []
     inserted_keys = set()
+    today = datetime.now().date()
 
-    # Sort original events chronologically
+    # Sort by actual timestamp
     events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
 
     for event in events:
-        event_type = event.get("event", "")
-        details = event.get("details", "").lower()
         boat = event.get("boat", "Unknown")
+        uid = event.get("uid", "unknown")
+        etype = event.get("event", "").lower()
+        details = event.get("details", "").lower()
 
-        # Identify resolution events (Released, Boated, Pulled Hook, Wrong Species)
+        # Only inject for resolution events
         is_resolution = (
-            event_type.lower() == "boated"
-            or event_type.lower() == "released"
+            "boated" in etype
+            or "released" in etype
             or "pulled hook" in details
             or "wrong species" in details
         )
@@ -331,46 +333,39 @@ def inject_hooked_up_events(events, tournament=None):
             continue
 
         try:
-            # Parse resolution timestamp
-            res_ts = date_parser.parse(event["timestamp"])
-            if res_ts > datetime.now():
-                # Cap resolution to "now" for demo realism
-                res_ts = datetime.now()
+            # Keep resolution as-is (optional: shift date to today)
+            orig_dt = date_parser.parse(event["timestamp"])
+            res_dt = datetime.combine(today, orig_dt.time())
+            event["timestamp"] = res_dt.isoformat()  # ✅ Demo uses today's date, same time
 
-            # Pick a random delta for hooked up before resolution
+            # Create Hooked Up event 5–120 min before
             delta_minutes = random.randint(5, 120)
-            hookup_time = res_ts - timedelta(minutes=delta_minutes)
+            hookup_dt = res_dt - timedelta(minutes=delta_minutes)
+            if hookup_dt.date() < today:
+                hookup_dt = datetime.combine(today, datetime.min.time()) + timedelta(minutes=1)
 
-            # Ensure we never generate a future Hooked event
-            if hookup_time > datetime.now():
-                hookup_time = datetime.now() - timedelta(minutes=1)
-
-            # Unique key for pairing
-            key = f"{event['uid']}_{res_ts.isoformat()}"
+            key = f"{uid}_{res_dt.isoformat()}"
             if key in inserted_keys:
                 continue
 
-            # Create hooked up event
-            demo_event = {
-                "timestamp": hookup_time.isoformat(),
+            demo_events.append({
+                "timestamp": hookup_dt.isoformat(),
                 "event": "Hooked Up",
                 "boat": boat,
-                "uid": event["uid"],
+                "uid": uid,
                 "details": "Hooked up!",
                 "hookup_id": key
-            }
-
-            demo_events.append(demo_event)
+            })
             inserted_keys.add(key)
 
         except Exception as e:
             print(f"⚠️ Demo injection failed for {boat}: {e}")
 
-    # Combine injected Hooked Up with original events
-    all_events = sorted(demo_events + events, key=lambda e: date_parser.parse(e["timestamp"]))
-    print(f"📦 Returning {len(all_events)} total events (including {len(demo_events)} injected)")
-
+    # Merge synthetic Hooked Up + original events, sort chronologically
+    all_events = sorted(events + demo_events, key=lambda e: date_parser.parse(e["timestamp"]))
+    print(f"📦 Returning {len(all_events)} events (with {len(demo_events)} hooked up injections)")
     return all_events
+
 
 
 def save_demo_data_if_needed(settings, old_settings):

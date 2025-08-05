@@ -651,13 +651,16 @@ import json
 import os
 from bs4 import BeautifulSoup
 
-def categorize_leaderboard_entry(entry):
-    """Guess category based on points or weight string."""
+import re
+
+def categorize_entry(entry):
+    """Guess category based on points or boat name context."""
     points = str(entry.get("points", "")).lower()
 
     # Heaviest catches have "lb"
     if "lb" in points:
         weight = float(re.sub(r"[^0-9.]", "", points) or 0)
+        # Heuristic for species:
         if weight > 200:
             return "blue_marlin"
         elif weight > 40:
@@ -671,6 +674,25 @@ def categorize_leaderboard_entry(entry):
     else:
         # Numeric points = Billfish Release category
         return "release"
+
+
+def categorize_leaderboard(leaderboard):
+    """Attach category to each leaderboard entry and return dict by category."""
+    categorized = {}
+
+    for entry in leaderboard:
+        cat = categorize_entry(entry)
+        entry["category"] = cat
+        categorized.setdefault(cat, []).append(entry)
+
+    # Sort within categories by points (numeric if possible)
+    for cat, items in categorized.items():
+        def points_val(e):
+            p = e.get("points", "0").lower()
+            return float(re.sub(r"[^0-9.]", "", p) or 0)
+        categorized[cat] = sorted(items, key=points_val, reverse=True)
+
+    return categorized
 
 
 def split_boat_and_type(raw_text):
@@ -1309,7 +1331,7 @@ def leaderboard_page():
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    """Return leaderboard for current tournament with image paths and categories."""
+    """Return leaderboard for current tournament, optionally categorized."""
     tournament = get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
     participants_file = get_cache_path(tournament, "participants.json")
@@ -1320,43 +1342,36 @@ def api_leaderboard():
         with open(participants_file) as f:
             participants = {p["uid"]: p for p in json.load(f)}
 
-    # ✅ Load leaderboard from cache if fresh, otherwise scrape
+    # ✅ Load leaderboard (from cache if fresh)
     if os.path.exists(lb_file) and (time.time() - os.path.getmtime(lb_file)) < 900:
         with open(lb_file) as f:
             leaderboard = json.load(f)
     else:
         leaderboard = scrape_leaderboard(tournament, force=True)
 
-    # ✅ Enrich leaderboard with images and categories
-    categorized = {}
+    # ✅ Attach correct image paths
     for entry in leaderboard:
-        uid = entry.get("uid")
-        if uid in participants:
-            entry["image_path"] = participants[uid].get("image_path", "/static/images/boats/default.jpg")
-        else:
-            entry["image_path"] = "/static/images/boats/default.jpg"
+        uid = entry["uid"]
+        entry["image_path"] = participants.get(uid, {}).get(
+            "image_path", "/static/images/boats/default.jpg"
+        )
 
-        cat = categorize_entry(entry)
-        entry["category"] = cat
-        categorized.setdefault(cat, []).append(entry)
-
-    # ✅ Sort each category by points descending
-    for cat, items in categorized.items():
-        def points_val(e):
-            p = e.get("points", "0").lower()
-            return float(re.sub(r"[^0-9.]", "", p) or 0)
-        categorized[cat] = sorted(items, key=points_val, reverse=True)
-
-    # ✅ Save enriched leaderboard back to cache
+    # ✅ Update cache with enriched data
     with open(lb_file, "w") as f:
         json.dump(leaderboard, f, indent=2)
 
-    return jsonify({
-        "status": "ok" if leaderboard else "error",
-        "leaderboard": leaderboard,
-        "categorized": categorized
-    })
+    # ✅ Optional categorization: /api/leaderboard?categorized=1
+    if request.args.get("categorized") == "1":
+        categorized = categorize_leaderboard(leaderboard)
+        return jsonify({
+            "status": "ok",
+            "leaderboard": leaderboard,
+            "categorized": categorized
+        })
 
+    return jsonify({"status": "ok", "leaderboard": leaderboard})
+    
+    
 
 
 

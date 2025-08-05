@@ -630,118 +630,69 @@ from bs4 import BeautifulSoup
 
 CACHE_DIR = "cache"
 
-import os, json, time
-from bs4 import BeautifulSoup
 import requests
-
-LEADERBOARD_CACHE = "cache/leaderboard.json"
-LEADERBOARD_URL = "https://tournament.thebigrock.com/leaderboard"  # Replace with your live URL
-
-CATEGORY_MAP = {
-    "blue marlin": "BLUE_MARLIN",
-    "release": "RELEASE",
-    "tuna": "TUNA",
-    "dolphin": "DOLPHIN",
-    "mahi": "DOLPHIN",
-    "wahoo": "WAHOO"
-}
-import re
-import time
+from bs4 import BeautifulSoup
 import json
 import os
-from bs4 import BeautifulSoup
 
-import re
+MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
+LOCAL_SETTINGS_FILE = "settings.json"
 
-def categorize_entry(entry):
-    """Guess category based on points or boat name context."""
-    points = str(entry.get("points", "")).lower()
+# Use your ScraperAPI function
+API_KEY = "e6f354c9c073ceba04c0fe82e4243ebd"
 
-    # Heaviest catches have "lb"
-    if "lb" in points:
-        weight = float(re.sub(r"[^0-9.]", "", points) or 0)
-        # Heuristic for species:
-        if weight > 200:
-            return "blue_marlin"
-        elif weight > 40:
-            return "tuna"
-        elif weight > 20:
-            return "dolphin"
-        elif weight > 10:
-            return "wahoo"
-        else:
-            return "misc_weight"
-    else:
-        # Numeric points = Billfish Release category
-        return "release"
+def fetch_html(url):
+    """Fetch page HTML using ScraperAPI to bypass SSL issues."""
+    full_url = f"http://api.scraperapi.com?api_key={API_KEY}&url={url}"
+    print(f"📡 Fetching via ScraperAPI: {url}")
+    resp = requests.get(full_url, timeout=60)
+    if resp.status_code == 200:
+        return resp.text
+    print(f"⚠️ Failed to fetch HTML: {resp.status_code}")
+    return ""
 
+def normalize_boat_name(name):
+    return name.lower().replace(' ', '_').replace("'", "").replace("/", "_")
 
-def categorize_leaderboard(leaderboard):
-    """Attach category to each leaderboard entry and return dict by category."""
-    categorized = {}
+def load_current_tournament():
+    """Load current tournament from local settings.json"""
+    if os.path.exists(LOCAL_SETTINGS_FILE):
+        with open(LOCAL_SETTINGS_FILE) as f:
+            settings = json.load(f)
+            return settings.get("tournament", "Big Rock")
+    return "Big Rock"
 
-    for entry in leaderboard:
-        cat = categorize_entry(entry)
-        entry["category"] = cat
-        categorized.setdefault(cat, []).append(entry)
-
-    # Sort within categories by points (numeric if possible)
-    for cat, items in categorized.items():
-        def points_val(e):
-            p = e.get("points", "0").lower()
-            return float(re.sub(r"[^0-9.]", "", p) or 0)
-        categorized[cat] = sorted(items, key=points_val, reverse=True)
-
-    return categorized
-
-
-def split_boat_and_type(raw_text):
-    """
-    Split 'Rebelette 64' Jarrett Bay' -> ('Rebelette', "64' Jarrett Bay")
-    """
-    raw_text = raw_text.strip()
-    # Match: name + (length/type)
-    match = re.match(r"^([A-Za-z0-9' \-]+?)(\d{2,2}.*)?$", raw_text)
-    if match:
-        boat = match.group(1).strip()
-        btype = (match.group(2) or "").strip()
-        return boat, btype
-    return raw_text, ""
-
-def scrape_leaderboard(tournament=None, force=False):
-    """Scrape leaderboard and return list of entries with category, boat, angler, points."""
-    tournament = tournament or get_current_tournament()
-
-    # 1️⃣ Load master JSON to get leaderboard URL
-    try:
-        remote = requests.get(MASTER_JSON_URL, timeout=30).json()
-    except Exception as e:
-        print(f"❌ Failed to load master JSON: {e}")
-        return []
-
+def scrape_leaderboard_test():
+    # 1️⃣ Load master JSON
+    remote = requests.get(MASTER_JSON_URL, timeout=30).json()
+    tournament = load_current_tournament()
     key = next((k for k in remote if k.lower() == tournament.lower()), None)
     if not key:
         print(f"❌ Tournament '{tournament}' not found in master JSON.")
-        return []
+        return
 
     leaderboard_url = remote[key].get("leaderboard")
     if not leaderboard_url:
-        print(f"❌ No leaderboard URL for '{tournament}'.")
-        return []
+        print(f"❌ No leaderboard URL found for '{key}'.")
+        return
 
     print(f"📡 Scraping leaderboard for {tournament} → {leaderboard_url}")
     html = fetch_html(leaderboard_url)
-    if not html:
-        return []
 
-    # Save debug HTML
-    os.makedirs("debug", exist_ok=True)
-    with open("debug/leaderboard_debug.html", "w", encoding="utf-8") as f:
+    if not html:
+        print("❌ No HTML returned.")
+        return
+
+    # Save debug file
+    debug_file = "leaderboard_debug.html"
+    with open(debug_file, "w", encoding="utf-8") as f:
         f.write(html)
+    print(f"📝 Saved debug HTML to {debug_file}")
 
     soup = BeautifulSoup(html, "html.parser")
     leaderboard = []
 
+    # Extract all leaderboard categories from dropdown
     categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav")]
     print(f"Found {len(categories)} categories: {categories}")
 
@@ -764,15 +715,18 @@ def scrape_leaderboard(tournament=None, force=False):
             boat_block = cols[1]
             points = cols[-1].get_text(strip=True)
 
-            # Extract boat/angler info
+            # Try to detect angler vs boat
             h4 = boat_block.find("h4")
             name = h4.get_text(strip=True) if h4 else ""
             text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
 
-            # Heuristic: Angler vs Boat
+            # Heuristic: if points has "lb" and no length → angler
             angler, boat, btype = None, name, text_after
             if "lb" in points.lower() and "'" not in text_after:
-                angler, boat, btype = name, None, None
+                # Junior / angler category
+                angler = name
+                boat = None
+                btype = None
 
             uid = normalize_boat_name(boat or angler or f"rank_{rank}")
 
@@ -783,19 +737,111 @@ def scrape_leaderboard(tournament=None, force=False):
                 "boat": boat,
                 "type": btype,
                 "points": points,
-                "uid": uid,
-                "image_path": f"/static/images/boats/{uid}.webp" if boat else ""
+                "uid": uid
             })
 
-    print(f"✅ Scraped {len(leaderboard)} leaderboard entries for {tournament}")
-
-    # Cache for your API
-    lb_file = get_cache_path(tournament, "leaderboard.json")
-    os.makedirs(os.path.dirname(lb_file), exist_ok=True)
-    with open(lb_file, "w") as f:
+    print(f"✅ Parsed {len(leaderboard)} leaderboard entries")
+    with open("leaderboard_test.json", "w") as f:
         json.dump(leaderboard, f, indent=2)
+    print("💾 Saved parsed leaderboard to leaderboard_test.json")
 
-    return leaderboard 
+if __name__ == "__main__":
+    scrape_leaderboard_test()
+
+
+def load_current_tournament():
+    """Load current tournament from local settings.json"""
+    if os.path.exists(LOCAL_SETTINGS_FILE):
+        with open(LOCAL_SETTINGS_FILE) as f:
+            settings = json.load(f)
+            return settings.get("tournament", "Big Rock")
+    return "Big Rock"
+
+def scrape_leaderboard_test():
+    # 1️⃣ Load master JSON
+    remote = requests.get(MASTER_JSON_URL, timeout=30).json()
+    tournament = load_current_tournament()
+    key = next((k for k in remote if k.lower() == tournament.lower()), None)
+    if not key:
+        print(f"❌ Tournament '{tournament}' not found in master JSON.")
+        return
+
+    leaderboard_url = remote[key].get("leaderboard")
+    if not leaderboard_url:
+        print(f"❌ No leaderboard URL found for '{key}'.")
+        return
+
+    print(f"📡 Scraping leaderboard for {tournament} → {leaderboard_url}")
+    html = fetch_html(leaderboard_url)
+
+    if not html:
+        print("❌ No HTML returned.")
+        return
+
+    # Save debug file
+    debug_file = "leaderboard_debug.html"
+    with open(debug_file, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"📝 Saved debug HTML to {debug_file}")
+
+    soup = BeautifulSoup(html, "html.parser")
+    leaderboard = []
+
+    # Extract all leaderboard categories from dropdown
+    categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav")]
+    print(f"Found {len(categories)} categories: {categories}")
+
+    for category in categories:
+        tab_link = soup.find("a", string=lambda x: x and x.strip() == category)
+        if not tab_link:
+            continue
+
+        tab_id = tab_link.get("href")
+        tab = soup.select_one(tab_id)
+        if not tab:
+            continue
+
+        for row in tab.select("tr.montserrat"):
+            cols = row.find_all("td")
+            if len(cols) < 2:
+                continue
+
+            rank = cols[0].get_text(strip=True)
+            boat_block = cols[1]
+            points = cols[-1].get_text(strip=True)
+
+            # Try to detect angler vs boat
+            h4 = boat_block.find("h4")
+            name = h4.get_text(strip=True) if h4 else ""
+            text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
+
+            # Heuristic: if points has "lb" and no length → angler
+            angler, boat, btype = None, name, text_after
+            if "lb" in points.lower() and "'" not in text_after:
+                # Junior / angler category
+                angler = name
+                boat = None
+                btype = None
+
+            uid = normalize_boat_name(boat or angler or f"rank_{rank}")
+
+            leaderboard.append({
+                "rank": rank,
+                "category": category,
+                "angler": angler,
+                "boat": boat,
+                "type": btype,
+                "points": points,
+                "uid": uid
+            })
+
+    print(f"✅ Parsed {len(leaderboard)} leaderboard entries")
+    with open("leaderboard_test.json", "w") as f:
+        json.dump(leaderboard, f, indent=2)
+    print("💾 Saved parsed leaderboard to leaderboard_test.json")
+
+if __name__ == "__main__":
+    scrape_leaderboard_test()
 
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality

@@ -819,13 +819,12 @@ def participants_data():
     print("📥 /participants_data requested")
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
-    master_file = "participants_master.json"
     participants = []
 
     def prefer_webp(path: str) -> str:
         """Return .webp version if it exists, else original path."""
         if not path:
-            return "/static/images/bigrock.png"
+            return "/static/images/boats/default.jpg"
         base, ext = os.path.splitext(path)
         webp_path = base + ".webp"
         # Remove leading slash for filesystem check
@@ -834,26 +833,24 @@ def participants_data():
         return path
 
     try:
-        # 1️⃣ Try tournament-specific participants.json
+        # 1️⃣ Load tournament-specific participants.json
         if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
             with open(participants_file) as f:
                 participants = json.load(f)
 
-        # No fallback scanning anymore
-# If JSON is missing, trigger an immediate scrape to create it
-if not participants:
-    print(f"⚠️ No participants.json for {tournament} — scraping immediately...")
-    participants = scrape_participants(force=True)
+        # 2️⃣ If JSON is missing or empty, force scrape to create it
+        if not participants:
+            print(f"⚠️ No participants.json for {tournament} — scraping immediately...")
+            participants = scrape_participants(force=True)
 
-
-        # 🔹 Ensure every participant has a valid image path and prefer .webp
+        # 3️⃣ Ensure every participant has a valid image path and prefer .webp
         for p in participants:
             p["image_path"] = prefer_webp(p.get("image_path", ""))
 
     except Exception as e:
         print(f"⚠️ Error loading participants: {e}")
 
-    # 🔹 Always sort alphabetically by boat name
+    # 4️⃣ Always sort alphabetically by boat name
     participants.sort(key=lambda p: p.get("boat", "").lower())
 
     return jsonify({
@@ -861,10 +858,6 @@ if not participants:
         "participants": participants,
         "count": len(participants)
     })
-
-
-
-
 
 @app.route("/scrape/events")
 def get_events():

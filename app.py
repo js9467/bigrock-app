@@ -839,29 +839,12 @@ def participants_data():
             with open(participants_file) as f:
                 participants = json.load(f)
 
-        # 2️⃣ Fallback to participants_master.json filtered by tournament
-        elif os.path.exists(master_file):
-            with open(master_file) as f:
-                master = json.load(f)
-                participants = [
-                    p for p in master
-                    if tournament.lower() in p.get("display_name", "").lower()
-                ]
+        # No fallback scanning anymore
+# If JSON is missing, trigger an immediate scrape to create it
+if not participants:
+    print(f"⚠️ No participants.json for {tournament} — scraping immediately...")
+    participants = scrape_participants(force=True)
 
-        # 3️⃣ Final fallback: scan boat images in static folder
-        if not participants:
-            folder = "static/images/boats"
-            os.makedirs(folder, exist_ok=True)
-            for fname in os.listdir(folder):
-                if fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                    uid = os.path.splitext(fname)[0]
-                    participants.append({
-                        "uid": uid,
-                        "boat": uid.replace("_", " ").replace("-", " ").title(),
-                        "type": "",
-                        "image_path": f"/static/images/boats/{fname}"
-                    })
-            print(f"🛟 Fallback loaded {len(participants)} participants from images")
 
         # 🔹 Ensure every participant has a valid image path and prefer .webp
         for p in participants:

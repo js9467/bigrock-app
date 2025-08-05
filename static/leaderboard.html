@@ -22,6 +22,9 @@
       border-radius: 0.25rem;
       font-size: 0.9rem;
     }
+    .category-title {
+      @apply text-2xl font-bold text-brand-blue mt-8 mb-4;
+    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
@@ -34,14 +37,19 @@
   </header>
 
   <div v-if="loading" class="text-center text-gray-600 py-8">Loading leaderboard...</div>
-  <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-    <div v-for="entry in leaderboard" :key="entry.uid" class="leaderboard-tile bg-white rounded-lg shadow hover:shadow-lg p-4 flex flex-col items-center">
-      <img :src="entry.image_path || '/static/images/boats/default.jpg'" alt="Boat Image" class="w-full h-40 object-cover rounded-md mb-2">
-      <div class="rank-badge mb-2">{{ entry.rank }}</div>
-      <h2 class="text-xl font-semibold mb-1">{{ entry.boat }}</h2>
-      <p class="text-gray-600 mb-1">{{ entry.type || 'Unknown Type' }}</p>
-      <p class="text-gray-500 italic mb-1">{{ entry.category || 'No Category' }}</p>
-      <p class="text-brand-gold font-bold text-lg">{{ entry.points }}</p>
+  <div v-else>
+    <div v-for="(entries, category) in groupedLeaderboard" :key="category">
+      <h2 class="category-title">{{ category }}</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div v-for="entry in entries" :key="entry.uid + entry.rank" class="leaderboard-tile bg-white rounded-lg shadow hover:shadow-lg p-4 flex flex-col items-center">
+          <img :src="entry.image_path || '/static/images/boats/default.jpg'" alt="Boat Image" class="w-full h-40 object-cover rounded-md mb-2">
+          <div class="rank-badge mb-2">{{ entry.rank }}</div>
+          <h2 class="text-xl font-semibold mb-1">{{ entry.boat }}</h2>
+          <p v-if="entry.angler" class="text-brand-gold font-medium mb-1">{{ entry.angler }}</p>
+          <p class="text-gray-600 mb-1">{{ entry.type || 'Unknown Type' }}</p>
+          <p class="text-brand-gold font-bold text-lg">{{ entry.points }}</p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -53,6 +61,17 @@ const app = Vue.createApp({
       leaderboard: [],
       loading: true
     };
+  },
+  computed: {
+    groupedLeaderboard() {
+      const grouped = {};
+      this.leaderboard.forEach(entry => {
+        const category = entry.category || 'Uncategorized';
+        if (!grouped[category]) grouped[category] = [];
+        grouped[category].push(entry);
+      });
+      return grouped;
+    }
   },
   mounted() {
     this.fetchLeaderboard();

@@ -111,7 +111,7 @@
       async loadLeaderboard() {
         this.loading = true;
         try {
-          const res = await fetch('/leaderboard');
+          const res = await fetch('/api/leaderboard');
           const data = await res.json();
           this.leaderboard = data.leaderboard || [];
 

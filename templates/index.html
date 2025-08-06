@@ -169,7 +169,16 @@ const vm = createApp({
       loading: false,
       followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
       lastEventTimestamps: new Set(),
-      settings: { followed_sound: 'fishing reel', boated_sound: 'fishing reel', event_volume: 80, radio_volume: 30, sounds_enabled: true, data_source: 'live', tournament: '' },
+      settings: { 
+        followed_sound: 'fishing reel', 
+        hooked_sound: 'fishing reel',
+        boated_sound: 'fishing reel', 
+        event_volume: 80, 
+        radio_volume: 30, 
+        sounds_enabled: true, 
+        data_source: 'live', 
+        tournament: '' 
+      },
       radioPlaying: false,
       hls: null,
       error: null,
@@ -187,8 +196,8 @@ const vm = createApp({
       this.loadTournamentLogo();
       this.loadParticipants();
       this.fetchAll();
-      setInterval(this.fetchAll, 30000); // events refresh
-      setInterval(this.loadParticipants, 10000); // poll images every 10s
+      setInterval(this.fetchAll, 30000); // refresh events
+      setInterval(this.loadParticipants, 10000); // refresh images
     });
 
     const player = document.getElementById('radio-player');
@@ -220,8 +229,12 @@ const vm = createApp({
             this.lastEventTimestamps.add(key);
             if (isNew && this.settings.sounds_enabled) {
               const etype = (event.event || "").toLowerCase();
-              if (etype.includes("boated")) this.playSound(this.settings.boated_sound);
-              else if (this.isFollowed(event.uid)) this.playSound(this.settings.followed_sound);
+              if (etype.includes("boated")) {
+                this.playSound(this.settings.boated_sound);
+              } else if (this.isFollowed(event.uid)) {
+                // ✅ Followed boats play hooked_sound first, fallback to followed_sound
+                this.playSound(this.settings.hooked_sound || this.settings.followed_sound);
+              }
             }
           }
           this.events = newEvents;
@@ -231,14 +244,22 @@ const vm = createApp({
         .catch(err => { console.error("❌ Fetch error:", err); this.loading = false; });
     },
 
-    fetchSettings() { return fetch('/api/settings').then(res=>res.json()).then(data=>{ this.settings={...this.settings,...data}; }); },
-    fetchVersion() { fetch('/api/version').then(res=>res.json()).then(data=>{ this.version=data.version; }); },
+    fetchSettings() { 
+      return fetch('/api/settings')
+        .then(res=>res.json())
+        .then(data=>{ this.settings={...this.settings,...data}; }); 
+    },
+
+    fetchVersion() { 
+      fetch('/api/version').then(res=>res.json()).then(data=>{ this.version=data.version; }); 
+    },
+
     loadTournamentLogo() {
       fetch('/api/settings').then(res=>res.json()).then(settings=>{
         const tournament = settings.tournament;
-        fetch('https://js9467.github.io/Brtourney/settings.json').then(res=>res.json()).then(all=>{
-          this.tournamentLogo = all[tournament]?.logo || '';
-        });
+        fetch('https://js9467.github.io/Brtourney/settings.json')
+          .then(res=>res.json())
+          .then(all=>{ this.tournamentLogo = all[tournament]?.logo || ''; });
       });
     },
 
@@ -246,7 +267,7 @@ const vm = createApp({
       fetch('/participants_data')
         .then(res => res.json())
         .then(data => {
-          const images = { ...this.boatImages }; // keep existing to avoid flicker
+          const images = { ...this.boatImages };
           for (const p of data.participants) images[p.uid] = p.image_path;
           images["palmer_lou"] = "/static/images/palmer_lou.jpg";
           this.boatImages = images;
@@ -258,7 +279,11 @@ const vm = createApp({
     formatTime(ts) { const dt=new Date(ts); return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); },
     isFollowed(uid) { return this.followed.includes(uid); },
 
-    applyRadioVolume() { const player=document.getElementById('radio-player'); if(player) player.volume=this.settings.radio_volume/100; },
+    applyRadioVolume() { 
+      const player=document.getElementById('radio-player'); 
+      if(player) player.volume=this.settings.radio_volume/100; 
+    },
+
     toggleRadio() { /* unchanged for brevity */ },
 
     setupMessages() {
@@ -267,12 +292,42 @@ const vm = createApp({
       if(this.settings.data_source==='demo') this.enqueueMessage(`Demo mode: events emulated.`);
       if(this.radioPlaying && this.error) this.enqueueMessage(this.error);
     },
+
     enqueueMessage(msg){ if(!this.messageQueue.includes(msg)) this.messageQueue.push(msg); },
-    startMessageRotation(){ if(this.messageQueue.length===0) return; let i=0; this.currentMessage=this.messageQueue[i]; if(this.messageTimer) clearInterval(this.messageTimer); this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length; this.currentMessage=this.messageQueue[i];},7000); }
+    startMessageRotation(){ 
+      if(this.messageQueue.length===0) return; 
+      let i=0; 
+      this.currentMessage=this.messageQueue[i]; 
+      if(this.messageTimer) clearInterval(this.messageTimer); 
+      this.messageTimer=setInterval(()=>{ 
+        i=(i+1)%this.messageQueue.length; 
+        this.currentMessage=this.messageQueue[i]; 
+      },7000); 
+    }
   }
 }).mount('#app');
 
 window.vm = vm;
+
+// ✅ Console helpers for testing sounds
+window.playSound = function(name) {
+  if (!name || !vm.settings.sounds_enabled) {
+    console.warn('❌ No sound configured or sounds disabled.');
+    return;
+  }
+  let cleanName = name.trim();
+  if (!cleanName.toLowerCase().endsWith(".mp3")) cleanName += ".mp3";
+  const audio = new Audio(`/static/sounds/${cleanName}`);
+  audio.volume = (vm.settings.event_volume || 80) / 100;
+  audio.play().then(()=>console.log(`▶ Playing: ${cleanName}`))
+              .catch(err=>console.warn('⚠️ Playback blocked:', err));
+};
+
+window.playFollowed = () => playSound(vm.settings.hooked_sound || vm.settings.followed_sound);
+window.playBoated  = () => playSound(vm.settings.boated_sound);
+
+console.log('✅ Use playFollowed() or playBoated() in console to test.');
 </script>
+
 </body>
 </html>

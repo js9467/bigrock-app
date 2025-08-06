@@ -10,10 +10,7 @@
   <link rel="stylesheet" href="/static/css/base.css">
 
   <style>
-    @keyframes marquee {
-      0% { transform: translateX(100%); }
-      100% { transform: translateX(-100%); }
-    }
+    @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
     .message-strip-wrapper { position: relative; overflow: hidden; height: 2.25rem; background-color: #002855; }
     .message-strip {
       display: inline-block; white-space: nowrap; font-size: 1.2rem; font-weight: 600; color: white;
@@ -94,7 +91,6 @@
          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
       <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
-        <!-- Spinner -->
         <div v-if="!boatImages[event.uid]" class="absolute inset-0 flex items-center justify-center">
           <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -125,7 +121,6 @@
          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
       <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
-        <!-- Spinner -->
         <div v-if="!boatImages[event.uid]" class="absolute inset-0 flex items-center justify-center">
           <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -167,7 +162,7 @@ const vm = createApp({
       tournamentLogo: '',
       version: '',
       loading: false,
-      followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+      followed: [], // loaded from backend
       lastEventTimestamps: new Set(),
       settings: {
         followed_sound: '',
@@ -189,41 +184,47 @@ const vm = createApp({
   },
 
   mounted() {
-    this.fetchSettings().then(() => {
-      this.setupMessages();
-      this.startMessageRotation();
-      this.fetchVersion();
-      this.loadTournamentLogo();
-      this.loadParticipants();
-      this.fetchAll();
-      setInterval(this.fetchAll, 30000); // events refresh
-      setInterval(this.loadParticipants, 10000); // poll images every 10s
-    });
+    this.fetchSettings()
+        .then(() => this.loadFollowed()) // load backend followed list
+        .then(() => {
+          this.setupMessages();
+          this.startMessageRotation();
+          this.fetchVersion();
+          this.loadTournamentLogo();
+          this.loadParticipants();
+          this.fetchAll();
+          setInterval(this.fetchAll, 30000);
+          setInterval(this.loadParticipants, 10000);
+        });
 
     const player = document.getElementById('radio-player');
     if (player) player.volume = this.settings.radio_volume / 100;
-
-    // ✅ Console helpers for testing sounds
-    window.playFollowed = () => this.playSound(this.settings.followed_sound);
-    window.playBoated = () => this.playSound(this.settings.boated_sound);
-    window.playHooked = () => this.playSound(this.settings.hooked_sound);
-    console.log("✅ Use playFollowed(), playBoated(), or playHooked() in console to test.");
   },
 
   methods: {
-    // 🔊 Play exactly the sound defined in settings
+    async loadFollowed() {
+      try {
+        const res = await fetch('/followed-boats');
+        this.followed = await res.json();
+      } catch(e) {
+        console.error("Failed to load followed boats", e);
+        this.followed = [];
+      }
+    },
+
+    isFollowed(uid) {
+      const normalize = str => (str || '').toLowerCase().replace(/[' ]/g, "_");
+      return this.followed.some(b => normalize(b) === normalize(uid));
+    },
+
     playSound(filename) {
       if (!filename || !this.settings.sounds_enabled) return;
-
       let cleanName = filename.trim();
       if (!cleanName.toLowerCase().endsWith(".mp3")) cleanName += ".mp3";
-
       const audioPath = `/static/sounds/${encodeURIComponent(cleanName)}`;
       const audio = new Audio(audioPath);
       audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play()
-        .then(() => console.log(`▶ Playing: ${audioPath}`))
-        .catch(err => console.warn('⚠️ Playback failed:', err));
+      audio.play().catch(() => {});
     },
 
     fetchAll() {
@@ -241,14 +242,10 @@ const vm = createApp({
             const isNew = !this.lastEventTimestamps.has(key);
             this.lastEventTimestamps.add(key);
 
-            // 🔊 Play associated sound if new
             if (isNew && this.settings.sounds_enabled) {
               const etype = (event.event || "").toLowerCase();
-              if (etype.includes("boated")) {
-                this.playSound(this.settings.boated_sound);
-              } else if (this.isFollowed(event.uid)) {
-                this.playSound(this.settings.followed_sound);
-              }
+              if (etype.includes("boated")) this.playSound(this.settings.boated_sound);
+              else if (this.isFollowed(event.uid)) this.playSound(this.settings.followed_sound);
             }
           }
 
@@ -266,9 +263,7 @@ const vm = createApp({
     },
 
     fetchVersion() {
-      fetch('/api/version')
-        .then(res => res.json())
-        .then(data => { this.version = data.version; });
+      fetch('/api/version').then(res => res.json()).then(data => { this.version = data.version; });
     },
 
     loadTournamentLogo() {
@@ -293,11 +288,11 @@ const vm = createApp({
 
     getBoatImage(uid) { return this.boatImages[uid] || '/static/images/bigrock.webp'; },
     onImageError(e) { e.target.src = '/static/images/bigrock.webp'; },
+
     formatTime(ts) {
       const dt = new Date(ts);
       return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     },
-    isFollowed(uid) { return this.followed.includes(uid); },
 
     applyRadioVolume() {
       const player = document.getElementById('radio-player');
@@ -309,8 +304,7 @@ const vm = createApp({
       if (!player) return;
 
       if (this.radioPlaying) {
-        player.pause();
-        this.radioPlaying = false;
+        player.pause(); this.radioPlaying = false;
       } else {
         fetch('/api/settings')
           .then(res => res.json())
@@ -326,14 +320,9 @@ const vm = createApp({
                     this.hls.loadSource(stream);
                     this.hls.attachMedia(player);
                     this.hls.on(Hls.Events.MANIFEST_PARSED, () => { player.play(); });
-                  } else {
-                    player.src = stream;
-                    player.play();
-                  }
+                  } else { player.src = stream; player.play(); }
                   this.radioPlaying = true;
-                } else {
-                  alert("No VHF stream available.");
-                }
+                } else { alert("No VHF stream available."); }
               });
           });
       }
@@ -361,7 +350,6 @@ const vm = createApp({
 
 window.vm = vm;
 </script>
-
 
 </body>
 </html>

@@ -1655,39 +1655,51 @@ def save_emailed_events():
 
 @app.route('/followed-boats', methods=['GET'])
 def get_followed_boats_api():
-    """Return current followed boats as UIDs"""
-    return jsonify(get_followed_boats())
+    """
+    Return the followed boats exactly as stored (names),
+    so the frontend can match them and persist correctly.
+    """
+    settings = load_settings()
+    return jsonify(settings.get("followed_boats", []))
+
 
 @app.route('/followed-boats/toggle', methods=['POST'])
 def toggle_followed_boat():
-    """Toggle follow/unfollow for a given boat"""
+    """
+    Toggle follow/unfollow for a given boat and persist to settings.json
+    """
     data = request.get_json()
     boat = data.get("boat")
     if not boat:
         return jsonify({"status": "error", "message": "Missing 'boat'"}), 400
 
-    uid = normalize_boat_name(boat)
     settings = load_settings()
     followed = settings.get("followed_boats", [])
 
-    # Normalize all names
-    followed_uids = [normalize_boat_name(b) for b in followed]
+    # Normalize for checking
+    def norm(b): return b.lower().replace("'", "").replace(" ", "_").replace("/", "_")
+    uid = norm(boat)
+    followed_norm = [norm(b) for b in followed]
 
-    if uid in followed_uids:
-        # Remove it
-        followed = [b for b in followed if normalize_boat_name(b) != uid]
+    if uid in followed_norm:
+        # Remove boat
+        followed = [b for b in followed if norm(b) != uid]
         action = "unfollowed"
     else:
-        # Add it
+        # Add boat
         followed.append(boat)
         action = "followed"
 
+    # Save back to settings.json
     settings["followed_boats"] = followed
-
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=4)
 
-    return jsonify({"status": "ok", "action": action, "followed_boats": followed})
+    return jsonify({
+        "status": "ok",
+        "action": action,
+        "followed_boats": followed
+    })
 
 
 

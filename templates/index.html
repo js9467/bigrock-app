@@ -169,15 +169,15 @@ const vm = createApp({
       loading: false,
       followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
       lastEventTimestamps: new Set(),
-      settings: { 
-        followed_sound: 'fishing reel', 
-        hooked_sound: 'fishing reel',
-        boated_sound: 'fishing reel', 
-        event_volume: 80, 
-        radio_volume: 30, 
-        sounds_enabled: true, 
-        data_source: 'live', 
-        tournament: '' 
+      settings: {
+        followed_sound: '',
+        boated_sound: '',
+        hooked_sound: '',
+        event_volume: 80,
+        radio_volume: 30,
+        sounds_enabled: true,
+        data_source: 'live',
+        tournament: ''
       },
       radioPlaying: false,
       hls: null,
@@ -196,22 +196,34 @@ const vm = createApp({
       this.loadTournamentLogo();
       this.loadParticipants();
       this.fetchAll();
-      setInterval(this.fetchAll, 30000); // refresh events
-      setInterval(this.loadParticipants, 10000); // refresh images
+      setInterval(this.fetchAll, 30000); // events refresh
+      setInterval(this.loadParticipants, 10000); // poll images every 10s
     });
 
     const player = document.getElementById('radio-player');
     if (player) player.volume = this.settings.radio_volume / 100;
+
+    // ✅ Console helpers for testing sounds
+    window.playFollowed = () => this.playSound(this.settings.followed_sound);
+    window.playBoated = () => this.playSound(this.settings.boated_sound);
+    window.playHooked = () => this.playSound(this.settings.hooked_sound);
+    console.log("✅ Use playFollowed(), playBoated(), or playHooked() in console to test.");
   },
 
   methods: {
+    // 🔊 Play exactly the sound defined in settings
     playSound(filename) {
       if (!filename || !this.settings.sounds_enabled) return;
+
       let cleanName = filename.trim();
       if (!cleanName.toLowerCase().endsWith(".mp3")) cleanName += ".mp3";
-      const audio = new Audio(`/static/sounds/${cleanName}`);
+
+      const audioPath = `/static/sounds/${encodeURIComponent(cleanName)}`;
+      const audio = new Audio(audioPath);
       audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play().catch(()=>{});
+      audio.play()
+        .then(() => console.log(`▶ Playing: ${audioPath}`))
+        .catch(err => console.warn('⚠️ Playback failed:', err));
     },
 
     fetchAll() {
@@ -223,20 +235,23 @@ const vm = createApp({
         .then(([eventsData, hookedData]) => {
           const newEvents = eventsData.events || [];
           const newHooked = hookedData.events || [];
+
           for (const event of newEvents) {
             const key = event.timestamp + event.uid;
             const isNew = !this.lastEventTimestamps.has(key);
             this.lastEventTimestamps.add(key);
+
+            // 🔊 Play associated sound if new
             if (isNew && this.settings.sounds_enabled) {
               const etype = (event.event || "").toLowerCase();
               if (etype.includes("boated")) {
                 this.playSound(this.settings.boated_sound);
               } else if (this.isFollowed(event.uid)) {
-                // ✅ Followed boats play hooked_sound first, fallback to followed_sound
-                this.playSound(this.settings.hooked_sound || this.settings.followed_sound);
+                this.playSound(this.settings.followed_sound);
               }
             }
           }
+
           this.events = newEvents;
           this.hooked = newHooked;
           this.loading = false;
@@ -244,22 +259,24 @@ const vm = createApp({
         .catch(err => { console.error("❌ Fetch error:", err); this.loading = false; });
     },
 
-    fetchSettings() { 
+    fetchSettings() {
       return fetch('/api/settings')
-        .then(res=>res.json())
-        .then(data=>{ this.settings={...this.settings,...data}; }); 
+        .then(res => res.json())
+        .then(data => { this.settings = { ...this.settings, ...data }; });
     },
 
-    fetchVersion() { 
-      fetch('/api/version').then(res=>res.json()).then(data=>{ this.version=data.version; }); 
+    fetchVersion() {
+      fetch('/api/version')
+        .then(res => res.json())
+        .then(data => { this.version = data.version; });
     },
 
     loadTournamentLogo() {
-      fetch('/api/settings').then(res=>res.json()).then(settings=>{
+      fetch('/api/settings').then(res => res.json()).then(settings => {
         const tournament = settings.tournament;
         fetch('https://js9467.github.io/Brtourney/settings.json')
-          .then(res=>res.json())
-          .then(all=>{ this.tournamentLogo = all[tournament]?.logo || ''; });
+          .then(res => res.json())
+          .then(all => { this.tournamentLogo = all[tournament]?.logo || ''; });
       });
     },
 
@@ -276,58 +293,75 @@ const vm = createApp({
 
     getBoatImage(uid) { return this.boatImages[uid] || '/static/images/bigrock.webp'; },
     onImageError(e) { e.target.src = '/static/images/bigrock.webp'; },
-    formatTime(ts) { const dt=new Date(ts); return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); },
+    formatTime(ts) {
+      const dt = new Date(ts);
+      return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    },
     isFollowed(uid) { return this.followed.includes(uid); },
 
-    applyRadioVolume() { 
-      const player=document.getElementById('radio-player'); 
-      if(player) player.volume=this.settings.radio_volume/100; 
+    applyRadioVolume() {
+      const player = document.getElementById('radio-player');
+      if (player) player.volume = this.settings.radio_volume / 100;
     },
 
-    toggleRadio() { /* unchanged for brevity */ },
+    toggleRadio() {
+      const player = document.getElementById('radio-player');
+      if (!player) return;
+
+      if (this.radioPlaying) {
+        player.pause();
+        this.radioPlaying = false;
+      } else {
+        fetch('/api/settings')
+          .then(res => res.json())
+          .then(settings => {
+            const tournament = settings.tournament;
+            fetch('https://js9467.github.io/Brtourney/settings.json')
+              .then(res => res.json())
+              .then(all => {
+                const stream = all[tournament]?.stream || all[tournament]?.fallback_stream;
+                if (stream) {
+                  if (Hls.isSupported()) {
+                    if (!this.hls) this.hls = new Hls();
+                    this.hls.loadSource(stream);
+                    this.hls.attachMedia(player);
+                    this.hls.on(Hls.Events.MANIFEST_PARSED, () => { player.play(); });
+                  } else {
+                    player.src = stream;
+                    player.play();
+                  }
+                  this.radioPlaying = true;
+                } else {
+                  alert("No VHF stream available.");
+                }
+              });
+          });
+      }
+    },
 
     setupMessages() {
-      this.messageQueue=[];
-      if(!navigator.onLine) this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);
-      if(this.settings.data_source==='demo') this.enqueueMessage(`Demo mode: events emulated.`);
-      if(this.radioPlaying && this.error) this.enqueueMessage(this.error);
+      this.messageQueue = [];
+      if (!navigator.onLine) this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);
+      if (this.settings.data_source === 'demo') this.enqueueMessage(`Demo mode: events emulated.`);
+      if (this.radioPlaying && this.error) this.enqueueMessage(this.error);
     },
-
-    enqueueMessage(msg){ if(!this.messageQueue.includes(msg)) this.messageQueue.push(msg); },
-    startMessageRotation(){ 
-      if(this.messageQueue.length===0) return; 
-      let i=0; 
-      this.currentMessage=this.messageQueue[i]; 
-      if(this.messageTimer) clearInterval(this.messageTimer); 
-      this.messageTimer=setInterval(()=>{ 
-        i=(i+1)%this.messageQueue.length; 
-        this.currentMessage=this.messageQueue[i]; 
-      },7000); 
+    enqueueMessage(msg) { if (!this.messageQueue.includes(msg)) this.messageQueue.push(msg); },
+    startMessageRotation() {
+      if (this.messageQueue.length === 0) return;
+      let i = 0;
+      this.currentMessage = this.messageQueue[i];
+      if (this.messageTimer) clearInterval(this.messageTimer);
+      this.messageTimer = setInterval(() => {
+        i = (i + 1) % this.messageQueue.length;
+        this.currentMessage = this.messageQueue[i];
+      }, 7000);
     }
   }
 }).mount('#app');
 
 window.vm = vm;
-
-// ✅ Console helpers for testing sounds
-window.playSound = function(name) {
-  if (!name || !vm.settings.sounds_enabled) {
-    console.warn('❌ No sound configured or sounds disabled.');
-    return;
-  }
-  let cleanName = name.trim();
-  if (!cleanName.toLowerCase().endsWith(".mp3")) cleanName += ".mp3";
-  const audio = new Audio(`/static/sounds/${cleanName}`);
-  audio.volume = (vm.settings.event_volume || 80) / 100;
-  audio.play().then(()=>console.log(`▶ Playing: ${cleanName}`))
-              .catch(err=>console.warn('⚠️ Playback blocked:', err));
-};
-
-window.playFollowed = () => playSound(vm.settings.hooked_sound || vm.settings.followed_sound);
-window.playBoated  = () => playSound(vm.settings.boated_sound);
-
-console.log('✅ Use playFollowed() or playBoated() in console to test.');
 </script>
+
 
 </body>
 </html>

@@ -102,7 +102,7 @@
   </div>
 
   <!-- Event Feed -->
-  <div class="w-2/3 overflow-y-auto">
+  <div class="w-2/3 overflow-y-auto event-feed">
     <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
       Event Feed
     </div>
@@ -202,7 +202,30 @@ createApp({
     updateDemoMessage(){if(this.settings.data_source==='demo'){this.enqueueMessage(`🎣 Demo mode active — <a href="#" onclick="window.vm.injectPalmerLouEvent();return false;">Inject Palmer Lou</a>`);}},
     enqueueMessage(m){if(!this.messageQueue.includes(m))this.messageQueue.push(m);},
     startMessageRotation(){if(this.messageQueue.length===0)return;let i=0;this.currentMessage=this.messageQueue[i];if(this.messageTimer)clearInterval(this.messageTimer);this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length;this.currentMessage=this.messageQueue[i];},7000);},
-    injectPalmerLouEvent(){fetch('/generate_demo').then(()=>alert('Palmer Lou demo event injected.'));} 
+
+    // Frontend-only Palmer Lou injection
+    injectPalmerLouEvent() {
+      const now = new Date().toISOString();
+      const newEvent = {
+        timestamp: now,
+        event: "Boated",
+        boat: "Palmer Lou",
+        uid: "palmer_lou",
+        details: "Palmer Lou boated a massive blue marlin and is headed to the scales!"
+      };
+      this.events.unshift(newEvent);
+
+      // Instant scroll to top
+      this.$nextTick(() => {
+        const feed = document.querySelector('.event-feed');
+        if (feed) feed.scrollTop = 0;
+      });
+
+      // Play boated sound immediately
+      this.playSound(this.settings.boated_sound || this.settings.followed_sound || 'generic_005_104781');
+
+      console.log("🎣 Injected Palmer Lou demo event (frontend only)");
+    }
   }
 }).mount('#app');
 

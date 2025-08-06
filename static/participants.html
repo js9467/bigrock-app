@@ -41,7 +41,11 @@
         <div
           v-for="p in filteredParticipants"
           :key="p.uid"
-          class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col"
+          class="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow overflow-hidden flex flex-col border-4"
+          :class="{
+            'border-green-500 bg-green-50': isFollowed(p.boat),
+            'border-transparent': !isFollowed(p.boat)
+          }"
         >
           <!-- Image with Spinner Overlay -->
           <div class="relative w-full h-48 bg-gray-200 flex items-center justify-center">
@@ -70,13 +74,13 @@
               <p class="text-sm text-gray-600 mb-3 truncate">{{ p.type || '' }}</p>
             </div>
             <button
-              @click="toggleFollow(p.uid)"
+              @click="toggleFollow(p.boat)"
               :class="{
-                'bg-green-600 hover:bg-green-700': isFollowed(p.uid),
-                'bg-gray-300 hover:bg-gray-400': !isFollowed(p.uid)
+                'bg-green-600 hover:bg-green-700': isFollowed(p.boat),
+                'bg-gray-300 hover:bg-gray-400': !isFollowed(p.boat)
               }"
               class="px-4 py-1 text-white rounded w-full mt-2">
-              {{ isFollowed(p.uid) ? 'Following' : 'Follow' }}
+              {{ isFollowed(p.boat) ? 'Following' : 'Follow' }}
             </button>
           </div>
         </div>
@@ -97,7 +101,7 @@
     data() {
       return {
         participants: [],
-        followed: JSON.parse(localStorage.getItem('followedBoats') || '[]'),
+        followed: [],        // Loaded from backend now
         tournamentLogo: '',
         search: '',
         loading: false,
@@ -114,16 +118,32 @@
       }
     },
     methods: {
-      toggleFollow(uid) {
-        if (this.followed.includes(uid)) {
-          this.followed = this.followed.filter(id => id !== uid);
-        } else {
-          this.followed.push(uid);
+      async loadFollowed() {
+        try {
+          const res = await fetch('/followed-boats');
+          this.followed = await res.json();
+        } catch(e) {
+          console.error('Failed to load followed boats', e);
         }
-        localStorage.setItem('followedBoats', JSON.stringify(this.followed));
       },
-      isFollowed(uid) {
-        return this.followed.includes(uid);
+      async toggleFollow(boat) {
+        try {
+          const res = await fetch('/followed-boats/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ boat })
+          });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            this.followed = data.followed_boats;
+          }
+        } catch(e) {
+          console.error('Toggle follow failed', e);
+        }
+      },
+      isFollowed(boat) {
+        const uid = boat.toLowerCase().replace(/[' ]/g, "_");
+        return this.followed.some(b => b.toLowerCase().replace(/[' ]/g, "_") === uid);
       },
       async loadParticipants() {
         this.loading = true;
@@ -205,6 +225,7 @@
     mounted() {
       this.loadLogo();
       this.loadParticipants();
+      this.loadFollowed(); // <-- Load followed boats from backend
       this.startPolling();
     },
     beforeUnmount() {

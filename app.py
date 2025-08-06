@@ -24,8 +24,6 @@ sent_demo_alerts = set()
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
 MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
-DEMO_EVENTS_FILE = 'demo_events.json'
-DEMO_LEADERBOARD_FILE = 'demo_leaderboard.json'
 
 SMTP_USER = "bigrockapp@gmail.com"
 SMTP_PASS = "coslxivgfqohjvto"  # Gmail App Password
@@ -222,26 +220,15 @@ def load_settings():
             return json.load(f)
     return {}
 
-def load_demo_events():
-    """Load demo mode events only."""
-    if os.path.exists(DEMO_EVENTS_FILE):
+def load_demo_data(tournament):
+    if os.path.exists(DEMO_DATA_FILE):
         try:
-            with open(DEMO_EVENTS_FILE, 'r') as f:
-                return json.load(f)
+            with open(DEMO_DATA_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get(tournament, {'events': [], 'leaderboard': []})
         except Exception as e:
-            print(f"⚠️ Error loading demo events: {e}")
-    return []
-
-def load_demo_leaderboard():
-    """Load demo mode leaderboard only."""
-    if os.path.exists(DEMO_LEADERBOARD_FILE):
-        try:
-            with open(DEMO_LEADERBOARD_FILE, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"⚠️ Error loading demo leaderboard: {e}")
-    return []
-
+            print(f"⚠️ Error loading demo data: {e}")
+    return {'events': [], 'leaderboard': []}
 
 def get_data_source():
     settings = load_settings()
@@ -396,25 +383,24 @@ def inject_hooked_up_events(events, tournament=None):
 
 
 def save_demo_data_if_needed(settings, old_settings):
-    """Save demo events and leaderboard into separate JSON files if in demo mode."""
     if settings.get("data_source") == "demo":
         print("📦 [DEMO] Saving demo data...")
         tournament = settings.get("tournament", "Big Rock")
         try:
-            # 1️⃣ Scrape fresh events & leaderboard
-            events = scrape_events(force=True, tournament=tournament)
+            events = scrape_events(force=True)
             leaderboard = scrape_leaderboard(tournament)
-
-            # 2️⃣ Inject Hooked Up demo events
+            demo_data = {}
+            if os.path.exists(DEMO_DATA_FILE):
+                with open(DEMO_DATA_FILE, 'r') as f:
+                    demo_data = json.load(f)
             injected = inject_hooked_up_events(events, tournament)
-
-            # 3️⃣ Save to separate files
-            with open(DEMO_EVENTS_FILE, 'w') as f:
-                json.dump(injected, f, indent=2)
-            with open(DEMO_LEADERBOARD_FILE, 'w') as f:
-                json.dump(leaderboard, f, indent=2)
-
-            print(f"✅ [DEMO] Demo files updated: {len(injected)} events, {len(leaderboard)} leaderboard entries")
+            demo_data[tournament] = {
+                "events": injected,
+                "leaderboard": leaderboard
+            }
+            with open(DEMO_DATA_FILE, 'w') as f:
+                json.dump(demo_data, f, indent=4)
+            print(f"✅ [DEMO] Saved demo_data.json for {tournament}")
         except Exception as e:
             print(f"❌ [DEMO] Failed to cache demo data: {e}")
 
@@ -1165,25 +1151,30 @@ def settings_page():
 
 @app.route("/generate_demo")
 def generate_demo():
-    """Force regenerate demo files for events and leaderboard."""
     try:
         tournament = get_current_tournament()
-        events = scrape_events(force=True, tournament=tournament)
-        leaderboard = scrape_leaderboard(tournament, force=True)
-
+        events = scrape_events(force=True, skip_timestamp_check=True)
+        leaderboard = scrape_leaderboard(force=True)
         injected = inject_hooked_up_events(events, tournament)
-
-        with open(DEMO_EVENTS_FILE, 'w') as f:
-            json.dump(injected, f, indent=2)
-        with open(DEMO_LEADERBOARD_FILE, 'w') as f:
-            json.dump(leaderboard, f, indent=2)
-
-        print(f"✅ [DEMO] Demo files written: {len(injected)} events, {len(leaderboard)} leaderboard entries")
+        demo_data = {}
+        if os.path.exists(DEMO_DATA_FILE):
+            with open(DEMO_DATA_FILE, 'r') as f:
+                demo_data = json.load(f)
+        demo_data[tournament] = {
+            "events": injected,
+            "leaderboard": leaderboard
+        }
+        with open(DEMO_DATA_FILE, 'w') as f:
+            json.dump(demo_data, f, indent=4)
+        print(f"✅ [DEMO] demo_data.json written with {len(injected)} events")
         return jsonify({"status": "ok", "events": len(injected)})
-
     except Exception as e:
         print(f"❌ Error generating demo data: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
+from flask import render_template
+
+from flask import send_from_directory
 
 @app.route("/leaderboard")
 def leaderboard_page():

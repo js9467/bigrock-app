@@ -66,13 +66,8 @@
   </div>
 
   <!-- Live Alert Bar -->
-  <div v-if="messageQueue.length > 0" class="w-full mt-3">
-    <div class="bg-yellow-400 text-blue-900 font-extrabold px-4 py-2 text-center text-lg leading-snug break-words whitespace-normal rounded shadow-inner shadow-yellow-500/50 animate-pulse-slow" v-html="currentMessage"></div>
-    <button v-if="settings.data_source === 'demo'" 
-            @click="injectTestEvent" 
-            class="absolute top-2 right-2 text-xs font-bold text-blue-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded shadow">
-      + Demo Event
-    </button>
+  <div v-if="messageQueue.length > 0" class="w-full mt-3 message-strip-wrapper">
+    <div class="message-strip" v-html="currentMessage"></div>
   </div>
 
   <div class="absolute bottom-1 right-3 text-xs text-white/50 italic" v-if="version">v{{ version }}</div>
@@ -88,12 +83,6 @@
          :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
       <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
-        <div v-if="!boatImages[event.uid]" class="absolute inset-0 flex items-center justify-center">
-          <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-          </svg>
-        </div>
         <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
              loading="lazy" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
              @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
@@ -104,7 +93,6 @@
         <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
       </div>
 
-      <!-- Follow Toggle -->
       <button @click="toggleFollow(event.boat)"
               :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
               class="px-2 py-1 text-white rounded text-xs">
@@ -116,15 +104,18 @@
   <!-- Event Feed -->
   <div class="w-2/3 overflow-y-auto">
     <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
-      <span>Event Feed</span>
+      Event Feed
     </div>
 
     <!-- Followed Boats Chips -->
-    <div v-if="followed.length" class="flex flex-wrap gap-2 px-4 py-2 bg-white border-b border-gray-200">
-      <div v-for="boat in followed" :key="boat"
-           class="flex items-center bg-yellow-200 text-yellow-900 font-semibold px-3 py-1 rounded-full shadow-sm">
-        {{ boat }}
-        <button @click="toggleFollow(boat)" class="ml-2 text-red-600 hover:text-red-800 font-bold text-sm">❌</button>
+    <div v-if="followed.length" class="px-4 py-2 bg-white border-b border-gray-200">
+      <div class="font-semibold text-gray-600 mb-1">Followed Boats:</div>
+      <div class="flex flex-wrap gap-2">
+        <div v-for="boat in followed" :key="boat"
+             class="flex items-center bg-yellow-200 text-yellow-900 font-semibold px-3 py-1 rounded-full shadow-sm">
+          {{ boat }}
+          <button @click="toggleFollow(boat)" class="ml-2 text-red-600 hover:text-red-800 font-bold text-sm">❌</button>
+        </div>
       </div>
     </div>
 
@@ -135,12 +126,6 @@
          :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
       <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
-        <div v-if="!boatImages[event.uid]" class="absolute inset-0 flex items-center justify-center">
-          <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-          </svg>
-        </div>
         <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
              loading="lazy" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
              @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
@@ -152,7 +137,6 @@
         <div class="text-sm">{{ event.details }}</div>
       </div>
 
-      <!-- Follow Toggle -->
       <button @click="toggleFollow(event.boat)"
               :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
               class="px-2 py-1 text-white rounded text-xs">
@@ -204,7 +188,7 @@ createApp({
     playSound(f){if(!f||!this.settings.sounds_enabled)return;let fn=f.trim();if(!fn.toLowerCase().endsWith('.mp3'))fn+='.mp3';const a=new Audio(`/static/sounds/${encodeURIComponent(fn)}`);a.volume=(this.settings.event_volume||80)/100;a.play().catch(()=>{});},
     fetchAll(){this.loading=true;Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
       .then(([ed,hd])=>{const ne=ed.events||[],nh=hd.events||[];for(const e of ne){const k=e.timestamp+e.uid;if(!this.lastEventTimestamps.has(k)){this.lastEventTimestamps.add(k);const et=(e.event||'').toLowerCase();if(this.settings.sounds_enabled){if(et.includes('boated'))this.playSound(this.settings.boated_sound);else if(this.isFollowed(e.uid))this.playSound(this.settings.followed_sound);}}}
-        this.events=ne;this.hooked=nh;this.loading=false;}).catch(()=>{this.loading=false;});},
+        this.events=ne;this.hooked=nh;this.loading=false;this.updateDemoMessage();}).catch(()=>{this.loading=false;});},
     fetchSettings(){return fetch('/api/settings').then(r=>r.json()).then(d=>{this.settings={...this.settings,...d};});},
     fetchVersion(){fetch('/api/version').then(r=>r.json()).then(d=>{this.version=d.version;});},
     loadTournamentLogo(){fetch('/api/settings').then(r=>r.json()).then(s=>{const t=s.tournament;fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{this.tournamentLogo=all[t]?.logo||'';});});},
@@ -214,11 +198,15 @@ createApp({
     formatTime(ts){const dt=new Date(ts);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});},
     applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;},
     toggleRadio(){const p=document.getElementById('radio-player');if(!p)return;if(this.radioPlaying){p.pause();this.radioPlaying=false;}else{fetch('/api/settings').then(r=>r.json()).then(s=>{const t=s.tournament;fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{const stream=all[t]?.stream||all[t]?.fallback_stream;if(stream){if(Hls.isSupported()){if(!this.hls)this.hls=new Hls();this.hls.loadSource(stream);this.hls.attachMedia(p);this.hls.on(Hls.Events.MANIFEST_PARSED,()=>{p.play();});}else{p.src=stream;p.play();}this.radioPlaying=true;}else alert('No VHF stream available.');});});}},
-    setupMessages(){this.messageQueue=[];if(!navigator.onLine)this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);if(this.settings.data_source==='demo')this.enqueueMessage(`Demo mode: events emulated.`);if(this.radioPlaying&&this.error)this.enqueueMessage(this.error);},
+    setupMessages(){this.messageQueue=[];if(!navigator.onLine)this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);this.updateDemoMessage();},
+    updateDemoMessage(){if(this.settings.data_source==='demo'){this.enqueueMessage(`🎣 Demo mode active — <a href="#" onclick="window.vm.injectPalmerLouEvent();return false;">Inject Palmer Lou</a>`);}},
     enqueueMessage(m){if(!this.messageQueue.includes(m))this.messageQueue.push(m);},
-    startMessageRotation(){if(this.messageQueue.length===0)return;let i=0;this.currentMessage=this.messageQueue[i];if(this.messageTimer)clearInterval(this.messageTimer);this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length;this.currentMessage=this.messageQueue[i];},7000);}
+    startMessageRotation(){if(this.messageQueue.length===0)return;let i=0;this.currentMessage=this.messageQueue[i];if(this.messageTimer)clearInterval(this.messageTimer);this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length;this.currentMessage=this.messageQueue[i];},7000);},
+    injectPalmerLouEvent(){fetch('/generate_demo').then(()=>alert('Palmer Lou demo event injected.'));} 
   }
 }).mount('#app');
+
+window.vm = app;
 </script>
 
 </body>

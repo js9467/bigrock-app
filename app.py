@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
 from dateutil import parser as date_parser
 from datetime import datetime, timedelta
-import json
+import jsonfollowed
 import os
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
@@ -1653,22 +1653,41 @@ def save_emailed_events():
     with open(NOTIFIED_FILE, "w") as f:
         json.dump(list(emailed_events), f)
 
-@app.route('/settings/followed-boats', methods=['POST'])
-def update_followed_boats():
-    """Add or replace the followed_boats list in settings.json"""
+@app.route('/followed-boats', methods=['GET'])
+def get_followed_boats_api():
+    """Return current followed boats as UIDs"""
+    return jsonify(get_followed_boats())
+
+@app.route('/followed-boats/toggle', methods=['POST'])
+def toggle_followed_boat():
+    """Toggle follow/unfollow for a given boat"""
     data = request.get_json()
-    boats = data.get("followed_boats", [])
+    boat = data.get("boat")
+    if not boat:
+        return jsonify({"status": "error", "message": "Missing 'boat'"}), 400
 
-    if not isinstance(boats, list):
-        return jsonify({"status": "error", "message": "followed_boats must be a list"}), 400
-
+    uid = normalize_boat_name(boat)
     settings = load_settings()
-    settings["followed_boats"] = boats
+    followed = settings.get("followed_boats", [])
+
+    # Normalize all names
+    followed_uids = [normalize_boat_name(b) for b in followed]
+
+    if uid in followed_uids:
+        # Remove it
+        followed = [b for b in followed if normalize_boat_name(b) != uid]
+        action = "unfollowed"
+    else:
+        # Add it
+        followed.append(boat)
+        action = "followed"
+
+    settings["followed_boats"] = followed
 
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=4)
 
-    return jsonify({"status": "ok", "followed_boats": boats})
+    return jsonify({"status": "ok", "action": action, "followed_boats": followed})
 
 
 

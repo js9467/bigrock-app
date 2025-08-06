@@ -880,14 +880,13 @@ def get_events():
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         all_events = data.get("events", [])
-        now = datetime.now()
+        now_time = datetime.now().time()  # ✅ Compare only by time-of-day
 
-        # ✅ Filter out events that are in the future
         filtered = []
         for e in all_events:
             try:
-                ts = date_parser.parse(e["timestamp"])
-                if ts <= now:
+                ts_time = date_parser.parse(e["timestamp"]).time()
+                if ts_time <= now_time:
                     filtered.append(e)
             except:
                 continue
@@ -905,6 +904,7 @@ def get_events():
     force = request.args.get("force", "false").lower() == "true"
     events = scrape_events(force=force, tournament=tournament)
 
+    # ✅ Fallback to cached file if scrape returned nothing
     if not events and os.path.exists(events_file):
         with open(events_file, "r") as f:
             events = json.load(f)
@@ -916,8 +916,6 @@ def get_events():
         "count": len(events),
         "events": events[:100]
     })
-
-
 
 
 
@@ -1212,17 +1210,16 @@ def get_hooked_up_events():
     tournament = get_current_tournament()
     data_source = settings.get("data_source", "live").lower()
 
-    now = datetime.now()
+    now_time = datetime.now().time()
     events = []
 
-    # Load events from appropriate source
+    # ✅ Load events based on mode
     if data_source == "demo":
         data = load_demo_data(tournament)
-        events = data.get("events", [])
-        # Only consider events that have "occurred" in demo timeline
+        # Only include events that have occurred by time-of-day
         events = [
-            e for e in events
-            if date_parser.parse(e["timestamp"]) <= now
+            e for e in data.get("events", [])
+            if date_parser.parse(e["timestamp"]).time() <= now_time
         ]
     else:
         events_file = get_cache_path(tournament, "events.json")
@@ -1244,14 +1241,12 @@ def get_hooked_up_events():
             if e["event"] in ["Released", "Boated"] or \
                "pulled hook" in e.get("details", "").lower() or \
                "wrong species" in e.get("details", "").lower():
-                # In demo mode, use event uid+timestamp as resolution key
                 key = f"{e['uid']}_{date_parser.parse(e['timestamp']).replace(microsecond=0).isoformat()}"
                 resolved_ids.add(key)
 
         for e in events:
             if e["event"] != "Hooked Up":
                 continue
-
             key = e.get("hookup_id")
             if not key or key not in resolved_ids:
                 hooked_feed.append(e)
@@ -1284,6 +1279,7 @@ def get_hooked_up_events():
         "count": len(hooked_feed),
         "events": hooked_feed[:50]  # limit to 50 to keep feed clean
     })
+
 
 
 @app.route('/bluetooth/status')

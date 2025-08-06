@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
 from dateutil import parser as date_parser
 from datetime import datetime, timedelta
-import jsonfollowed
+import json
 import os
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup

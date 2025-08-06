@@ -115,7 +115,19 @@
 
   <!-- Event Feed -->
   <div class="w-2/3 overflow-y-auto">
-    <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">Event Feed</div>
+    <div class="p-4 border-b text-xl font-bold flex justify-between items-center bg-brand-blue text-white">
+      <span>Event Feed</span>
+    </div>
+
+    <!-- Followed Boats Chips -->
+    <div v-if="followed.length" class="flex flex-wrap gap-2 px-4 py-2 bg-white border-b border-gray-200">
+      <div v-for="boat in followed" :key="boat"
+           class="flex items-center bg-yellow-200 text-yellow-900 font-semibold px-3 py-1 rounded-full shadow-sm">
+        {{ boat }}
+        <button @click="toggleFollow(boat)" class="ml-2 text-red-600 hover:text-red-800 font-bold text-sm">❌</button>
+      </div>
+    </div>
+
     <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
     <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
 
@@ -156,7 +168,7 @@
 <script>
 const { createApp } = Vue;
 
-const vm = createApp({
+createApp({
   data() {
     return {
       events: [], hooked: [], boatImages: {},
@@ -207,7 +219,6 @@ const vm = createApp({
     startMessageRotation(){if(this.messageQueue.length===0)return;let i=0;this.currentMessage=this.messageQueue[i];if(this.messageTimer)clearInterval(this.messageTimer);this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length;this.currentMessage=this.messageQueue[i];},7000);}
   }
 }).mount('#app');
-window.vm=vm;
 </script>
 
 </body>

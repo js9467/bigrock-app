@@ -75,7 +75,7 @@
       <!-- Sounds -->
       <div>
         <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-        <select v-model="settings.hooked_sound" @change="onHookedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+        <select v-model="settings.followed_sound" @change="onHookedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
           <option disabled value="">-- Select Sound --</option>
           <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
         </select>
@@ -286,6 +286,7 @@ createApp({
 
 </body>
 </html>
+
 
 
 

@@ -152,7 +152,13 @@
 <script>
 const { createApp } = Vue;
 
-createApp({
+document.addEventListener('click', () => {
+  const unlock = new Audio();
+  unlock.muted = true;
+  unlock.play().catch(() => {});
+}, { once: true });
+
+const vm = createApp({
   data() {
     return {
       events: [], hooked: [], boatImages: {},
@@ -167,14 +173,18 @@ createApp({
   mounted() {
     this.fetchSettings()
         .then(()=>this.loadFollowed())
-        .then(()=>{
-          this.setupMessages(); this.startMessageRotation(); this.fetchVersion();
+        .then(()=>{ this.setupMessages(); this.startMessageRotation(); this.fetchVersion();
           this.loadTournamentLogo(); this.loadParticipants(); this.fetchAll();
-          setInterval(this.fetchAll, 30000);
-          setInterval(this.loadParticipants, 10000);
+          setInterval(this.fetchAll, 30000); setInterval(this.loadParticipants, 10000);
         });
+
     const player=document.getElementById('radio-player');
     if(player) player.volume=this.settings.radio_volume/100;
+
+    // ✅ Console sound test helpers
+    window.playFollowed = () => this.playSound(this.settings.followed_sound);
+    window.playBoated = () => this.playSound(this.settings.boated_sound);
+    window.playHooked = () => this.playSound(this.settings.hooked_sound);
   },
 
   methods:{
@@ -186,9 +196,27 @@ createApp({
     },
     isFollowed(uid){const norm=s=> (s||'').toLowerCase().replace(/[' ]/g,'_'); return this.followed.some(b=>norm(b)===norm(uid));},
     playSound(f){if(!f||!this.settings.sounds_enabled)return;let fn=f.trim();if(!fn.toLowerCase().endsWith('.mp3'))fn+='.mp3';const a=new Audio(`/static/sounds/${encodeURIComponent(fn)}`);a.volume=(this.settings.event_volume||80)/100;a.play().catch(()=>{});},
-    fetchAll(){this.loading=true;Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
-      .then(([ed,hd])=>{const ne=ed.events||[],nh=hd.events||[];for(const e of ne){const k=e.timestamp+e.uid;if(!this.lastEventTimestamps.has(k)){this.lastEventTimestamps.add(k);const et=(e.event||'').toLowerCase();if(this.settings.sounds_enabled){if(et.includes('boated'))this.playSound(this.settings.boated_sound);else if(this.isFollowed(e.uid))this.playSound(this.settings.followed_sound);}}}
-        this.events=ne;this.hooked=nh;this.loading=false;this.updateDemoMessage();}).catch(()=>{this.loading=false;});},
+    
+    fetchAll(){
+      this.loading=true;
+      Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
+        .then(([ed,hd])=>{
+          const ne=ed.events||[],nh=hd.events||[];
+          for(const e of ne){
+            const k=e.timestamp+e.uid;
+            const isNew=!this.lastEventTimestamps.has(k);
+            this.lastEventTimestamps.add(k);
+            if(isNew && this.settings.sounds_enabled){
+              const et=(e.event||'').toLowerCase();
+              if(et.includes('boated')) this.playSound(this.settings.boated_sound);
+              else if(et.includes('hooked up')) this.playSound(this.settings.hooked_sound);
+              else if(this.isFollowed(e.uid)) this.playSound(this.settings.followed_sound);
+            }
+          }
+          this.events=ne;this.hooked=nh;this.loading=false;this.updateDemoMessage();
+        }).catch(()=>{this.loading=false;});
+    },
+
     fetchSettings(){return fetch('/api/settings').then(r=>r.json()).then(d=>{this.settings={...this.settings,...d};});},
     fetchVersion(){fetch('/api/version').then(r=>r.json()).then(d=>{this.version=d.version;});},
     loadTournamentLogo(){fetch('/api/settings').then(r=>r.json()).then(s=>{const t=s.tournament;fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{this.tournamentLogo=all[t]?.logo||'';});});},
@@ -203,7 +231,6 @@ createApp({
     enqueueMessage(m){if(!this.messageQueue.includes(m))this.messageQueue.push(m);},
     startMessageRotation(){if(this.messageQueue.length===0)return;let i=0;this.currentMessage=this.messageQueue[i];if(this.messageTimer)clearInterval(this.messageTimer);this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length;this.currentMessage=this.messageQueue[i];},7000);},
 
-    // Frontend-only Palmer Lou injection
     injectPalmerLouEvent() {
       const now = new Date().toISOString();
       const newEvent = {
@@ -214,22 +241,14 @@ createApp({
         details: "Palmer Lou boated a massive blue marlin and is headed to the scales!"
       };
       this.events.unshift(newEvent);
-
-      // Instant scroll to top
-      this.$nextTick(() => {
-        const feed = document.querySelector('.event-feed');
-        if (feed) feed.scrollTop = 0;
-      });
-
-      // Play boated sound immediately
+      this.$nextTick(() => { const feed=document.querySelector('.event-feed'); if(feed) feed.scrollTop=0; });
       this.playSound(this.settings.boated_sound || this.settings.followed_sound || 'generic_005_104781');
-
       console.log("🎣 Injected Palmer Lou demo event (frontend only)");
     }
   }
 }).mount('#app');
 
-window.vm = app;
+window.vm = vm;
 </script>
 
 </body>

@@ -1653,6 +1653,22 @@ def save_emailed_events():
     with open(NOTIFIED_FILE, "w") as f:
         json.dump(list(emailed_events), f)
 
+@app.route('/settings/followed-boats', methods=['POST'])
+def update_followed_boats():
+    """Add or replace the followed_boats list in settings.json"""
+    data = request.get_json()
+    boats = data.get("followed_boats", [])
+
+    if not isinstance(boats, list):
+        return jsonify({"status": "error", "message": "followed_boats must be a list"}), 400
+
+    settings = load_settings()
+    settings["followed_boats"] = boats
+
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=4)
+
+    return jsonify({"status": "ok", "followed_boats": boats})
 
 
 

@@ -153,7 +153,7 @@ createApp({
         event_volume: 80,
         vhf_volume: 70,
         sounds_enabled: true,
-        hooked_sound: '',
+        followed_sound: '',
         boated_sound: '',
         sms_emails: []
       },
@@ -192,9 +192,10 @@ createApp({
 
       this.settings.sms_emails = emails;
 
-      localStorage.setItem('followed_sound', this.settings.hooked_sound);
-      localStorage.setItem('event_volume', this.settings.event_volume);
+      // Persist sounds locally for reload convenience
+      localStorage.setItem('followed_sound', this.settings.followed_sound);
       localStorage.setItem('boated_sound', this.settings.boated_sound);
+      localStorage.setItem('event_volume', this.settings.event_volume);
 
       axios.post('/api/settings', this.settings).then(() => {
         this.showToast('✅ Settings saved.', 'success');
@@ -202,12 +203,8 @@ createApp({
         this.showToast('❌ Failed to save settings.', 'error');
       });
     },
-    addRecipient() {
-      this.recipients.push({ email: '' });
-    },
-    removeRecipient(index) {
-      this.recipients.splice(index, 1);
-    },
+    addRecipient() { this.recipients.push({ email: '' }); },
+    removeRecipient(index) { this.recipients.splice(index, 1); },
     saveAlerts() {
       const emails = this.recipients
         .filter(r => r.email.trim())
@@ -231,9 +228,13 @@ createApp({
         this.showToast('❌ Failed to send test alert.', 'error');
       });
     },
-    onHookedSoundChange() { 
-      const file = this.settings.hooked_sound;
-      if (file) { this.previewSound(file); localStorage.setItem('followed_sound', file); this.saveSettings(); }
+    onFollowedSoundChange() { 
+      const file = this.settings.followed_sound;
+      if (file) { this.previewSound(file); this.saveSettings(); }
+    },
+    onBoatedSoundChange() { 
+      const file = this.settings.boated_sound;
+      if (file) { this.previewSound(file); this.saveSettings(); }
     },
     onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
     updateTournamentLogo() {
@@ -258,12 +259,12 @@ createApp({
       }
 
       // Restore local sound settings
-      const storedSound = localStorage.getItem('followed_sound');
-      if (storedSound) this.settings.hooked_sound = storedSound;
-      const storedVol = localStorage.getItem('event_volume');
-      if (storedVol) this.settings.event_volume = parseInt(storedVol);
+      const storedFollowed = localStorage.getItem('followed_sound');
+      if (storedFollowed) this.settings.followed_sound = storedFollowed;
       const storedBoated = localStorage.getItem('boated_sound');
       if (storedBoated) this.settings.boated_sound = storedBoated;
+      const storedVol = localStorage.getItem('event_volume');
+      if (storedVol) this.settings.event_volume = parseInt(storedVol);
 
       axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
         this.tournaments = res.data;
@@ -285,6 +286,7 @@ createApp({
 
 </body>
 </html>
+
 
 
 

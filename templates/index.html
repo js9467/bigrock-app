@@ -31,28 +31,23 @@
   <header class="relative bg-brand-blue text-white px-4 py-3 shadow-lg shrink-0">
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
 
-      <!-- Left: Logo + Tournament title & dates -->
-      <div class="flex items-center gap-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo"
-             class="h-14 w-auto drop-shadow-lg rounded-md bg-white/5 p-1.5" />
-        <div v-else class="h-14 w-14 rounded-md bg-white/10 animate-pulse-slow"></div>
+      <!-- Left: Logo + Dates + VHF Playing -->
+<div class="flex items-center gap-4">
+  <!-- Logo -->
+  <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow-lg animate-pulse-slow">
+  <span v-else class="text-white text-base animate-pulse">Loading Logo...</span>
 
-        <div class="min-w-0">
-          <div class="text-xl sm:text-2xl font-extrabold leading-tight truncate">
-            {{ headerTournament || 'Tournament' }}
-          </div>
-          <div v-if="headerLabel" class="mt-1 inline-flex items-center gap-2 px-2.5 py-1 rounded-full chip text-xs sm:text-sm">
-            <span>📅</span>
-            <span class="truncate">{{ headerLabel }}</span>
-          </div>
-          <div v-else class="text-white/60 text-sm">Loading dates…</div>
-        </div>
+  <!-- Tournament Dates -->
+  <span v-if="tournamentDates" class="text-sm text-white/80 italic whitespace-nowrap">
+    {{ tournamentDates }}
+  </span>
 
-        <!-- VHF live indicator -->
-        <span v-if="radioPlaying" class="ml-2 text-sm font-semibold text-green-300 animate-pulse whitespace-nowrap flex items-center gap-1">
-          🎧 <span class="hidden sm:inline">VHF Playing</span>
-        </span>
-      </div>
+  <!-- VHF Active Indicator -->
+  <span v-if="radioPlaying" class="text-sm font-semibold text-green-300 animate-pulse whitespace-nowrap flex items-center gap-1">
+    🎧 <span class="hidden sm:inline">VHF Playing</span>
+  </span>
+</div>
+
 
       <!-- Middle (desktop): nav -->
       <nav class="hidden lg:flex items-center justify-center gap-3">
@@ -191,6 +186,7 @@ const app = createApp({
     return {
       // data
       events: [], hooked: [], boatImages: {},
+      tournamentDates: '',
       tournamentLogo: '', version: '', loading: false,
       followed: [], lastEventTimestamps: new Set(),
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
@@ -297,13 +293,19 @@ const app = createApp({
     fetchVersion(){ fetch('/api/version').then(r=>r.json()).then(d=>{ this.version=d.version; }); },
 
     loadTournamentLogo(){
-      fetch('/api/settings').then(r=>r.json()).then(s=>{
-        const t=s.tournament;
-        fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{
-          this.tournamentLogo = (all && all[t] && all[t].logo) ? all[t].logo : '';
+  fetch('/api/settings')
+    .then(r=>r.json())
+    .then(s=>{
+      const t = s.tournament;
+      fetch('https://js9467.github.io/Brtourney/settings.json')
+        .then(r=>r.json())
+        .then(all=>{
+          this.tournamentLogo = all[t]?.logo || '';
+          this.tournamentDates = all[t]?.dates || '';
         });
-      });
-    },
+    });
+},
+
 
     loadParticipants(){
       fetch('/participants_data').then(r=>r.json()).then(d=>{

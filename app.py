@@ -403,32 +403,63 @@ def build_tournaments_index(force: bool = False):
     if os.path.exists(TOURNAMENTS_CACHE) and not force:
         try:
             with open(TOURNAMENTS_CACHE) as f:
-                cached = json.load(f)
-        except:
+                cached = json.load(f) or {}
+        except Exception as e:
+            print(f"⚠️ Couldn't read tournaments cache: {e}")
             cached = {}
 
+    # Get master JSON
     try:
         master = requests.get(MASTER_JSON_URL, timeout=30).json()
     except Exception as e:
         print(f"❌ Failed to fetch MASTER_JSON_URL: {e}")
+        # fall back to whatever we had
+        return cached
+
+    # Coerce master into a dict[name]->info mapping
+    entries = {}
+    if isinstance(master, dict):
+        entries = master
+    elif isinstance(master, list):
+        # try to map list of objects with a 'name' field
+        for obj in master:
+            if isinstance(obj, dict):
+                name = obj.get("name") or obj.get("tournament")
+                if name:
+                    entries[name] = obj
+    else:
+        print(f"⚠️ Unexpected master JSON type: {type(master)}")
         return cached
 
     out = {}
-    for name, vals in master.items():
+
+    for name, vals in entries.items():
+        # Ensure vals is a dict
+        if not isinstance(vals, dict):
+            print(f"⚠️ Skipping '{name}' because entry is not a dict: {type(vals)}")
+            continue
+
         # Reuse cache if present and not forcing
         if not force and name in cached and cached[name].get("start") and cached[name].get("end"):
             out[name] = cached[name]
             continue
 
-        # Try any known page
+        # Gather potential pages (some entries may be missing)
         pages = [
             vals.get("leaderboard"),
             vals.get("events"),
             vals.get("participants"),
             vals.get("activities"),
         ]
+        pages = [p for p in pages if isinstance(p, str) and p.strip()]
+        if not pages:
+            # still include a stub so the dropdown shows the tourney
+            out[name] = {"start": None, "end": None, "label": ""}
+            continue
+
+        # Try to scrape dates from any page
         s_dt = e_dt = None
-        for url in filter(None, pages):
+        for url in pages:
             html = fetch_html(url)
             if not html:
                 continue
@@ -444,7 +475,6 @@ def build_tournaments_index(force: bool = False):
                 "label": label,
             }
         else:
-            # unknown dates; still include entry
             out[name] = {"start": None, "end": None, "label": ""}
 
     # Save cache
@@ -456,6 +486,7 @@ def build_tournaments_index(force: bool = False):
         print(f"⚠️ Failed saving tournaments cache: {e}")
 
     return out
+
 
 
 def cache_boat_image(boat_name, image_url):
@@ -1578,15 +1609,18 @@ def get_hooked_up_events():
 @app.route("/api/tournaments", methods=["GET"])
 def api_tournaments():
     # lazy load or return cache
-    if os.path.exists(TOURNAMENTS_CACHE):
-        try:
+    try:
+        if os.path.exists(TOURNAMENTS_CACHE):
             with open(TOURNAMENTS_CACHE) as f:
                 data = json.load(f)
-        except:
+        else:
             data = build_tournaments_index(force=False)
-    else:
+    except Exception as e:
+        print(f"⚠️ /api/tournaments failed reading cache: {e}")
         data = build_tournaments_index(force=False)
-    return jsonify({"status":"ok", "tournaments": data})
+
+    return jsonify({"status": "ok", "tournaments": data or {}})
+
 
 @app.route("/scrape/tournament_dates", methods=["POST", "GET"])
 def scrape_tournament_dates():

@@ -63,11 +63,9 @@
       <!-- Event Volume -->
       <div>
         <label class="block font-semibold mb-1">Event Activity Volume</label>
-        <input type="range" min="0" max="100" v-model="settings.event_volume"
-          @change="() => {
-            localStorage.setItem('event_volume', settings.event_volume);
-            saveSettings();
-          }"
+        <input
+          type="range" min="0" max="100" v-model="settings.event_volume"
+          @change="() => { localStorage.setItem('event_volume', settings.event_volume); saveSettings(); }"
           class="w-full">
         <div class="text-center">{{ settings.event_volume }}%</div>
       </div>
@@ -75,7 +73,7 @@
       <!-- Sounds -->
       <div>
         <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-        <select v-model="settings.followed_sound" @change="onHookedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+        <select v-model="settings.followed_sound" @change="onFollowedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
           <option disabled value="">-- Select Sound --</option>
           <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
         </select>
@@ -83,7 +81,7 @@
 
       <div>
         <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
-        <select v-model="settings.boated_sound" @change="previewSound(settings.boated_sound); saveSettings()" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+        <select v-model="settings.boated_sound" @change="onBoatedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
           <option disabled value="">-- Select Sound --</option>
           <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
         </select>
@@ -94,27 +92,25 @@
         <label for="sounds" class="font-semibold">Play Event Sounds</label>
       </div>
 
-     <!-- Email Alerts Section -->
-<div class="pt-6">
-  <h2 class="text-xl font-semibold mb-2">📧 Email Alerts</h2>
+      <!-- Email Alerts Section -->
+      <div class="pt-6">
+        <h2 class="text-xl font-semibold mb-2">📧 Email Alerts</h2>
 
-  <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
-    <label class="block mb-1">Email Address:</label>
-    <input type="email" v-model="recipient.email" placeholder="name@example.com"
-           class="border px-2 py-1 rounded w-full mb-2" />
-    <button v-if="recipients.length > 1"
-            @click="removeRecipient(index)"
-            class="text-red-600 mt-1 text-sm hover:underline">
-      Remove
-    </button>
-  </div>
+        <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
+          <label class="block mb-1">Email Address:</label>
+          <input type="email" v-model="recipient.email" placeholder="name@example.com"
+                 class="border px-2 py-1 rounded w-full mb-2" />
+          <button v-if="recipients.length > 1"
+                  @click="removeRecipient(index)"
+                  class="text-red-600 mt-1 text-sm hover:underline">
+            Remove
+          </button>
+        </div>
 
-  <button @click="addRecipient" class="bg-green-500 text-white px-3 py-1 rounded mr-2">+ Add Email</button>
-  <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save All</button>
-  <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
-</div>
-
-
+        <button @click="addRecipient" class="bg-green-500 text-white px-3 py-1 rounded mr-2">+ Add Email</button>
+        <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save All</button>
+        <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
+      </div>
 
       <!-- Wi-Fi -->
       <div class="pt-6">
@@ -158,6 +154,7 @@ createApp({
         sms_emails: []
       },
       tournaments: {},
+      fallbackStream: '',     // captured but not shown in the dropdown
       wifiNetworks: [],
       bluetoothDevices: [],
       wifiPopup: false,
@@ -172,7 +169,12 @@ createApp({
   },
   computed: {
     validTournaments() {
-      return Object.fromEntries(Object.entries(this.tournaments).filter(([_, val]) => val));
+      // Only show real tournament objects (mask helper keys like fallback_stream)
+      return Object.fromEntries(
+        Object.entries(this.tournaments).filter(([_, val]) =>
+          val && typeof val === 'object' && !Array.isArray(val)
+        )
+      );
     },
     connectedSSID() {
       const connected = this.wifiNetworks.find(n => n.connected);
@@ -192,10 +194,15 @@ createApp({
 
       this.settings.sms_emails = emails;
 
+      // Guard against invalid/stale tournament keys (e.g., helper keys)
+      if (!(this.settings.tournament in this.validTournaments)) {
+        this.settings.tournament = '';
+      }
+
       // Persist sounds locally for reload convenience
-      localStorage.setItem('followed_sound', this.settings.followed_sound);
-      localStorage.setItem('boated_sound', this.settings.boated_sound);
-      localStorage.setItem('event_volume', this.settings.event_volume);
+      localStorage.setItem('followed_sound', this.settings.followed_sound || '');
+      localStorage.setItem('boated_sound', this.settings.boated_sound || '');
+      localStorage.setItem('event_volume', String(this.settings.event_volume ?? 80));
 
       axios.post('/api/settings', this.settings).then(() => {
         this.showToast('✅ Settings saved.', 'success');
@@ -228,11 +235,11 @@ createApp({
         this.showToast('❌ Failed to send test alert.', 'error');
       });
     },
-    onFollowedSoundChange() { 
+    onFollowedSoundChange() {
       const file = this.settings.followed_sound;
       if (file) { this.previewSound(file); this.saveSettings(); }
     },
-    onBoatedSoundChange() { 
+    onBoatedSoundChange() {
       const file = this.settings.boated_sound;
       if (file) { this.previewSound(file); this.saveSettings(); }
     },
@@ -247,13 +254,16 @@ createApp({
       audio.volume = (this.settings.event_volume || 80) / 100;
       audio.play().catch(() => {});
     },
-    fetchWifi() { axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; }); }
+    fetchWifi() {
+      axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; });
+    }
   },
   mounted() {
+    // Load saved app settings first
     axios.get('/api/settings').then(res => {
       this.settings = { ...this.settings, ...res.data };
 
-      // ✅ Populate recipients from sms_emails (now emails)
+      // Populate recipients from sms_emails (now emails)
       if (res.data.sms_emails && Array.isArray(res.data.sms_emails)) {
         this.recipients = res.data.sms_emails.map(email => ({ email }));
       }
@@ -264,14 +274,30 @@ createApp({
       const storedBoated = localStorage.getItem('boated_sound');
       if (storedBoated) this.settings.boated_sound = storedBoated;
       const storedVol = localStorage.getItem('event_volume');
-      if (storedVol) this.settings.event_volume = parseInt(storedVol);
+      if (storedVol) this.settings.event_volume = parseInt(storedVol, 10);
 
-      axios.get('https://js9467.github.io/Brtourney/settings.json').then(res => {
-        this.tournaments = res.data;
+      // Load tournaments JSON, capture fallback_stream, and mask it from UI
+      axios.get('https://js9467.github.io/Brtourney/settings.json').then(res2 => {
+        this.fallbackStream = res2.data?.fallback_stream || '';
+
+        // Keep JSON intact internally, but store only real tourneys for selection
+        const entries = Object.entries(res2.data || {});
+        this.tournaments = Object.fromEntries(
+          entries.filter(([name, val]) =>
+            name !== 'fallback_stream' && val && typeof val === 'object' && !Array.isArray(val)
+          )
+        );
+
+        // If previously saved selection isn't valid anymore, clear it
+        if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+          this.settings.tournament = '';
+        }
+
         this.updateTournamentLogo();
       });
     });
 
+    // Load available sounds
     axios.get('/sounds').then(res => {
       this.availableSounds = res.data.files || [];
     }).catch(() => {
@@ -282,12 +308,5 @@ createApp({
   }
 }).mount('#app');
 </script>
-
-
 </body>
 </html>
-
-
-
-
-

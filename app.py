@@ -299,6 +299,165 @@ from threading import Lock
 # Shared lock dictionary for image files
 image_locks = {}
 
+import calendar
+from dateutil import parser as date_parser
+
+TOURNAMENTS_CACHE = "cache/tournaments.json"
+
+def _nice_range_label(start_dt: datetime, end_dt: datetime) -> str:
+    # Examples:
+    # Aug 3–7, 2025          (same month)
+    # Aug 29 – Sep 2, 2025  (cross month)
+    if start_dt.year != end_dt.year:
+        # Rare, but handle: Dec 30, 2025 – Jan 2, 2026
+        return f"{start_dt.strftime('%b %-d, %Y')} – {end_dt.strftime('%b %-d, %Y')}"
+    if start_dt.month == end_dt.month:
+        return f"{start_dt.strftime('%b %-d')}–{end_dt.strftime('%-d, %Y')}"
+    return f"{start_dt.strftime('%b %-d')} – {end_dt.strftime('%b %-d, %Y')}"
+
+def _parse_date_range_any(text: str, default_year: int | None = None):
+    """
+    Try to parse a human-ish range like:
+    - August 5-10, 2025
+    - Aug 5–10, 2025
+    - Aug 29 – Sep 2, 2025
+    - June 10-15
+    Returns (start_dt, end_dt) or (None, None)
+    """
+    text = (text or "").strip()
+    if not text:
+        return None, None
+
+    # normalize separators
+    cleaned = text.replace("–", "-").replace("—", "-").replace(" to ", "-").replace(" – ", "-")
+
+    # try simple comma-year at end
+    m = re.search(r"([A-Za-z]{3,9})\s+(\d{1,2})\s*-\s*([A-Za-z]{3,9})?\s*(\d{1,2})(?:,\s*(\d{4}))?", cleaned)
+    if not m:
+        # fallback: single date
+        try:
+            dt = date_parser.parse(cleaned, default=datetime(default_year or datetime.now().year, 1, 1))
+            return dt, dt
+        except:
+            return None, None
+
+    m1, d1, m2, d2, y = m.groups()
+    year = int(y) if y else (default_year or datetime.now().year)
+
+    try:
+        start = date_parser.parse(f"{m1} {d1}, {year}")
+        if m2:
+            end = date_parser.parse(f"{m2} {d2}, {year}")
+        else:
+            end = date_parser.parse(f"{m1} {d2}, {year}")
+        if end < start:
+            # if parsing yielded reversed order (unlikely), swap or bump year
+            end = start
+        return start, end
+    except:
+        return None, None
+
+def _scrape_dates_from_html(html: str):
+    """
+    Heuristic: search for a date range in visible text.
+    Returns (start_dt, end_dt) or (None, None).
+    """
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        text = " ".join(t.get_text(" ", strip=True) for t in soup.find_all(["h1","h2","h3","p","li","div","span"]))
+        # common phrase hints
+        candidates = []
+        for pat in [
+            r"(?:Tournament Dates?:?\s*)?([A-Za-z]{3,9}\s+\d{1,2}\s*[-–]\s*[A-Za-z]{0,9}\s*\d{1,2}(?:,\s*\d{4})?)",
+            r"([A-Za-z]{3,9}\s+\d{1,2},?\s*(?:-\s*[A-Za-z]{0,9}\s*\d{1,2})?,?\s*\d{4})",
+            r"([A-Za-z]{3,9}\s+\d{1,2}\s*[-–]\s*\d{1,2},?\s*\d{4})",
+        ]:
+            for m in re.finditer(pat, text):
+                frag = m.group(1)
+                if 5 <= len(frag) <= 40:
+                    candidates.append(frag)
+
+        # try in order
+        for c in candidates:
+            s, e = _parse_date_range_any(c)
+            if s and e:
+                return s, e
+        return None, None
+    except:
+        return None, None
+
+
+def build_tournaments_index(force: bool = False):
+    """
+    Fetch MASTER_JSON, attempt to scrape a date range for each tournament,
+    and cache to TOURNAMENTS_CACHE:
+    {
+      "Big Rock": {"start":"2025-06-10","end":"2025-06-15","label":"Jun 10–15, 2025"},
+      ...
+    }
+    """
+    os.makedirs("cache", exist_ok=True)
+
+    # Load current cache (if any)
+    cached = {}
+    if os.path.exists(TOURNAMENTS_CACHE) and not force:
+        try:
+            with open(TOURNAMENTS_CACHE) as f:
+                cached = json.load(f)
+        except:
+            cached = {}
+
+    try:
+        master = requests.get(MASTER_JSON_URL, timeout=30).json()
+    except Exception as e:
+        print(f"❌ Failed to fetch MASTER_JSON_URL: {e}")
+        return cached
+
+    out = {}
+    for name, vals in master.items():
+        # Reuse cache if present and not forcing
+        if not force and name in cached and cached[name].get("start") and cached[name].get("end"):
+            out[name] = cached[name]
+            continue
+
+        # Try any known page
+        pages = [
+            vals.get("leaderboard"),
+            vals.get("events"),
+            vals.get("participants"),
+            vals.get("activities"),
+        ]
+        s_dt = e_dt = None
+        for url in filter(None, pages):
+            html = fetch_html(url)
+            if not html:
+                continue
+            s_dt, e_dt = _scrape_dates_from_html(html)
+            if s_dt and e_dt:
+                break
+
+        if s_dt and e_dt:
+            label = _nice_range_label(s_dt, e_dt)
+            out[name] = {
+                "start": s_dt.strftime("%Y-%m-%d"),
+                "end": e_dt.strftime("%Y-%m-%d"),
+                "label": label,
+            }
+        else:
+            # unknown dates; still include entry
+            out[name] = {"start": None, "end": None, "label": ""}
+
+    # Save cache
+    try:
+        with open(TOURNAMENTS_CACHE, "w") as f:
+            json.dump(out, f, indent=2)
+        print(f"✅ Tournaments index saved: {len(out)} entries")
+    except Exception as e:
+        print(f"⚠️ Failed saving tournaments cache: {e}")
+
+    return out
+
+
 def cache_boat_image(boat_name, image_url):
     folder = BOAT_FOLDER
     os.makedirs(folder, exist_ok=True)
@@ -1415,6 +1574,28 @@ def get_hooked_up_events():
         "count": len(hooked_feed),
         "events": hooked_feed[:50]  # limit to 50 to keep feed clean
     })
+
+@app.route("/api/tournaments", methods=["GET"])
+def api_tournaments():
+    # lazy load or return cache
+    if os.path.exists(TOURNAMENTS_CACHE):
+        try:
+            with open(TOURNAMENTS_CACHE) as f:
+                data = json.load(f)
+        except:
+            data = build_tournaments_index(force=False)
+    else:
+        data = build_tournaments_index(force=False)
+    return jsonify({"status":"ok", "tournaments": data})
+
+@app.route("/scrape/tournament_dates", methods=["POST", "GET"])
+def scrape_tournament_dates():
+    """
+    Force a refresh of tournament dates. GET or POST is fine.
+    Useful when you add a new tourney or the site updates copy.
+    """
+    data = build_tournaments_index(force=True)
+    return jsonify({"status":"ok", "count": len(data), "tournaments": data})
 
 
 

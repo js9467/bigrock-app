@@ -37,10 +37,7 @@
              class="h-14 w-auto drop-shadow-lg rounded-md bg-white/5 p-1.5" />
         <div v-else class="h-14 w-14 rounded-md bg-white/10 animate-pulse-slow"></div>
 
-        <div class="min-w-0">
-          <div class="text-xl sm:text-2xl font-extrabold leading-tight truncate">
-            {{ headerTournament || 'Tournament' }}
-          </div>
+        
           <div v-if="headerLabel" class="mt-1 inline-flex items-center gap-2 px-2.5 py-1 rounded-full chip text-xs sm:text-sm">
             <span>📅</span>
             <span class="truncate">{{ headerLabel }}</span>

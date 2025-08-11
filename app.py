@@ -951,12 +951,12 @@ if settings.get("data_source") == "demo":
 
 
         # ✅ Sort newest first
-        filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+    filtered.sort(key=lambda e: e["timestamp"], reverse=True)
 
-        return jsonify({
-            "status": "ok",
-            "count": len(filtered),
-            "events": filtered[:100]
+    return jsonify({
+        "status": "ok",
+          "count": len(filtered),
+           "events": filtered[:100]
         })
 
     # ✅ Live mode

@@ -1259,6 +1259,7 @@ def generate_demo():
 def leaderboard_page():
     return send_from_directory('static', 'leaderboard.html')
 
+
 @app.route("/api/leaderboard")
 def api_leaderboard():
     tournament = get_current_tournament()
@@ -1280,10 +1281,34 @@ def api_leaderboard():
         print("⚠️ Leaderboard cache invalid or empty — scraping fresh")
         leaderboard = scrape_leaderboard(tournament, force=True)
 
+    # 3️⃣ Ensure each row has a valid uid and a working image path
+    def _resolve_boat_image(uid: str) -> str:
+        """
+        Prefer .webp if present, else fall back to .jpg/.jpeg/.png, else default.
+        Defined inline to avoid requiring a global helper.
+        """
+        if not uid:
+            return "/static/images/boats/default.jpg"
+        base_fs = os.path.join(BOAT_FOLDER, uid)
+        for ext in (".webp", ".jpg", ".jpeg", ".png"):
+            candidate_fs = base_fs + ext
+            if os.path.exists(candidate_fs) and os.path.getsize(candidate_fs) > 0:
+                return "/" + candidate_fs.replace("\\", "/")
+        return "/static/images/boats/default.jpg"
+
+    for row in leaderboard or []:
+        # Ensure uid is present
+        uid = row.get("uid") or normalize_boat_name(row.get("boat", ""))
+        row["uid"] = uid
+
+        # Force-resolve a valid image path regardless of what the scraper stored
+        row["image_path"] = _resolve_boat_image(uid)
+
     return jsonify({
         "status": "ok" if leaderboard else "error",
         "leaderboard": leaderboard
     })
+
     
 @app.route("/hooked")
 def get_hooked_up_events():

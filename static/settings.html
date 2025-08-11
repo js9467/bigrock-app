@@ -41,17 +41,24 @@
     <div class="p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
       <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
 
-      <!-- Tournament Selection -->
-      <div>
-        <label class="block font-semibold mb-1">Tournament</label>
-        <div v-if="Object.keys(validTournaments).length">
-          <select v-model="settings.tournament" @change="onTournamentChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-            <option disabled value="">-- Select Tournament --</option>
-            <option v-for="(value, name) in validTournaments" :key="name" :value="name">{{ name }}</option>
-          </select>
-        </div>
-        <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
-      </div>
+     <!-- Tournament Selection -->
+<div>
+  <label class="block font-semibold mb-1">Tournament</label>
+  <div v-if="Object.keys(validTournaments).length">
+    <select v-model="settings.tournament"
+            @change="onTournamentChange"
+            class="w-full p-2 rounded border border-gray-400 bg-white text-black">
+      <option disabled value="">-- Select Tournament --</option>
+      <option v-for="(info, name) in validTournaments"
+              :key="name"
+              :value="name">
+        {{ name }}{{ info && info.label ? ` (${info.label})` : '' }}
+      </option>
+    </select>
+  </div>
+  <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
+</div>
+
 
       <!-- Data Source -->
       <div class="flex items-center space-x-4">
@@ -139,6 +146,37 @@
   </div>
 
 <script>
+new Vue({
+  el: '#app',
+  data() {
+    return {
+      settings: { tournament: '' },
+      validTournaments: {}  // { "Big Rock": {start:"2025-06-10", end:"2025-06-15", label:"Jun 10–15, 2025"}, ... }
+    };
+  },
+  async created() {
+    // Load current settings
+    const s = await fetch('/api/settings').then(r => r.json());
+    this.settings = s;
+
+    // Load tournaments with date labels
+    const t = await fetch('/api/tournaments').then(r => r.json());
+    this.validTournaments = t.tournaments || {};
+  },
+  methods: {
+    async onTournamentChange() {
+      // whatever you already do to persist settings; example:
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(this.settings)
+      });
+    }
+  }
+});
+</script>
+
+  <script>
 const { createApp } = Vue;
 createApp({
   data() {
@@ -310,3 +348,4 @@ createApp({
 </script>
 </body>
 </html>
+

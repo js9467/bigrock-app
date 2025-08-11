@@ -1,351 +1,300 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
   <title>Settings</title>
-  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/css/base.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- If you already have base.css, keep it; otherwise basic styles here are fine -->
+  <link rel="stylesheet" href="/static/css/base.css" />
   <style>
-    body { touch-action: manipulation; }
-    .toast {
-      position: fixed;
-      top: 5rem;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9999;
-      padding: 0.75rem 1rem;
-      border-radius: 0.375rem;
-      font-weight: 600;
-      color: black;
-      text-align: center;
-      max-width: 90vw;
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 1rem; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    label { font-weight: 600; margin-bottom: .25rem; display: block; }
+    select, input[type="text"], input[type="email"], textarea {
+      width: 100%; padding: .6rem .7rem; border-radius: 8px; border: 1px solid #9ca3af; background: #fff; color: #111827;
     }
+    button { padding: .55rem .9rem; border-radius: 10px; border: 1px solid #374151; background: #111827; color: #fff; cursor: pointer; }
+    button.secondary { background: #fff; color: #111827; border: 1px solid #9ca3af; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .muted { color: #6b7280; font-size: .9rem; }
+    .pill { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .55rem; border-radius: 999px; border: 1px solid #d1d5db; margin: .25rem .25rem .25rem 0; }
+    .pill button { border: 0; background: transparent; color: #ef4444; padding: 0 .2rem; }
+    .flex { display: flex; gap: .5rem; align-items: center; }
+    .between { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .mb-1 { margin-bottom: .25rem; } .mb-2 { margin-bottom: .5rem; } .mb-3 { margin-bottom: .75rem; } .mb-4 { margin-bottom: 1rem; }
+    .mt-2 { margin-top: .5rem; } .mt-3 { margin-top: .75rem; } .mt-4 { margin-top: 1rem; }
+    .tag { font-size: .85rem; color: #374151; }
+    .danger { color: #b91c1c; }
+    .success { color: #065f46; }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans overflow-y-auto">
-  <div id="app">
-    <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
-      <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow">
-        <span v-else class="text-white text-base">Loading Logo...</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Home</a>
-      </div>
-    </header>
+<body>
+  <div id="app" class="container">
+    <h1 class="mb-3">Settings</h1>
 
-    <div class="p-6 max-w-4xl mx-auto bg-white shadow-xl rounded-xl mt-6 space-y-8">
-      <h1 class="text-3xl font-bold text-brand-gold mb-2">⚙️ Settings</h1>
-
-     <!-- Tournament Selection -->
-<div>
-  <label class="block font-semibold mb-1">Tournament</label>
-  <div v-if="Object.keys(validTournaments).length">
-    <select v-model="settings.tournament"
-            @change="onTournamentChange"
-            class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-      <option disabled value="">-- Select Tournament --</option>
-      <option v-for="(info, name) in validTournaments"
-              :key="name"
-              :value="name">
-        {{ name }}{{ info && info.label ? ` (${info.label})` : '' }}
-      </option>
-    </select>
-  </div>
-  <div v-else class="text-sm text-gray-500">Loading tournaments...</div>
-</div>
-
-
-      <!-- Data Source -->
-      <div class="flex items-center space-x-4">
-        <span class="font-semibold">Data Source:</span>
-        <label class="inline-flex items-center"><input type="radio" value="live" v-model="settings.data_source" @change="saveSettings" class="mr-1"> Live</label>
-        <label class="inline-flex items-center"><input type="radio" value="demo" v-model="settings.data_source" @change="saveSettings" class="mr-1"> Demo</label>
-      </div>
-
-      <!-- Event Volume -->
-      <div>
-        <label class="block font-semibold mb-1">Event Activity Volume</label>
-        <input
-          type="range" min="0" max="100" v-model="settings.event_volume"
-          @change="() => { localStorage.setItem('event_volume', settings.event_volume); saveSettings(); }"
-          class="w-full">
-        <div class="text-center">{{ settings.event_volume }}%</div>
-      </div>
-
-      <!-- Sounds -->
-      <div>
-        <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
-        <select v-model="settings.followed_sound" @change="onFollowedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option disabled value="">-- Select Sound --</option>
-          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
-        <select v-model="settings.boated_sound" @change="onBoatedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option disabled value="">-- Select Sound --</option>
-          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
-        </select>
-      </div>
-
-      <div class="flex items-center space-x-2">
-        <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" @change="saveSettings">
-        <label for="sounds" class="font-semibold">Play Event Sounds</label>
-      </div>
-
-      <!-- Email Alerts Section -->
-      <div class="pt-6">
-        <h2 class="text-xl font-semibold mb-2">📧 Email Alerts</h2>
-
-        <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
-          <label class="block mb-1">Email Address:</label>
-          <input type="email" v-model="recipient.email" placeholder="name@example.com"
-                 class="border px-2 py-1 rounded w-full mb-2" />
-          <button v-if="recipients.length > 1"
-                  @click="removeRecipient(index)"
-                  class="text-red-600 mt-1 text-sm hover:underline">
-            Remove
-          </button>
+    <!-- Mode & Tournament -->
+    <div class="card">
+      <div class="row">
+        <div>
+          <label class="mb-1">Data Source</label>
+          <select v-model="settings.data_source">
+            <option value="live">Live</option>
+            <option value="demo">Demo</option>
+          </select>
+          <div class="muted mt-2">“Live” scrapes real pages. “Demo” uses injected events based on cached data.</div>
         </div>
 
-        <button @click="addRecipient" class="bg-green-500 text-white px-3 py-1 rounded mr-2">+ Add Email</button>
-        <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save All</button>
-        <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
-      </div>
-
-      <!-- Wi-Fi -->
-      <div class="pt-6">
-        <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
-        <div class="text-sm text-gray-700 mb-2">Connected To: <span class="font-semibold">{{ connectedSSID }}</span></div>
-        <button @click="wifiPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Wi-Fi</button>
-      </div>
-
-      <!-- Bluetooth -->
-      <div class="pt-6">
-        <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
-        <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Bluetooth</button>
+        <div>
+          <label class="mb-1">Tournament</label>
+          <div v-if="hasTournaments">
+            <select v-model="settings.tournament">
+              <option disabled value="">-- Select Tournament --</option>
+              <option v-for="(info, name) in validTournaments"
+                      :key="name"
+                      :value="name">
+                {{ name }}{{ info && info.label ? ' (' + info.label + ')' : '' }}
+              </option>
+            </select>
+            <div class="flex mt-2">
+              <button class="secondary" @click="refreshTournamentDates" :disabled="busy">
+                {{ busy ? 'Refreshing…' : 'Refresh Tourney Dates' }}
+              </button>
+              <span class="muted">If dates look stale, refresh to rescrape labels</span>
+            </div>
+          </div>
+          <div v-else class="muted">Loading tournaments…</div>
+        </div>
       </div>
     </div>
 
-    <!-- Toast -->
-    <div v-if="toast.message" :class="['toast', toast.type === 'success' ? 'toast-success' : toast.type === 'error' ? 'toast-error' : 'toast-info']">
-      {{ toast.message }}
+    <!-- Sounds -->
+    <div class="card">
+      <div class="row">
+        <div>
+          <label class="mb-1">Followed Boat Sound</label>
+          <select v-model="settings.followed_sound">
+            <option v-for="s in soundFiles" :key="s" :value="s.replace('.mp3','')">
+              {{ s.replace('.mp3','') }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1">Boated Sound</label>
+          <select v-model="settings.boated_sound">
+            <option v-for="s in soundFiles" :key="s" :value="s.replace('.mp3','')">
+              {{ s.replace('.mp3','') }}
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="muted mt-2">Sounds are read from <code>/static/sounds</code>.</div>
     </div>
 
-    <!-- Wi-Fi Modal -->
-    <!-- (Unchanged from your original) -->
+    <!-- Alerts / SMS emails -->
+    <div class="card">
+      <div class="between">
+        <div>
+          <label class="mb-1">Alert Recipients (Email or SMS Gateway)</label>
+          <div class="muted">Add recipients who should receive boat alerts.</div>
+        </div>
+        <div>
+          <button class="secondary" @click="sendTestAlert" :disabled="busy">Send Test Alert</button>
+        </div>
+      </div>
 
-    <!-- Bluetooth Modal -->
-    <!-- (Unchanged from your original) -->
+      <div class="mt-3">
+        <div class="flex">
+          <input type="email" v-model.trim="newRecipient" placeholder="user@example.com or 9195551212@vtext.com" />
+          <button @click="addRecipient" :disabled="!newRecipient">Add</button>
+        </div>
+
+        <div class="mt-2">
+          <span v-if="recipients.length === 0" class="muted">No recipients yet.</span>
+          <span v-for="(r, idx) in recipients" :key="r+idx" class="pill">
+            <span class="tag">{{ r }}</span>
+            <button title="Remove" @click="removeRecipient(idx)">×</button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="between mt-3">
+      <div>
+        <span v-if="saveState==='saved'" class="success">Saved!</span>
+        <span v-else-if="saveState==='error'" class="danger">Save failed.</span>
+        <span v-else class="muted">Changes are saved to <code>settings.json</code>.</span>
+      </div>
+      <div class="flex">
+        <button class="secondary" @click="reloadSettings" :disabled="busy">Revert</button>
+        <button @click="save" :disabled="busy">Save</button>
+      </div>
+    </div>
   </div>
 
-<script>
-new Vue({
-  el: '#app',
-  data() {
-    return {
-      settings: { tournament: '' },
-      validTournaments: {}  // { "Big Rock": {start:"2025-06-10", end:"2025-06-15", label:"Jun 10–15, 2025"}, ... }
-    };
-  },
-  async created() {
-    // Load current settings
-    const s = await fetch('/api/settings').then(r => r.json());
-    this.settings = s;
-
-    // Load tournaments with date labels
-    const t = await fetch('/api/tournaments').then(r => r.json());
-    this.validTournaments = t.tournaments || {};
-  },
-  methods: {
-    async onTournamentChange() {
-      // whatever you already do to persist settings; example:
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(this.settings)
-      });
-    }
-  }
-});
-</script>
-
+  <!-- Vue 3.4.15 (matches your version) -->
+  <script src="https://unpkg.com/vue@3.4.15/dist/vue.global.prod.js"></script>
   <script>
-const { createApp } = Vue;
-createApp({
-  data() {
-    return {
-      settings: {
-        tournament: '',
-        data_source: 'live',
-        event_volume: 80,
-        vhf_volume: 70,
-        sounds_enabled: true,
-        followed_sound: '',
-        boated_sound: '',
-        sms_emails: []
+  (function () {
+    const App = {
+      data() {
+        return {
+          busy: false,
+          saveState: '', // '', 'saved', 'error'
+          settings: {
+            data_source: 'live',
+            tournament: '',
+            followed_sound: 'Fishing Reel',
+            boated_sound: 'Fishing Reel',
+            sms_emails: [] // mirrored from alerts.json via /api/settings GET
+          },
+          validTournaments: {}, // { Name: {start, end, label}, ... }
+          soundFiles: [],
+          recipients: [],
+          newRecipient: ''
+        };
       },
-      tournaments: {},
-      fallbackStream: '',     // captured but not shown in the dropdown
-      wifiNetworks: [],
-      bluetoothDevices: [],
-      wifiPopup: false,
-      bluetoothPopup: false,
-      toast: { message: '', type: '' },
-      availableSounds: [],
-      tournamentLogo: '',
-      recipients: [
-        { email: '' }
-      ]
-    };
-  },
-  computed: {
-    validTournaments() {
-      // Only show real tournament objects (mask helper keys like fallback_stream)
-      return Object.fromEntries(
-        Object.entries(this.tournaments).filter(([_, val]) =>
-          val && typeof val === 'object' && !Array.isArray(val)
-        )
-      );
-    },
-    connectedSSID() {
-      const connected = this.wifiNetworks.find(n => n.connected);
-      return connected ? connected.ssid : 'Not connected';
-    }
-  },
-  methods: {
-    showToast(message, type = 'info') {
-      this.toast = { message, type };
-      setTimeout(() => this.toast.message = '', 3000);
-    },
-    saveSettings() {
-      // Always include email alerts in settings
-      const emails = this.recipients
-        .filter(r => r.email.trim())
-        .map(r => r.email);
-
-      this.settings.sms_emails = emails;
-
-      // Guard against invalid/stale tournament keys (e.g., helper keys)
-      if (!(this.settings.tournament in this.validTournaments)) {
-        this.settings.tournament = '';
-      }
-
-      // Persist sounds locally for reload convenience
-      localStorage.setItem('followed_sound', this.settings.followed_sound || '');
-      localStorage.setItem('boated_sound', this.settings.boated_sound || '');
-      localStorage.setItem('event_volume', String(this.settings.event_volume ?? 80));
-
-      axios.post('/api/settings', this.settings).then(() => {
-        this.showToast('✅ Settings saved.', 'success');
-      }).catch(() => {
-        this.showToast('❌ Failed to save settings.', 'error');
-      });
-    },
-    addRecipient() { this.recipients.push({ email: '' }); },
-    removeRecipient(index) { this.recipients.splice(index, 1); },
-    saveAlerts() {
-      const emails = this.recipients
-        .filter(r => r.email.trim())
-        .map(r => r.email);
-
-      // Save to alerts.json
-      axios.post('/alerts/subscribe', { sms_emails: emails });
-
-      // Save to settings.json for persistence
-      const updatedSettings = { ...this.settings, sms_emails: emails };
-      axios.post('/api/settings', updatedSettings).then(() => {
-        this.showToast('✅ Email recipients saved.', 'success');
-      }).catch(() => {
-        this.showToast('❌ Failed to save recipients.', 'error');
-      });
-    },
-    sendTestAlert() {
-      axios.get('/alerts/test').then(res => {
-        this.showToast(`✅ Test alert sent to ${res.data.success_count} recipients.`, 'success');
-      }).catch(() => {
-        this.showToast('❌ Failed to send test alert.', 'error');
-      });
-    },
-    onFollowedSoundChange() {
-      const file = this.settings.followed_sound;
-      if (file) { this.previewSound(file); this.saveSettings(); }
-    },
-    onBoatedSoundChange() {
-      const file = this.settings.boated_sound;
-      if (file) { this.previewSound(file); this.saveSettings(); }
-    },
-    onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
-    updateTournamentLogo() {
-      const t = this.settings.tournament;
-      this.tournamentLogo = this.tournaments[t]?.logo || '';
-    },
-    previewSound(file) {
-      if (!file) return;
-      const audio = new Audio(`/static/sounds/${file}`);
-      audio.volume = (this.settings.event_volume || 80) / 100;
-      audio.play().catch(() => {});
-    },
-    fetchWifi() {
-      axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; });
-    }
-  },
-  mounted() {
-    // Load saved app settings first
-    axios.get('/api/settings').then(res => {
-      this.settings = { ...this.settings, ...res.data };
-
-      // Populate recipients from sms_emails (now emails)
-      if (res.data.sms_emails && Array.isArray(res.data.sms_emails)) {
-        this.recipients = res.data.sms_emails.map(email => ({ email }));
-      }
-
-      // Restore local sound settings
-      const storedFollowed = localStorage.getItem('followed_sound');
-      if (storedFollowed) this.settings.followed_sound = storedFollowed;
-      const storedBoated = localStorage.getItem('boated_sound');
-      if (storedBoated) this.settings.boated_sound = storedBoated;
-      const storedVol = localStorage.getItem('event_volume');
-      if (storedVol) this.settings.event_volume = parseInt(storedVol, 10);
-
-      // Load tournaments JSON, capture fallback_stream, and mask it from UI
-      axios.get('https://js9467.github.io/Brtourney/settings.json').then(res2 => {
-        this.fallbackStream = res2.data?.fallback_stream || '';
-
-        // Keep JSON intact internally, but store only real tourneys for selection
-        const entries = Object.entries(res2.data || {});
-        this.tournaments = Object.fromEntries(
-          entries.filter(([name, val]) =>
-            name !== 'fallback_stream' && val && typeof val === 'object' && !Array.isArray(val)
-          )
-        );
-
-        // If previously saved selection isn't valid anymore, clear it
-        if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-          this.settings.tournament = '';
+      computed: {
+        hasTournaments() {
+          return this.validTournaments && Object.keys(this.validTournaments).length > 0;
         }
+      },
+      async created() {
+        await this.bootstrap();
+      },
+      methods: {
+        async bootstrap() {
+          try {
+            this.busy = true;
+            // Load settings, tournaments, and available sounds
+            const [sRes, tRes, sndRes] = await Promise.all([
+              fetch('/api/settings'),
+              fetch('/api/tournaments'),
+              fetch('/sounds')
+            ]);
 
-        this.updateTournamentLogo();
-      });
-    });
+            const sJson = await sRes.json();
+            const tJson = await tRes.json();
+            const sndJson = await sndRes.json();
 
-    // Load available sounds
-    axios.get('/sounds').then(res => {
-      this.availableSounds = res.data.files || [];
-    }).catch(() => {
-      this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
-    });
+            // Settings
+            this.settings = Object.assign({
+              data_source: 'live',
+              tournament: '',
+              followed_sound: 'Fishing Reel',
+              boated_sound: 'Fishing Reel',
+              sms_emails: []
+            }, sJson || {});
+            // Alerts list (comes from /api/settings GET merged in server)
+            this.recipients = Array.isArray(this.settings.sms_emails) ? this.settings.sms_emails.slice() : [];
 
-    this.fetchWifi();
-  }
-}).mount('#app');
-</script>
+            // Tournaments
+            this.validTournaments = (tJson && tJson.tournaments) ? tJson.tournaments : {};
+            // If no tournament set yet, pick the first
+            if (!this.settings.tournament) {
+              const first = Object.keys(this.validTournaments)[0];
+              if (first) this.settings.tournament = first;
+            }
+
+            // Sounds
+            this.soundFiles = Array.isArray(sndJson.files) ? sndJson.files : [];
+
+            this.saveState = '';
+          } catch (e) {
+            console.error('Bootstrap failed:', e);
+            this.saveState = 'error';
+          } finally {
+            this.busy = false;
+          }
+        },
+
+        async refreshTournamentDates() {
+          try {
+            this.busy = true;
+            await fetch('/scrape/tournament_dates', { method: 'POST' });
+            // Reload tournaments
+            const tRes = await fetch('/api/tournaments');
+            const tJson = await tRes.json();
+            this.validTournaments = (tJson && tJson.tournaments) ? tJson.tournaments : {};
+          } catch (e) {
+            console.error('Refresh tournament dates failed:', e);
+          } finally {
+            this.busy = false;
+          }
+        },
+
+        addRecipient() {
+          const email = (this.newRecipient || '').trim();
+          if (!email) return;
+          if (!this.recipients.includes(email)) {
+            this.recipients.push(email);
+          }
+          this.newRecipient = '';
+        },
+
+        removeRecipient(idx) {
+          this.recipients.splice(idx, 1);
+        },
+
+        async sendTestAlert() {
+          try {
+            this.busy = true;
+            const res = await fetch('/alerts/test');
+            const js = await res.json();
+            if (js.status === 'sent') {
+              this.saveState = 'saved';
+            } else {
+              this.saveState = 'error';
+            }
+          } catch (e) {
+            console.error('Test alert failed:', e);
+            this.saveState = 'error';
+          } finally {
+            this.busy = false;
+            setTimeout(() => (this.saveState = ''), 2000);
+          }
+        },
+
+        async reloadSettings() {
+          await this.bootstrap();
+        },
+
+        async save() {
+          try {
+            this.busy = true;
+            // mirror recipients into settings.sms_emails
+            this.settings.sms_emails = this.recipients.slice();
+
+            const res = await fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.settings)
+            });
+            const js = await res.json();
+            if (js.status === 'success') {
+              this.saveState = 'saved';
+              // Optionally re-bootstrap to pull any server-side adjustments
+              // await this.bootstrap();
+            } else {
+              this.saveState = 'error';
+            }
+          } catch (e) {
+            console.error('Save failed:', e);
+            this.saveState = 'error';
+          } finally {
+            this.busy = false;
+            setTimeout(() => (this.saveState = ''), 2000);
+          }
+        }
+      }
+    };
+
+    // mount & expose for console debugging
+    window.__app = Vue.createApp(App).mount('#app');
+  })();
+  </script>
 </body>
 </html>
-

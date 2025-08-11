@@ -259,7 +259,7 @@ const vm = createApp({
       }
     },
     setupMessages(){this.messageQueue=[];if(!navigator.onLine)this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);this.updateDemoMessage();},
-    updateDemoMessage(){if(this.settings.data_source==='demo'){this.enqueueMessage(`🎣 Demo mode active — <a href="#" onclick="window.vm.injectPalmerLouEvent();return false;">Inject Palmer Lou</a>`);}},
+    updateDemoMessage(){if(this.settings.data_source==='demo'){this.enqueueMessage(`🎣 You are currently in demo mode. Events are being generated from prior tournaments. — <a href="#" onclick="window.vm.injectPalmerLouEvent();return false;">Click here to simulate a fish boated event!</a>`);}},
     enqueueMessage(m){if(!this.messageQueue.includes(m))this.messageQueue.push(m);},
     startMessageRotation(){if(this.messageQueue.length===0)return;let i=0;this.currentMessage=this.messageQueue[i];if(this.messageTimer)clearInterval(this.messageTimer);this.messageTimer=setInterval(()=>{i=(i+1)%this.messageQueue.length;this.currentMessage=this.messageQueue[i];},7000);},
 

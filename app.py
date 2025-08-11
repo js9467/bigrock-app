@@ -918,7 +918,7 @@ def get_events():
         print("⚠️ demo_data.json empty — building now …")
         build_demo_cache(tournament)
         data = load_demo_data(tournament)
-   all_events = data.get("events", [])
+        all_events = data.get("events", [])
         now_time = datetime.now().time()  # ✅ Compare only by time-of-day
 
         filtered = []

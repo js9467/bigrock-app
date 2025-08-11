@@ -854,45 +854,75 @@ MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
 BOAT_FOLDER = "static/images/boats"
 
+from PIL import Image, ImageOps
+
 def optimize_boat_image(file_path):
-    """Resize and compress a single boat image and save WebP version."""
+    """
+    Normalize orientation, resize/compress original, and always create a WebP sibling.
+    - Corrects EXIF orientation so rotated images display properly.
+    - Resizes if larger than MAX_IMG_SIZE, preserving aspect ratio.
+    - Re-encodes original in-place (JPEG/PNG) and writes a .webp next to it.
+    """
     try:
         if not os.path.exists(file_path):
             return
 
-        # Skip very small files (~already optimized)
-        if os.path.getsize(file_path) < 50_000:
-            return
+        ext = os.path.splitext(file_path)[1].lower()
 
         with Image.open(file_path) as img:
-            img_format = img.format or "JPEG"
+            # 1) Fix orientation based on EXIF (bakes rotation into pixels)
+            img = ImageOps.exif_transpose(img)
 
-            # Resize in-place if larger than target
+            # 2) Resize if larger than target (keeps aspect ratio)
             if img.width > MAX_IMG_SIZE[0] or img.height > MAX_IMG_SIZE[1]:
                 img.thumbnail(MAX_IMG_SIZE)
 
-            # Overwrite original with optimized JPEG/PNG
-            img.save(file_path, optimize=True, quality=IMG_QUALITY)
+            # 3) Ensure correct mode when saving JPEG
+            save_img = img
+            if ext in (".jpg", ".jpeg") and img.mode in ("RGBA", "LA", "P"):
+                save_img = img.convert("RGB")
 
-            # Create WebP version for faster browsers
+            # 4) Re-encode original
+            if ext in (".jpg", ".jpeg"):
+                save_img.save(file_path, optimize=True, quality=IMG_QUALITY)
+            elif ext == ".png":
+                # PNG ignores 'quality'; use optimize + compression
+                save_img.save(file_path, optimize=True, compress_level=9)
+            else:
+                # For unexpected originals (e.g., .gif), convert to JPEG as a safe fallback
+                jpeg_path = os.path.splitext(file_path)[0] + ".jpg"
+                save_img.convert("RGB").save(jpeg_path, optimize=True, quality=IMG_QUALITY)
+                file_path = jpeg_path  # switch base to the new jpeg
+
+            # 5) Create/update WebP sibling (handles RGB/RGBA)
             webp_path = os.path.splitext(file_path)[0] + ".webp"
             img.save(webp_path, format="WEBP", optimize=True, quality=IMG_QUALITY)
 
-            print(f"✅ Optimized {os.path.basename(file_path)} ({img.width}x{img.height}) -> WebP saved")
+            print(f"✅ Optimized {os.path.basename(file_path)} ({img.width}x{img.height}) → {os.path.basename(webp_path)}")
+
     except Exception as e:
         print(f"⚠️ Failed to optimize {file_path}: {e}")
 
 
 def optimize_all_boat_images():
-    """Optimize all boat images in static folder (startup or fallback)."""
+    """
+    Sweep the boats folder and optimize every JPEG/PNG (and convert oddballs).
+    Rebuilds/updates WebP files too.
+    """
     os.makedirs(BOAT_FOLDER, exist_ok=True)
     optimized_count = 0
     for fname in os.listdir(BOAT_FOLDER):
+        fpath = os.path.join(BOAT_FOLDER, fname)
+        if not os.path.isfile(fpath):
+            continue
         if fname.lower().endswith((".jpg", ".jpeg", ".png")):
-            fpath = os.path.join(BOAT_FOLDER, fname)
             optimize_boat_image(fpath)
             optimized_count += 1
-    print(f"🎉 Boat image optimization complete ({optimized_count} checked)")
+        elif fname.lower().endswith((".gif",)):  # optional: convert gifs to jpeg+webp
+            optimize_boat_image(fpath)
+            optimized_count += 1
+    print(f"🎉 Boat image optimization complete ({optimized_count} processed)")
+
     
 # Routes
 @app.route('/')

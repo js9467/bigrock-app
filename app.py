@@ -184,19 +184,22 @@ BigRock Live Alert
 
 def fetch_with_scraperapi(url):
     api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
-    full_url = f"http://api.scraperapi.com?api_key={api_key}&url={url}"
+    # Use https endpoint + keep_headers; add a solid UA
+    full_url = f"https://api.scraperapi.com?api_key={api_key}&keep_headers=true&url={requests.utils.quote(url, safe='')}"
     headers = {
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
     try:
-        response = requests.get(full_url, headers=headers, timeout=30)
-        if response.status_code == 200:
-            return response.text
-        else:
-            print(f"⚠️ ScraperAPI failed: HTTP {response.status_code}")
+        r = requests.get(full_url, headers=headers, timeout=45)
+        if r.status_code == 200:
+            return r.text
+        print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
     except Exception as e:
         print(f"❌ Error fetching via ScraperAPI: {e}")
     return ""
+
 
 def get_cache_path(tournament, filename):
     folder = os.path.join("cache", normalize_boat_name(tournament))
@@ -385,15 +388,20 @@ def inject_hooked_up_events(events, tournament=None):
 
 
 def build_demo_cache(tournament: str) -> int:
-    """
-    Build/refresh demo_data.json for a tournament.
-    Returns number of injected events saved.
-    """
     print(f"📦 [DEMO] Building demo cache for {tournament}...")
     try:
         events = scrape_events(force=True, tournament=tournament)
+
+        # Fallback: if scrape failed (403 etc.), use cached live events.json
+        if not events:
+            events_file = get_cache_path(tournament, "events.json")
+            if os.path.exists(events_file) and os.path.getsize(events_file) > 0:
+                with open(events_file) as f:
+                    events = json.load(f)
+                print(f"🟡 Using cached {len(events)} live events for demo injection")
+
         injected = inject_hooked_up_events(events, tournament)
-        leaderboard = scrape_leaderboard(tournament, force=True)
+        leaderboard = scrape_leaderboard(tournament, force=True) or []
 
         demo_data = {}
         if os.path.exists(DEMO_DATA_FILE):
@@ -415,6 +423,7 @@ def build_demo_cache(tournament: str) -> int:
     except Exception as e:
         print(f"❌ [DEMO] Failed to build demo cache: {e}")
         return 0
+
 
 
 def save_demo_data_if_needed(settings, old_settings):
@@ -911,24 +920,35 @@ def get_events():
                 break
             time.sleep(0.5)
 
-    # ✅ Demo mode logic
-    if settings.get("data_source") == "demo":
-        data = load_demo_data(tournament)
+   # ✅ Demo mode logic
+if settings.get("data_source") == "demo":
+    data = load_demo_data(tournament)
+
+    # Lazy-build if empty
     if not data.get("events"):
         print("⚠️ demo_data.json empty — building now …")
         build_demo_cache(tournament)
         data = load_demo_data(tournament)
-        all_events = data.get("events", [])
-        now_time = datetime.now().time()  # ✅ Compare only by time-of-day
 
-        filtered = []
-        for e in all_events:
-            try:
-                ts_time = date_parser.parse(e["timestamp"]).time()
-                if ts_time <= now_time:
-                    filtered.append(e)
-            except:
-                continue
+    all_events = data.get("events", [])
+    now_time = datetime.now().time()  # Compare only by time-of-day
+
+    filtered = []
+    for e in all_events:
+        try:
+            ts_time = date_parser.parse(e["timestamp"]).time()
+            if ts_time <= now_time:
+                filtered.append(e)
+        except:
+            continue
+
+    filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+    return jsonify({
+        "status": "ok",
+        "count": len(filtered),
+        "events": filtered[:100]
+    })
+
 
         # ✅ Sort newest first
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
@@ -1131,7 +1151,6 @@ def test_alerts():
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
-    """Get or update app settings, including alert recipients."""
     if request.method == 'POST':
         settings_data = request.get_json()
         if not settings_data:
@@ -1141,56 +1160,41 @@ def api_settings():
         old_tournament = old_settings.get("tournament")
         new_tournament = settings_data.get("tournament")
         new_mode = settings_data.get("data_source")
-        # Keep mode fields in sync for old/new UIs
-    if new_mode:
-        settings_data["data_source"] = new_mode
-        settings_data["mode"] = new_mode
 
-    # ... (you already write settings_data to SETTINGS_FILE here)
+        # ✅ Keep mode/data_source in sync
+        if new_mode:
+            settings_data["data_source"] = new_mode
+            settings_data["mode"] = new_mode
 
-    # If switching to demo, build demo cache immediately
-    if new_mode == "demo":
-        tournament_to_build = new_tournament or old_tournament or get_current_tournament()
-        build_demo_cache(tournament_to_build)
+        # Ensure sound fields exist
+        settings_data.setdefault("followed_sound", old_settings.get("followed_sound", "fishing reel"))
+        settings_data.setdefault("boated_sound",   old_settings.get("boated_sound",   "fishing reel"))
 
-        # ✅ Ensure sound fields exist
-        settings_data.setdefault(
-            "followed_sound",
-            old_settings.get("followed_sound", "fishing reel")
-        )
-        settings_data.setdefault(
-            "boated_sound",
-            old_settings.get("boated_sound", "fishing reel")
-        )
-
-        # ✅ Save SMS/email alerts
-        sms_emails = settings_data.get("sms_emails", [])
-        save_alerts(sms_emails)
-
-        # ✅ Save settings.json
+        # Save alerts and settings
+        save_alerts(settings_data.get("sms_emails", []))
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings_data, f, indent=4)
 
-        # ✅ Trigger scrapes if tournament changed in live mode
+        # Trigger scrapes on tournament change in live
         if new_tournament != old_tournament and new_mode == "live":
             print(f"🔄 Tournament changed: {old_tournament} → {new_tournament}")
             run_in_thread(lambda: scrape_events(force=True, tournament=new_tournament), "events")
             run_in_thread(lambda: scrape_participants(force=True), "participants")
 
-        # ✅ Handle demo mode data caching
-        save_demo_data_if_needed(settings_data, old_settings)
+        # If switching to demo, build demo cache now
+        if new_mode == "demo":
+            tournament_to_build = new_tournament or old_tournament or get_current_tournament()
+            build_demo_cache(tournament_to_build)
 
         return jsonify({'status': 'success'})
 
-    # ----- GET Settings -----
+    # ----- GET -----
     settings = load_settings()
     settings.setdefault("followed_sound", "Fishing Reel")
     settings.setdefault("boated_sound", "Fishing Reel")
-
-    # ✅ Include alerts in GET response
     settings["sms_emails"] = load_alerts()
-
     return jsonify(settings)
+
 
 
 @app.route('/settings-page/')

@@ -904,77 +904,51 @@ def participants_data():
     })
 
 @app.route("/scrape/events")
-def get_events():
+def scrape_events_route():
     settings = load_settings()
     tournament = get_current_tournament()
-    events_file = get_cache_path(tournament, "events.json")
-    participants_file = get_cache_path(tournament, "participants.json")
 
-    # ✅ Ensure participants cache exists before scraping events
-    if not os.path.exists(participants_file):
-        print("⏳ No participants yet — scraping them first...")
-        scrape_participants(force=True)
-        # Wait briefly for participants to be saved
-        for _ in range(10):
-            if os.path.exists(participants_file):
-                break
-            time.sleep(0.5)
-
-   # ✅ Demo mode logic
-if settings.get("data_source") == "demo":
-    data = load_demo_data(tournament)
-
-    # Lazy-build if empty
-    if not data.get("events"):
-        print("⚠️ demo_data.json empty — building now …")
-        build_demo_cache(tournament)
+    # ----- DEMO MODE -----
+    if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
 
-    all_events = data.get("events", [])
-    now_time = datetime.now().time()  # Compare only by time-of-day
+        # Lazy-build demo_data.json if missing or empty
+        if not data.get("events"):
+            print("⚠️ demo_data.json empty — building now …")
+            build_demo_cache(tournament)
+            data = load_demo_data(tournament)
 
-    filtered = []
-    for e in all_events:
-        try:
-            ts_time = date_parser.parse(e["timestamp"]).time()
-            if ts_time <= now_time:
-                filtered.append(e)
-        except:
-            continue
+        all_events = data.get("events", [])
+        now_time = datetime.now().time()  # Compare by time-of-day only
 
-    filtered.sort(key=lambda e: e["timestamp"], reverse=True)
-    return jsonify({
-        "status": "ok",
-        "count": len(filtered),
-        "events": filtered[:100]
-    })
+        filtered = []
+        for e in all_events:
+            try:
+                ts_time = date_parser.parse(e["timestamp"]).time()
+                if ts_time <= now_time:
+                    filtered.append(e)
+            except:
+                continue
 
-
-        # ✅ Sort newest first
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
-
         return jsonify({
             "status": "ok",
             "count": len(filtered),
             "events": filtered[:100]
         })
 
-    # ✅ Live mode
-    force = request.args.get("force", "false").lower() == "true"
-    events = scrape_events(force=force, tournament=tournament)
+    # ----- LIVE / HISTORICAL -----
+    try:
+        events = scrape_events(force=True, tournament=tournament)
+        return jsonify({
+            "status": "ok",
+            "count": len(events),
+            "events": events[:100]
+        })
+    except Exception as e:
+        print(f"❌ Error in /scrape/events: {e}")
+        return jsonify({"status": "error", "message": str(e)})
 
-    # ✅ Fallback to cached file if scrape returned nothing
-    if not events and os.path.exists(events_file):
-        with open(events_file, "r") as f:
-            events = json.load(f)
-
-    events = sorted(events, key=lambda e: e["timestamp"], reverse=True)
-
-    return jsonify({
-        "status": "ok" if events else "error",
-        "count": len(events),
-        "events": events[:100]
-    })
 
 
 

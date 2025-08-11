@@ -231,8 +231,11 @@ def load_demo_data(tournament):
     return {'events': [], 'leaderboard': []}
 
 def get_data_source():
-    settings = load_settings()
-    return settings.get("mode", "live")
+    """Single source of truth for mode."""
+    s = load_settings()
+    # Prefer data_source, fall back to legacy 'mode'
+    return (s.get("data_source") or s.get("mode") or "live").lower()
+
 
 def is_cache_fresh(cache, key, max_age_minutes):
     try:
@@ -380,6 +383,38 @@ def inject_hooked_up_events(events, tournament=None):
     print(f"📦 Returning {len(all_events)} events (with {len(demo_events)} hooked up injections)")
     return all_events
 
+
+def build_demo_cache(tournament: str) -> int:
+    """
+    Build/refresh demo_data.json for a tournament.
+    Returns number of injected events saved.
+    """
+    print(f"📦 [DEMO] Building demo cache for {tournament}...")
+    try:
+        events = scrape_events(force=True, tournament=tournament)
+        injected = inject_hooked_up_events(events, tournament)
+        leaderboard = scrape_leaderboard(tournament, force=True)
+
+        demo_data = {}
+        if os.path.exists(DEMO_DATA_FILE):
+            try:
+                with open(DEMO_DATA_FILE, 'r') as f:
+                    demo_data = json.load(f)
+            except Exception as e:
+                print(f"⚠️ Existing demo_data.json unreadable, will overwrite: {e}")
+
+        demo_data[tournament] = {
+            "events": injected,
+            "leaderboard": leaderboard
+        }
+        with open(DEMO_DATA_FILE, 'w') as f:
+            json.dump(demo_data, f, indent=4)
+
+        print(f"✅ [DEMO] Saved demo_data.json for {tournament} with {len(injected)} events")
+        return len(injected)
+    except Exception as e:
+        print(f"❌ [DEMO] Failed to build demo cache: {e}")
+        return 0
 
 
 def save_demo_data_if_needed(settings, old_settings):
@@ -879,7 +914,11 @@ def get_events():
     # ✅ Demo mode logic
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
-        all_events = data.get("events", [])
+    if not data.get("events"):
+        print("⚠️ demo_data.json empty — building now …")
+        build_demo_cache(tournament)
+        data = load_demo_data(tournament)
+   all_events = data.get("events", [])
         now_time = datetime.now().time()  # ✅ Compare only by time-of-day
 
         filtered = []
@@ -1102,6 +1141,17 @@ def api_settings():
         old_tournament = old_settings.get("tournament")
         new_tournament = settings_data.get("tournament")
         new_mode = settings_data.get("data_source")
+        # Keep mode fields in sync for old/new UIs
+    if new_mode:
+        settings_data["data_source"] = new_mode
+        settings_data["mode"] = new_mode
+
+    # ... (you already write settings_data to SETTINGS_FILE here)
+
+    # If switching to demo, build demo cache immediately
+    if new_mode == "demo":
+        tournament_to_build = new_tournament or old_tournament or get_current_tournament()
+        build_demo_cache(tournament_to_build)
 
         # ✅ Ensure sound fields exist
         settings_data.setdefault(
@@ -1151,28 +1201,11 @@ def settings_page():
 def generate_demo():
     try:
         tournament = get_current_tournament()
-        events = scrape_events(force=True, skip_timestamp_check=True)
-        leaderboard = scrape_leaderboard(force=True)
-        injected = inject_hooked_up_events(events, tournament)
-        demo_data = {}
-        if os.path.exists(DEMO_DATA_FILE):
-            with open(DEMO_DATA_FILE, 'r') as f:
-                demo_data = json.load(f)
-        demo_data[tournament] = {
-            "events": injected,
-            "leaderboard": leaderboard
-        }
-        with open(DEMO_DATA_FILE, 'w') as f:
-            json.dump(demo_data, f, indent=4)
-        print(f"✅ [DEMO] demo_data.json written with {len(injected)} events")
-        return jsonify({"status": "ok", "events": len(injected)})
+        count = build_demo_cache(tournament)
+        return jsonify({"status": "ok", "events": count})
     except Exception as e:
         print(f"❌ Error generating demo data: {e}")
         return jsonify({"status": "error", "message": str(e)})
-
-from flask import render_template
-
-from flask import send_from_directory
 
 @app.route("/leaderboard")
 def leaderboard_page():

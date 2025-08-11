@@ -44,15 +44,61 @@ DEMO_DATA_FILE = 'demo_data.json'
 MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
 API_KEY = "e6f354c9c073ceba04c0fe82e4243ebd"
 
-def fetch_html(url):
-    """Fetch page HTML using ScraperAPI to bypass SSL issues."""
-    full_url = f"http://api.scraperapi.com?api_key={API_KEY}&url={url}"
-    print(f"📡 Fetching via ScraperAPI: {url}")
-    resp = requests.get(full_url, timeout=60)
-    if resp.status_code == 200:
-        return resp.text
-    print(f"⚠️ Failed to fetch HTML: {resp.status_code}")
+# === REPLACE fetch_html & DELETE fetch_with_scraperapi ===
+import random, time, requests, os
+
+UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36",
+]
+
+def fetch_html(url, use_scraperapi: bool = False) -> str:
+    """
+    Try direct fetch first (spoof UA, ignore SSL issues).
+    Optionally fall back to ScraperAPI if use_scraperapi=True.
+    """
+    headers = {
+        "User-Agent": random.choice(UA_POOL),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+
+    # 1) Direct attempt
+    try:
+        r = requests.get(url, headers=headers, timeout=45, verify=False)
+        if r.status_code == 200 and r.text.strip():
+            return r.text
+        print(f"⚠️ Direct fetch got {r.status_code} for {url}")
+    except Exception as e:
+        print(f"⚠️ Direct fetch error for {url}: {e}")
+
+    # 2) Optional ScraperAPI fallback
+    if use_scraperapi:
+        api_key = os.getenv("SCRAPERAPI_KEY", "e6f354c9c073ceba04c0fe82e4243ebd")
+        api = f"https://api.scraperapi.com?api_key={api_key}&keep_headers=true&url={requests.utils.quote(url, safe='')}"
+        try:
+            r = requests.get(api, headers=headers, timeout=60)
+            if r.status_code == 200 and r.text.strip():
+                return r.text
+            print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
+        except Exception as e:
+            print(f"❌ Error via ScraperAPI: {e}")
+
+    # 3) Final small backoff + direct retry
+    time.sleep(1.0)
+    try:
+        r = requests.get(url, headers=headers, timeout=45, verify=False)
+        if r.status_code == 200 and r.text.strip():
+            return r.text
+        print(f"⚠️ Final direct retry got {r.status_code} for {url}")
+    except Exception as e:
+        print(f"⚠️ Final direct retry error: {e}")
+
     return ""
+
 
 def load_alerts():
     if os.path.exists(ALERTS_FILE):
@@ -182,23 +228,7 @@ BigRock Live Alert
 
 
 
-def fetch_with_scraperapi(url):
-    api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
-    # Use https endpoint + keep_headers; add a solid UA
-    full_url = f"https://api.scraperapi.com?api_key={api_key}&keep_headers=true&url={requests.utils.quote(url, safe='')}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    }
-    try:
-        r = requests.get(full_url, headers=headers, timeout=45)
-        if r.status_code == 200:
-            return r.text
-        print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
-    except Exception as e:
-        print(f"❌ Error fetching via ScraperAPI: {e}")
-    return ""
+
 
 
 def get_cache_path(tournament, filename):
@@ -458,7 +488,7 @@ def run_in_thread(target, name):
             print(f"❌ Error in {name} thread: {e}")
     Thread(target=wrapper).start()
 
-def scrape_participants(force=False):
+def scrape_participants(force: bool = False):
     cache = load_cache()
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
@@ -486,10 +516,14 @@ def scrape_participants(force=False):
 
         print(f"📡 Scraping participants from: {participants_url}")
 
-        # ✅ Step 3: Fetch HTML
-        html = fetch_with_scraperapi(participants_url)
+        # ✅ Step 3: Fetch HTML (direct first)
+        html = fetch_html(participants_url)  # set use_scraperapi=True if you upgrade later
         if not html:
-            raise Exception("No HTML returned from ScraperAPI")
+            # WRITE EMPTY JSON so the UI stops looping on failure
+            with open(participants_file, "w") as f:
+                json.dump([], f, indent=2)
+            print("⚠️ Error scraping participants: no HTML — wrote empty participants.json")
+            return []
 
         with open("debug_participants.html", "w", encoding="utf-8") as f:
             f.write(html)
@@ -562,10 +596,14 @@ def scrape_participants(force=False):
 
     except Exception as e:
         print(f"⚠️ Error scraping participants: {e}")
+        # Fail-safe: ensure file exists
+        if not os.path.exists(participants_file):
+            with open(participants_file, "w") as f:
+                json.dump([], f, indent=2)
         return []
 
 
-def scrape_events(force=False, tournament=None):
+def scrape_events(force: bool = False, tournament: str | None = None):
     cache = load_cache()
     settings = load_settings()
     tournament = tournament or get_current_tournament()
@@ -595,9 +633,15 @@ def scrape_events(force=False, tournament=None):
             raise Exception(f"No events URL found for {tournament}")
 
         print(f"📡 Scraping events from: {events_url}")
-        html = fetch_with_scraperapi(events_url)
+        html = fetch_html(events_url)  # direct first; set use_scraperapi=True later if needed
         if not html:
-            raise Exception("Failed to fetch events page HTML")
+            # Write empty file so callers stop looping; still update last_scraped
+            with open(events_file, "w") as f:
+                json.dump([], f, indent=2)
+            cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+            save_cache(cache)
+            print("❌ Failed to fetch events HTML — wrote empty events.json")
+            return []
 
         soup = BeautifulSoup(html, 'html.parser')
         events = []
@@ -646,10 +690,10 @@ def scrape_events(force=False, tournament=None):
                 event_type = "Other"
 
             # Deduplicate
-            key = f"{uid}_{event_type}_{ts}"
-            if key in seen:
+            dkey = f"{uid}_{event_type}_{ts}"
+            if dkey in seen:
                 continue
-            seen.add(key)
+            seen.add(dkey)
 
             events.append({
                 "timestamp": ts,
@@ -671,6 +715,12 @@ def scrape_events(force=False, tournament=None):
 
     except Exception as e:
         print(f"❌ Error in scrape_events: {e}")
+        # Fail-safe: ensure file exists and cache updated
+        if not os.path.exists(events_file):
+            with open(events_file, "w") as f:
+                json.dump([], f, indent=2)
+        cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+        save_cache(cache)
         return []
 
 
@@ -690,7 +740,7 @@ def split_boat_and_type(boat_name: str, trailing_text: str):
         return boat_name, trailing_text
     return f"{boat_name} {trailing_text}".strip(), ""
 
-def scrape_leaderboard(tournament=None, force=False):
+def scrape_leaderboard(tournament=None, force: bool = False):
     tournament = tournament or get_current_tournament()
 
     # 1️⃣ Load master JSON
@@ -698,21 +748,39 @@ def scrape_leaderboard(tournament=None, force=False):
         remote = requests.get(MASTER_JSON_URL, timeout=30).json()
     except Exception as e:
         print(f"❌ Failed to load master JSON: {e}")
+        # ensure an empty cache file exists
+        lb_file = get_cache_path(tournament, "leaderboard.json")
+        os.makedirs(os.path.dirname(lb_file), exist_ok=True)
+        with open(lb_file, "w") as f:
+            json.dump([], f, indent=2)
         return []
 
     key = next((k for k in remote if k.lower() == tournament.lower()), None)
     if not key:
         print(f"❌ Tournament '{tournament}' not found in master JSON.")
+        lb_file = get_cache_path(tournament, "leaderboard.json")
+        os.makedirs(os.path.dirname(lb_file), exist_ok=True)
+        with open(lb_file, "w") as f:
+            json.dump([], f, indent=2)
         return []
 
     leaderboard_url = remote[key].get("leaderboard")
     if not leaderboard_url:
         print(f"❌ No leaderboard URL for '{tournament}'.")
+        lb_file = get_cache_path(tournament, "leaderboard.json")
+        os.makedirs(os.path.dirname(lb_file), exist_ok=True)
+        with open(lb_file, "w") as f:
+            json.dump([], f, indent=2)
         return []
 
     print(f"📡 Scraping leaderboard for {tournament} → {leaderboard_url}")
     html = fetch_html(leaderboard_url)
     if not html:
+        lb_file = get_cache_path(tournament, "leaderboard.json")
+        os.makedirs(os.path.dirname(lb_file), exist_ok=True)
+        with open(lb_file, "w") as f:
+            json.dump([], f, indent=2)
+        print("⚠️ No leaderboard HTML — wrote empty leaderboard.json")
         return []
 
     os.makedirs("debug", exist_ok=True)
@@ -780,6 +848,7 @@ def scrape_leaderboard(tournament=None, force=False):
         json.dump(leaderboard, f, indent=2)
 
     return leaderboard
+
     
 MAX_IMG_SIZE = (400, 400)  # Max width/height
 IMG_QUALITY = 70           # JPEG/WEBP quality
@@ -994,7 +1063,7 @@ def get_status():
 
         # Build dynamic keys
         part_key = f"{tournament}_participants"
-        event_key = f"{tournament}_events"
+        event_key = f"events_{tournament}"  # 🔧 fixed to match scrape_events()
 
         # Check and format timestamps
         if part_key in cache:
@@ -1012,6 +1081,7 @@ def get_status():
     except Exception as e:
         print(f"❌ Error in /status: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # ==========================================
 # Alerts + Settings Combined Persistence

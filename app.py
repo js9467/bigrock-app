@@ -960,16 +960,16 @@ def scrape_events_route():
             data = load_demo_data(tournament)
 
         all_events = data.get("events", [])
+
         now_time = datetime.now().time()
         today = now.date()
         filtered = []
         for e in all_events:
             try:
-                ts_time = date_parser.parse(e["timestamp"]).time()
-                if ts_time <= now_time:
-                    filtered.append(e)
-            except:
+                ts = date_parser.parse(e["timestamp"])
+            except Exception:
                 continue
+
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
 
     try:

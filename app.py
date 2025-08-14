@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request, send_from_directory, send_file, abort, redirect
 from dateutil import parser as date_parser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 import json
 import os
 from bs4 import BeautifulSoup
@@ -404,7 +404,8 @@ def build_tournaments_index(force: bool = False):
 def inject_hooked_up_events(events, tournament=None):
     demo_events = []
     inserted_keys = set()
-    today = datetime.now().date()
+    name_summary = re.compile(r"^[A-Z][a-z]+\s+[A-Z][a-z]+\s+(released|boated|weighed)", re.IGNORECASE)
+    events = [e for e in events if not name_summary.match(e.get("details", ""))]
     events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     for event in events:
         boat = event.get("boat", "Unknown")
@@ -416,18 +417,16 @@ def inject_hooked_up_events(events, tournament=None):
         if not is_resolution:
             continue
         try:
-            orig_dt = date_parser.parse(event["timestamp"])
-            res_dt = datetime.combine(today, orig_dt.time())
-            event["timestamp"] = res_dt.isoformat()
-            delta_minutes = random.randint(5, 90)
-            hookup_dt = res_dt - timedelta(minutes=delta_minutes)
-            if hookup_dt.date() < today:
-                hookup_dt = datetime.combine(today, datetime.min.time()) + timedelta(minutes=1)
-            key = f"{uid}_{res_dt.isoformat()}"
+            resolution_ts = date_parser.parse(event["timestamp"])
+            event_date = resolution_ts.date()
+            start_time = datetime.combine(event_date, dt_time(9, 0))
+            delta = timedelta(minutes=random.randint(5, 90))
+            hook_ts = max(start_time, resolution_ts - delta)
+            key = f"{uid}_{resolution_ts.isoformat()}"
             if key in inserted_keys:
                 continue
             demo_events.append({
-                "timestamp": hookup_dt.isoformat(),
+                "timestamp": hook_ts.isoformat(),
                 "event": "Hooked Up",
                 "boat": boat,
                 "uid": uid,

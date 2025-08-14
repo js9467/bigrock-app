@@ -65,8 +65,8 @@
             <!-- Boat Image -->
             <img
               class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
-              :data-src="entry.image_path ? entry.image_path : '/static/images/boats/default.jpg'"
-              src="/static/images/boats/default.jpg"
+              :data-src="entry.image_path ? entry.image_path : tournamentLogo"
+              :src="tournamentLogo || '/static/images/bigrock.png'"
               loading="lazy"
               alt="Boat Image"
             />

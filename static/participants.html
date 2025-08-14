@@ -70,9 +70,9 @@
             </div>
             <img
               class="lazy w-full h-48 object-cover opacity-0 transition-opacity duration-500"
-              :data-src="p.image_path || '/static/images/bigrock.png'"
+              :data-src="p.image_path || tournamentLogo"
               :data-uid="p.uid"
-              src="/static/images/bigrock.png"
+              :src="tournamentLogo || '/static/images/bigrock.png'"
               loading="lazy"
               alt="Boat Image"
             />
@@ -191,7 +191,7 @@
           entries.forEach(entry => {
             if (entry.isIntersecting) {
               const img = entry.target;
-              img.src = img.dataset.src || '/static/images/bigrock.png';
+              img.src = img.dataset.src || this.tournamentLogo || '/static/images/bigrock.png';
               img.onload = () => {
                 img.classList.add('opacity-100');
                 const uid = img.getAttribute('data-uid');

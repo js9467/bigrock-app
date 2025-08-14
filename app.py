@@ -963,21 +963,19 @@ def scrape_events_route():
 
         now = datetime.now()
         today = now.date()
-        day_filter = request.args.get("day")
 
         filtered = []
         for e in all_events:
             try:
-                ts = date_parser.parse(e["timestamp"])
-
+                original_ts = date_parser.parse(e["timestamp"])
+                ts = datetime.combine(today, original_ts.time())
             except Exception:
                 continue
-            if day_filter:
-                if ts.date() == today and ts <= now:
-                    filtered.append(e)
-            else:
-                if ts <= now:
-                    filtered.append(e)
+
+            if ts <= now:
+                adjusted = dict(e)
+                adjusted["timestamp"] = ts.isoformat()
+                filtered.append(adjusted)
 
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
 

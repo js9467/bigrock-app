@@ -576,6 +576,81 @@ def scrape_participants(force: bool = False):
                 json.dump([], f, indent=2)
         return []
 
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+
+def _unique(seq):
+    seen = set()
+    out = []
+    for x in seq:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+def _same_path_root(a, b):
+    try:
+        pa, pb = urlparse(a), urlparse(b)
+        return (pa.scheme, pa.netloc, pa.path.split('/')[1:3]) == (pb.scheme, pb.netloc, pb.path.split('/')[1:3])
+    except:
+        return True
+
+def discover_event_page_urls(events_url: str, soup: BeautifulSoup) -> list[str]:
+    """
+    Find all pagination URLs for the Events feed.
+    Falls back to probing common patterns if explicit links aren't present.
+    """
+    base = events_url
+    urls = [base]
+
+    # 1) grab explicit pagination links
+    for sel in [
+        "ul.pagination a", "nav.pagination a", ".pagination a",
+        "a.page-numbers", "ul.page-numbers a", "a[rel='next']", "a[rel='prev']"
+    ]:
+        for a in soup.select(sel):
+            href = a.get("href")
+            if not href:
+                continue
+            u = urljoin(base, href.strip())
+            if _same_path_root(base, u):
+                urls.append(u)
+
+    urls = _unique(urls)
+
+    # If we already discovered several pages, keep them (limit to 12 pages)
+    if len(urls) > 1:
+        # Sort URLs by trailing page number if present, else keep order
+        def page_key(u):
+            m = re.search(r"/page/(\d+)/?$", u)
+            if m: return int(m.group(1))
+            m = re.search(r"[?&](?:page|paged|p)=(\d+)", u)
+            if m: return int(m.group(1))
+            return 1
+        urls = [base] + sorted([u for u in urls if u != base], key=page_key)
+        return urls[:12]
+
+    # 2) fallback: probe /page/N/ pattern
+    probed = [base]
+    for i in range(2, 13):  # up to 12 pages
+        candidate = urljoin(base.rstrip('/') + '/', f"page/{i}/")
+        probed.append(candidate)
+
+    # 3) alternate fallback: ?page=N or &page=N
+    parsed = urlparse(base)
+    qs = parse_qs(parsed.query)
+    # prefer page key that doesn't clash
+    page_keys = ["page", "paged", "p"]
+    for i in range(2, 13):
+        key = next((k for k in page_keys if k not in qs), "page")
+        new_qs = qs.copy()
+        new_qs[key] = [str(i)]
+        new_query = urlencode(new_qs, doseq=True)
+        alt = urlunparse(parsed._replace(query=new_query))
+        probed.append(alt)
+
+    # keep order & unique; caller will test whether they actually contain events
+    return _unique(probed)
+
 def scrape_events(force: bool = False, tournament: str | None = None):
     cache = load_cache()
     tournament = tournament or get_current_tournament()
@@ -604,9 +679,9 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         if not events_url:
             raise Exception(f"No events URL found for {tournament}")
 
-        print(f"📡 Scraping events from: {events_url}")
-        html = fetch_html(events_url)
-        if not html:
+        print(f"📡 Scraping events (with pagination) from: {events_url}")
+        first_html = fetch_html(events_url)
+        if not first_html:
             with open(events_file, "w") as f:
                 json.dump([], f, indent=2)
             cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
@@ -614,9 +689,12 @@ def scrape_events(force: bool = False, tournament: str | None = None):
             print("❌ Failed to fetch events HTML — wrote empty events.json")
             return []
 
-        soup = BeautifulSoup(html, 'html.parser')
-        events = []
-        seen = set()
+        first_soup = BeautifulSoup(first_html, 'html.parser')
+        page_urls = discover_event_page_urls(events_url, first_soup)
+
+        # We'll iterate pages until we stop finding events for 2 pages in a row
+        consecutive_empty = 0
+        max_consecutive_empty = 2
 
         participants_file = get_cache_path(tournament, "participants.json")
         participants = {}
@@ -624,57 +702,89 @@ def scrape_events(force: bool = False, tournament: str | None = None):
             with open(participants_file) as f:
                 participants = {p["uid"]: p for p in json.load(f) if p.get("uid")}
 
-        for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-            time_tag = article.select_one("p.pull-right")
-            name_tag = article.select_one("h4.montserrat")
-            desc_tag = article.select_one("p > strong")
-            if not time_tag or not name_tag or not desc_tag:
-                continue
-            raw = time_tag.get_text(strip=True).replace("@", "").strip()
-            try:
-                ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
-            except:
-                continue
-            boat = name_tag.get_text(strip=True)
-            desc = desc_tag.get_text(strip=True)
-            uid = normalize_boat_name(boat)
+        all_events = []
+        seen = set()
 
-            if uid in participants:
-                boat = participants[uid]["boat"]
+        def parse_events_from_soup(soup):
+            found = 0
+            for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
+                time_tag = article.select_one("p.pull-right")
+                name_tag = article.select_one("h4.montserrat")
+                desc_tag = article.select_one("p > strong")
+                if not time_tag or not name_tag or not desc_tag:
+                    continue
+                raw = time_tag.get_text(strip=True).replace("@", "").strip()
+                try:
+                    ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
+                except:
+                    continue
+                boat = name_tag.get_text(strip=True)
+                desc = desc_tag.get_text(strip=True)
+                uid = normalize_boat_name(boat)
 
-            if "released" in desc.lower():
-                event_type = "Released"
-            elif "boated" in desc.lower():
-                event_type = "Boated"
-            elif "pulled hook" in desc.lower():
-                event_type = "Pulled Hook"
-            elif "wrong species" in desc.lower():
-                event_type = "Wrong Species"
+                if uid in participants:
+                    boat = participants[uid]["boat"]
+
+                low = desc.lower()
+                if "released" in low:
+                    event_type = "Released"
+                elif "boated" in low:
+                    event_type = "Boated"
+                elif "pulled hook" in low:
+                    event_type = "Pulled Hook"
+                elif "wrong species" in low:
+                    event_type = "Wrong Species"
+                elif "hooked up" in low:
+                    event_type = "Hooked Up"
+                else:
+                    event_type = "Other"
+
+                dkey = f"{uid}_{event_type}_{ts}"
+                if dkey in seen:
+                    continue
+                seen.add(dkey)
+
+                all_events.append({
+                    "timestamp": ts,
+                    "event": event_type,
+                    "boat": boat,
+                    "uid": uid,
+                    "details": desc
+                })
+                found += 1
+            return found
+
+        # parse first page
+        parsed_count = parse_events_from_soup(first_soup)
+        consecutive_empty = 0 if parsed_count else 1
+
+        # iterate additional pages
+        for url in page_urls[1:]:
+            html = fetch_html(url)
+            if not html:
+                consecutive_empty += 1
+                if consecutive_empty >= max_consecutive_empty:
+                    break
+                continue
+            soup = BeautifulSoup(html, 'html.parser')
+            found = parse_events_from_soup(soup)
+            if found == 0:
+                consecutive_empty += 1
+                if consecutive_empty >= max_consecutive_empty:
+                    break
             else:
-                event_type = "Other"
+                consecutive_empty = 0
 
-            dkey = f"{uid}_{event_type}_{ts}"
-            if dkey in seen:
-                continue
-            seen.add(dkey)
-
-            events.append({
-                "timestamp": ts,
-                "event": event_type,
-                "boat": boat,
-                "uid": uid,
-                "details": desc
-            })
-
-        events.sort(key=lambda e: e["timestamp"])
+        # Sort newest first
+        all_events.sort(key=lambda e: e["timestamp"], reverse=True)
 
         with open(events_file, "w") as f:
-            json.dump(events, f, indent=2)
+            json.dump(all_events, f, indent=2)
 
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
-        print(f"✅ Scraped {len(events)} events for {tournament}")
-        return events
+        print(f"✅ Scraped {len(all_events)} events across {len(page_urls)} page(s) for {tournament}")
+        return all_events
     except Exception as e:
         print(f"❌ Error in scrape_events: {e}")
         if not os.path.exists(events_file):
@@ -684,11 +794,6 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         save_cache(cache)
         return []
 
-def split_boat_and_type(boat_name: str, trailing_text: str):
-    trailing_text = trailing_text.strip()
-    if trailing_text and re.match(r"^\d{2,2}'", trailing_text):
-        return boat_name, trailing_text
-    return f"{boat_name} {trailing_text}".strip(), ""
 
 def scrape_leaderboard(tournament=None, force: bool = False):
     cache = load_cache()
@@ -855,12 +960,15 @@ def participants_data():
 def scrape_events_route():
     settings = load_settings()
     tournament = get_current_tournament()
+
+    # DEMO: unchanged behavior
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         if not data.get("events"):
             print("⚠️ demo_data.json empty — building now …")
             build_demo_cache(tournament)
             data = load_demo_data(tournament)
+
         all_events = data.get("events", [])
         now_time = datetime.now().time()
         filtered = []
@@ -872,21 +980,18 @@ def scrape_events_route():
             except:
                 continue
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
-        return jsonify({
-            "status": "ok",
-            "count": len(filtered),
-            "events": filtered[:100]
-        })
+        return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
+
+    # LIVE: pagination handled inside scrape_events()
     try:
         events = scrape_events(force=True, tournament=tournament)
-        return jsonify({
-            "status": "ok",
-            "count": len(events),
-            "events": events[:100]
-        })
+        # scrape_events() already returns newest-first; this sort is a harmless safeguard
+        events.sort(key=lambda e: e["timestamp"], reverse=True)
+        return jsonify({"status": "ok", "count": len(events), "events": events[:100]})
     except Exception as e:
         print(f"❌ Error in /scrape/events: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route("/scrape/all")
 def scrape_all():

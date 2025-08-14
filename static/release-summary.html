@@ -218,6 +218,18 @@ createApp({
           this.boatImages = images;
         });
     },
+    setBrandColor(t, cfg){
+      let color = cfg?.[t]?.color;
+      if(!color){
+        const key = `t_color_${t}`;
+        color = localStorage.getItem(key);
+        if(!color){
+          color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
+          localStorage.setItem(key, color);
+        }
+      }
+      document.documentElement.style.setProperty('--brand-color', color);
+    },
     loadTournamentLogo() {
       fetch('/api/settings')
         .then(res => res.json())
@@ -225,7 +237,10 @@ createApp({
           const tournament = settings.tournament;
           return fetch('https://js9467.github.io/Brtourney/settings.json')
             .then(res => res.json())
-            .then(all => { this.tournamentLogo = all[tournament]?.logo || ''; });
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+              this.setBrandColor(tournament, all);
+            });
         });
     },
     formatDate(dateStr) {

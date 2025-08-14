@@ -20,6 +20,12 @@
     .message-strip-wrapper:hover .message-strip { animation-play-state: paused; cursor: pointer; }
     @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+    /* Force side-by-side layout on small screens when in landscape orientation */
+    @media (orientation: landscape) and (max-width: 767px) {
+      .mobile-landscape-row { flex-direction: row; }
+      .mobile-landscape-row .events-col { width: 66.6667%; }
+      .mobile-landscape-row .hooked-col { width: 33.3333%; }
+    }
   </style>
 </head>
 
@@ -85,10 +91,10 @@
   <!-- Content area fills remaining height; only the columns scroll -->
   <main class="flex-1 overflow-hidden">
     <!-- Stack on small screens, side-by-side on lg+ -->
-    <div class="flex h-full flex-col md:flex-row">
+    <div class="flex h-full flex-col md:flex-row mobile-landscape-row">
 
       <!-- Hooked Column (scrolls) -->
-      <div :class="['w-full md:w-1/3 bg-white border-t md:border-t-0 md:border-r border-gray-300 overflow-y-auto order-2',
+      <div class="hooked-col" :class="['w-full md:w-1/3 bg-white border-t md:border-t-0 md:border-r border-gray-300 overflow-y-auto order-2',
                     hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '']">
         <div class="p-4 border-b text-2xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Hooked Up <span v-if="hooked.length > 0">({{ hooked.length }})</span>
@@ -119,7 +125,7 @@
       </div>
 
       <!-- Event Feed (scrolls) -->
-      <div class="w-full md:w-2/3 overflow-y-auto event-feed order-1">
+      <div class="w-full md:w-2/3 overflow-y-auto event-feed order-1 events-col">
         <div class="p-4 border-b text-2xl font-bold flex justify-between items-center bg-gradient-to-r from-brand-blue to-blue-700 text-white">
           Event Feed
         </div>

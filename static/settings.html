@@ -105,7 +105,8 @@
         <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
           <label class="block mb-1">Email Address:</label>
           <input type="email" v-model="recipient.email" placeholder="name@example.com"
-                 class="border px-2 py-1 rounded w-full mb-2" />
+                 class="border px-2 py-1 rounded w-full mb-2"
+                 @focus="launchKeyboard" @blur="hideKeyboard" />
           <button v-if="recipients.length > 1"
                   @click="removeRecipient(index)"
                   class="text-red-600 mt-1 text-sm hover:underline">
@@ -257,6 +258,12 @@
       },
       addRecipient() { this.recipients.push({ email: '' }); },
       removeRecipient(index) { this.recipients.splice(index, 1); },
+      launchKeyboard() {
+        fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
+      },
+      hideKeyboard() {
+        fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+      },
       saveAlerts() {
         const emails = this.recipients
           .filter(r => r.email.trim())
@@ -306,7 +313,9 @@
         axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; });
       },
       connectWifi(ssid) {
+        fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
         const password = prompt(`Password for ${ssid} (leave blank if open)`, '');
+        fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
         axios.post('/wifi/connect', { ssid, password }).then(() => {
           this.showToast(`Connecting to ${ssid}`, 'success');
           this.fetchWifi();

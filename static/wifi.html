@@ -17,19 +17,29 @@
             <button type="submit">Connect</button>
         </form>
     </div>
-    <script>
-        document.getElementById('wifi-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const response = await fetch('/wifi', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                alert('Connecting to Wi-Fi... Please wait.');
-            }
-        });
-    </script>
+      <script>
+          const ssidInput = document.getElementById('ssid');
+          const passwordInput = document.getElementById('password');
+          [ssidInput, passwordInput].forEach(inp => {
+              inp.addEventListener('focus', () => {
+                  fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
+              });
+              inp.addEventListener('blur', () => {
+                  fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+              });
+          });
+          document.getElementById('wifi-form').addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              const response = await fetch('/wifi', {
+                  method: 'POST',
+                  body: formData
+              });
+              const result = await response.json();
+              if (result.status === 'success') {
+                  alert('Connecting to Wi-Fi... Please wait.');
+              }
+          });
+      </script>
 </body>
 </html>

@@ -94,7 +94,7 @@
       <div v-if="drilldownLoading" class="text-gray-500 italic">Loading boat details...</div>
       <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
-          <img :src="boat.image" class="w-24 h-24 object-cover rounded mb-2" onerror="this.src='/static/images/boats/default.jpg'"/>
+          <img :src="boat.image || tournamentLogo" class="w-24 h-24 object-cover rounded mb-2" @error="e => e.target.src = tournamentLogo"/>
           <div class="font-bold text-center mb-1">{{ boat.name }}</div>
           <div class="text-sm text-gray-700 text-center leading-tight">
             <div v-for="line in boat.fishLines" :key="line">{{ line }}</div>
@@ -319,7 +319,7 @@ createApp({
       this.drilldownBoats = [];
     },
     getBoatImage(uid) {
-      return this.boatImages[uid] || '/static/images/boats/default.jpg';
+      return this.boatImages[uid] || this.tournamentLogo || '/static/images/bigrock.png';
     },
     extractFishType(details) {
       details = details.toLowerCase();

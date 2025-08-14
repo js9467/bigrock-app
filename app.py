@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory, send_file, abort
+from flask import Flask, jsonify, request, send_from_directory, send_file, abort, redirect
 from dateutil import parser as date_parser
 from datetime import datetime, timedelta
 import json
@@ -181,6 +181,18 @@ def get_current_tournament():
     settings = load_settings()
     return settings.get('tournament', 'Big Rock')
 
+def get_tournament_logo() -> str | None:
+    """Return the logo URL/path for the current tournament."""
+    tournament = get_current_tournament()
+    try:
+        settings = SESS.get(MASTER_JSON_URL, timeout=12).json()
+        key = next((k for k in settings if k.lower() == tournament.lower()), None)
+        if key:
+            return settings[key].get("logo")
+    except Exception as e:
+        print(f"⚠️ Failed to fetch tournament logo: {e}")
+    return None
+
 def normalize_boat_name(name):
     if not name:
         return "unknown"
@@ -210,8 +222,14 @@ def boat_image(uid):
         if info:
             boat_name, img_url, base_url = info
             IMAGE_DL_EXECUTOR.submit(cache_boat_image, boat_name, img_url, base_url)
-
-        default_path = os.path.join("static", "images", "boats", "default.jpg")
+        logo = get_tournament_logo()
+        if logo:
+            if logo.startswith("http://") or logo.startswith("https://"):
+                return redirect(logo)
+            logo_path = logo.lstrip("/")
+            if os.path.exists(logo_path):
+                return send_file(logo_path, max_age=24 * 3600)
+        default_path = os.path.join("static", "images", "bigrock.png")
         if os.path.exists(default_path):
             return send_file(default_path, max_age=24 * 3600)
         return abort(404)

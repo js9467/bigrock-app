@@ -964,7 +964,7 @@ def scrape_events_route():
         now = datetime.now()
         today = now.date()
         day_filter = request.args.get("day")
-s
+
         filtered = []
         for e in all_events:
             try:

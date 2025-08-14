@@ -115,7 +115,7 @@
 
           <div class="flex-1">
             <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">Hooked Up at {{ formatTime(event.timestamp) }}</div>
+            <div class="text-sm text-gray-600">Hooked Up on {{ formatDate(event.timestamp) }} at {{ formatTime(event.timestamp) }}</div>
           </div>
 
           <button @click="toggleFollow(event.boat)"
@@ -158,7 +158,7 @@
 
           <div class="flex-1">
             <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatTime(event.timestamp) }}</div>
+            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatDate(event.timestamp) }} at {{ formatTime(event.timestamp) }}</div>
             <div class="text-sm">{{ event.details }}</div>
           </div>
 
@@ -287,6 +287,7 @@ const vm = createApp({
     getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.webp';},
     onImageError(e){e.target.src='/static/images/bigrock.webp';},
     formatTime(ts){const dt=new Date(ts);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});},
+    formatDate(ts){const dt=new Date(ts);return dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});},
     applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;},
     toggleRadio(){
       const p=document.getElementById('radio-player');if(!p)return;

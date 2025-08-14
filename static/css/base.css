@@ -4,6 +4,22 @@ body {
   font-family: 'Barlow', sans-serif;
 }
 
+html, body {
+  touch-action: manipulation;
+}
+
+input, select, textarea {
+  font-size: 1.1rem;
+  padding: 0.5rem;
+  touch-action: manipulation;
+  border-radius: 0.375rem;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid #f6c553;
+  outline-offset: 2px;
+}
+
 .bg-brand-blue {
   background-color: #002855;
 }

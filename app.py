@@ -41,6 +41,11 @@ DEMO_DATA_FILE = 'demo_data.json'
 BOAT_FOLDER = "static/images/boats"
 os.makedirs(BOAT_FOLDER, exist_ok=True)
 
+# Limit size for downloaded boat images (width, height)
+IMAGE_MAX_SIZE = (400, 400)
+
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 24 * 3600  # cache static files for a day
+
 UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
@@ -170,7 +175,7 @@ def normalize_boat_name(name):
     return name.lower().replace(' ', '_').replace("'", "").replace("/", "_")
 
 # ------------------------
-# Image handling (no optimization)
+# Image handling
 # ------------------------
 def _resolve_boat_image_fs(uid: str) -> str | None:
     """Return filesystem path to the best available image, if any."""
@@ -189,11 +194,11 @@ def boat_image(uid):
         fs_path = _resolve_boat_image_fs(uid)
         if fs_path:
             print(f"🖼️  /boat-image -> {uid} → {fs_path}")
-            return send_file(fs_path)
+            return send_file(fs_path, max_age=24 * 3600)
         default_path = os.path.join("static", "images", "boats", "default.jpg")
         if os.path.exists(default_path):
             print(f"🖼️  /boat-image -> {uid} → DEFAULT {default_path}")
-            return send_file(default_path)
+            return send_file(default_path, max_age=24 * 3600)
         print(f"❌  /boat-image -> {uid} → default missing")
         return abort(404)
     except Exception as e:
@@ -210,27 +215,17 @@ def _get_best_img_src(img_tag) -> str | None:
     return None
 
 def cache_boat_image(boat_name, image_url, base_url=None):
-    """Download the boat image (headers + retries). No optimization or format conversion."""
+    """Download and optimize the boat image (webp + thumbnail)."""
     os.makedirs(BOAT_FOLDER, exist_ok=True)
     uid = normalize_boat_name(boat_name)
 
-    # Absolutize URL
     if base_url:
         image_url = urljoin(base_url, image_url)
 
-    # Choose extension from URL (fallback .jpg)
-    ext = os.path.splitext(image_url.split('?')[0])[-1].lower()
-    if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
-        ext = '.jpg'
-
-    file_path = os.path.join(BOAT_FOLDER, f"{uid}{ext}")
+    file_path = os.path.join(BOAT_FOLDER, f"{uid}.webp")
     lock = image_locks.setdefault(file_path, Lock())
 
     with lock:
-        # If exists already, done
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            return f"/boat-image/{uid}"
-        # If some other ext already exists (e.g., webp), also fine
         existing = _resolve_boat_image_fs(uid)
         if existing:
             return f"/boat-image/{uid}"
@@ -243,13 +238,20 @@ def cache_boat_image(boat_name, image_url, base_url=None):
 
         for attempt in range(3):
             try:
-                r = requests.get(image_url, headers=headers, timeout=20, stream=True)
+                r = requests.get(image_url, headers=headers, timeout=20)
                 if r.status_code == 200:
-                    with open(file_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=65536):
-                            if chunk:
-                                f.write(chunk)
-                    print(f"✅ Downloaded image for {boat_name}: {file_path}")
+                    img_bytes = io.BytesIO(r.content)
+                    try:
+                        with Image.open(img_bytes) as img:
+                            img.thumbnail(IMAGE_MAX_SIZE)
+                            if img.mode in ("RGBA", "LA", "P"):
+                                img = img.convert("RGB")
+                            img.save(file_path, "WEBP", quality=80)
+                        print(f"✅ Downloaded image for {boat_name}: {file_path}")
+                    except Exception as e:
+                        with open(file_path, "wb") as f:
+                            f.write(r.content)
+                        print(f"⚠️ Saved unoptimized image for {boat_name}: {e}")
                     return f"/boat-image/{uid}"
                 else:
                     print(f"⚠️ Image HTTP {r.status_code} for {boat_name} → {image_url}")
@@ -257,7 +259,6 @@ def cache_boat_image(boat_name, image_url, base_url=None):
                 print(f"⚠️ Error downloading image for {boat_name} (try {attempt+1}/3): {e}")
             time.sleep(0.8)
 
-        # Even if failed, return stable endpoint (will serve default)
         return f"/boat-image/{uid}"
 
 # ------------------------
@@ -411,12 +412,12 @@ def inject_hooked_up_events(events, tournament=None):
             continue
         try:
             orig_dt = date_parser.parse(event["timestamp"])
-            res_dt = datetime.combine(today, orig_dt.time())
+            res_dt = orig_dt.replace(year=today.year)
             event["timestamp"] = res_dt.isoformat()
             delta_minutes = random.randint(5, 120)
             hookup_dt = res_dt - timedelta(minutes=delta_minutes)
-            if hookup_dt.date() < today:
-                hookup_dt = datetime.combine(today, datetime.min.time()) + timedelta(minutes=1)
+            if hookup_dt.date() < res_dt.date():
+                hookup_dt = res_dt.replace(hour=0, minute=0) + timedelta(minutes=1)
             key = f"{uid}_{res_dt.isoformat()}"
             if key in inserted_keys:
                 continue
@@ -624,15 +625,29 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                 participants = {p["uid"]: p for p in json.load(f) if p.get("uid")}
 
         for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-            time_tag = article.select_one("p.pull-right")
+            # Prefer <time datetime="..."></time> if available so we preserve the actual
+            # event date instead of defaulting everything to today.
+            time_tag = article.find("time")
+            raw = None
+            if time_tag and (dt_attr := time_tag.get("datetime")):
+                raw = dt_attr
+            else:
+                time_tag = article.select_one("p.pull-right")
+                if time_tag:
+                    raw = time_tag.get_text(strip=True).replace("@", "").strip()
             name_tag = article.select_one("h4.montserrat")
             desc_tag = article.select_one("p > strong")
-            if not time_tag or not name_tag or not desc_tag:
+            if not raw or not name_tag or not desc_tag:
                 continue
-            raw = time_tag.get_text(strip=True).replace("@", "").strip()
             try:
-                ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
-            except:
+                parsed = date_parser.parse(raw)
+                # If the source only provided a time of day, dateutil will use today's
+                # date; in that case we still need the current year but keep month/day
+                # if they were present.
+                if not re.search(r"\d{4}-\d{2}-\d{2}", raw):
+                    parsed = parsed.replace(year=datetime.now().year)
+                ts = parsed.isoformat()
+            except Exception:
                 continue
             boat = name_tag.get_text(strip=True)
             desc = desc_tag.get_text(strip=True)
@@ -800,7 +815,7 @@ def participants_page():
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    return send_from_directory('static', filename)
+    return send_from_directory('static', filename, cache_timeout=24 * 3600)
 
 # ------------------------
 # Routes: scraping & data APIs
@@ -861,12 +876,12 @@ def scrape_events_route():
             build_demo_cache(tournament)
             data = load_demo_data(tournament)
         all_events = data.get("events", [])
-        now_time = datetime.now().time()
+        now = datetime.now()
         filtered = []
         for e in all_events:
             try:
-                ts_time = date_parser.parse(e["timestamp"]).time()
-                if ts_time <= now_time:
+                ts = date_parser.parse(e["timestamp"])
+                if ts <= now:
                     filtered.append(e)
             except:
                 continue
@@ -1096,8 +1111,8 @@ def background_event_emailer():
             tournament = get_current_tournament()
             if settings.get("data_source") == "demo":
                 events = load_demo_data(tournament).get("events", [])
-                now = datetime.now().time()
-                events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
+                now = datetime.now()
+                events = [e for e in events if date_parser.parse(e["timestamp"]) <= now]
             else:
                 if not os.path.exists(events_file):
                     time.sleep(5)
@@ -1282,14 +1297,14 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = get_current_tournament()
     data_source = settings.get("data_source", "live").lower()
-    now_time = datetime.now().time()
+    now = datetime.now()
     events = []
 
     if data_source == "demo":
         data = load_demo_data(tournament)
         events = [
             e for e in data.get("events", [])
-            if date_parser.parse(e["timestamp"]).time() <= now_time
+            if date_parser.parse(e["timestamp"]) <= now
         ]
     else:
         events_file = get_cache_path(tournament, "events.json")
@@ -1503,7 +1518,7 @@ def release_summary_data():
             now = datetime.now()
             events = [
                 e for e in all_events
-                if date_parser.parse(e["timestamp"]).time() <= now.time()
+                if date_parser.parse(e["timestamp"]) <= now
             ]
         else:
             events_file = get_cache_path(tournament, "events.json")

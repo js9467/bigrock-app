@@ -964,10 +964,12 @@ def scrape_events_route():
         now = datetime.now()
         today = now.date()
         day_filter = request.args.get("day")
+s
         filtered = []
         for e in all_events:
             try:
                 ts = date_parser.parse(e["timestamp"])
+
             except Exception:
                 continue
             if day_filter:
@@ -978,6 +980,7 @@ def scrape_events_route():
                     filtered.append(e)
 
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+
         return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
 
     try:

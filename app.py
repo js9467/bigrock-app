@@ -16,7 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode, quote
 from collections import defaultdict
@@ -273,6 +273,7 @@ def cache_boat_image(boat_name, image_url, base_url=None):
                     img_bytes = io.BytesIO(r.content)
                     try:
                         with Image.open(img_bytes) as img:
+                            img = ImageOps.exif_transpose(img)
                             img.thumbnail(IMAGE_MAX_SIZE)
                             if img.mode in ("RGBA", "LA", "P"):
                                 img = img.convert("RGB")
@@ -1097,6 +1098,7 @@ BigRock Live Alert
                     if image_path and os.path.exists(image_path):
                         try:
                             with Image.open(image_path) as img:
+                                img = ImageOps.exif_transpose(img)
                                 img.thumbnail((600, 600))
                                 img_bytes = io.BytesIO()
                                 if img.mode in ("RGBA", "LA", "P"):
@@ -1244,6 +1246,7 @@ def test_alerts():
             if os.path.exists(image_path):
                 try:
                     with Image.open(image_path) as img:
+                        img = ImageOps.exif_transpose(img)
                         img.thumbnail((600, 600))
                         img_bytes = io.BytesIO()
                         if img.mode in ("RGBA", "LA", "P"):

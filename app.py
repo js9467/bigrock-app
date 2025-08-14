@@ -1580,7 +1580,8 @@ def release_summary_data():
             summary[day]["total_releases"] += 1
 
         result = [{"date": k, **v} for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)]
-        return jsonify({"status": "ok", "demo_mode": demo_mode, "summary": result})
+        return jsonify({"status": "ok", "demo_mode": demo_mode,
+                        "summary": result, "events": events})
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})

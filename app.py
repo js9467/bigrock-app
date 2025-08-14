@@ -26,7 +26,9 @@ from collections import defaultdict
 # ------------------------
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
-MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
+# Remote tournament configuration (fallback URL can be overridden via env)
+MASTER_JSON_URL = os.environ.get('MASTER_JSON_URL', 'https://bigrockfishingapp.com/main.json')
+MASTER_SETTINGS_FILE = 'main.json'
 
 SMTP_USER = "bigrockapp@gmail.com"
 SMTP_PASS = "coslxivgfqohjvto"  # Gmail App Password
@@ -90,6 +92,20 @@ def safe_json_dump(path, obj):
     with open(tmp, "w") as f:
         json.dump(obj, f, indent=2)
     os.replace(tmp, path)
+
+def load_master_settings():
+    """Load tournament metadata from local file with remote fallback."""
+    data = safe_json_load(MASTER_SETTINGS_FILE, None)
+    if data:
+        return data
+    try:
+        r = requests.get(MASTER_JSON_URL, timeout=10)
+        if r.status_code == 200:
+            return r.json()
+        print(f"⚠️ master settings HTTP {r.status_code} for {MASTER_JSON_URL}")
+    except Exception as e:
+        print(f"⚠️ Failed to fetch master settings: {e}")
+    return {}
 
 def fetch_html(url, use_scraperapi: bool = False) -> str:
     """Fast, resilient HTML fetch with short timeouts."""
@@ -333,9 +349,9 @@ def build_tournaments_index(force: bool = False):
     os.makedirs("cache", exist_ok=True)
     cached = safe_json_load(TOURNAMENTS_CACHE, {}) if not force else {}
     try:
-        master = SESS.get(MASTER_JSON_URL, timeout=15).json()
+        master = load_master_settings()
     except Exception as e:
-        print(f"❌ Failed to fetch MASTER_JSON_URL: {e}")
+        print(f"❌ Failed to load master settings: {e}")
         return cached
     entries = {}
     if isinstance(master, dict):
@@ -465,7 +481,7 @@ def scrape_participants(force: bool = False):
         return safe_json_load(participants_file, [])
 
     try:
-        settings = SESS.get(MASTER_JSON_URL, timeout=12).json()
+        settings = load_master_settings()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
         if not matching_key:
             raise Exception(f"Tournament '{tournament}' not found in settings.json")
@@ -605,7 +621,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         return safe_json_load(events_file, [])
 
     try:
-        remote = SESS.get(MASTER_JSON_URL, timeout=12).json()
+        remote = load_master_settings()
         key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
         if not key:
             raise Exception(f"Tournament '{tournament}' not found in remote settings.json")
@@ -770,7 +786,7 @@ def scrape_leaderboard(tournament=None, force: bool = False):
         return safe_json_load(lb_file, [])
 
     try:
-        remote = SESS.get(MASTER_JSON_URL, timeout=15).json()
+        remote = load_master_settings()
         key = next((k for k in remote if k.lower() == tournament.lower()), None)
         if not key:
             print(f"❌ Tournament '{tournament}' not found in master JSON.")
@@ -894,6 +910,11 @@ def serve_static(filename):
 @app.route('/healthz')
 def healthz():
     return "ok", 200
+
+@app.route('/main.json')
+def master_settings():
+    """Expose remote tournament settings to the front-end."""
+    return jsonify(load_master_settings())
 
 # ------------------------
 # Routes: scraping & data APIs

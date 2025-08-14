@@ -1,0 +1,14 @@
+{
+  "fallback_stream": "",
+  "Big Rock": {
+    "logo": "/static/images/bigrock.webp",
+    "dates": "June 10-17, 2025",
+    "color": "#002855",
+    "stream": ""
+  },
+  "Pirate's Cove": {
+    "logo": "/static/images/bigrock.webp",
+    "dates": "August 12-17, 2025",
+    "stream": ""
+  }
+}

@@ -7,7 +7,6 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/css/base.css" />
-  <style>[v-cloak]{display:none}</style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
   <div id="app" v-cloak>
@@ -128,6 +127,25 @@
       }
     },
     methods: {
+      setBrandColor(t, cfg){
+        let color = cfg?.[t]?.color;
+        const key = `t_color_${t}`;
+        if(!color){
+          if(t === 'Big Rock'){
+            localStorage.removeItem(key);
+            color = '#002855';
+          } else {
+            color = localStorage.getItem(key);
+            if(!color){
+              color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
+              localStorage.setItem(key, color);
+            }
+          }
+        } else if(t === 'Big Rock'){
+          localStorage.removeItem(key);
+        }
+        document.documentElement.style.setProperty('--brand-color', color);
+      },
       async loadFollowed() {
         try {
           const res = await fetch('/followed-boats');
@@ -176,9 +194,10 @@
           const settingsRes = await fetch('/api/settings');
           const settings = await settingsRes.json();
           const tournament = settings.tournament;
-          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const configRes = await fetch('/main.json');
           const allTournaments = await configRes.json();
           this.tournamentLogo = allTournaments[tournament]?.logo || '';
+          this.setBrandColor(tournament, allTournaments);
         } catch(e) { console.error('Logo load failed', e); }
       },
       launchKeyboard() { fetch('/launch_keyboard').catch(()=>{}); },

@@ -135,6 +135,25 @@
       }
     },
     methods: {
+      setBrandColor(t, cfg){
+        let color = cfg?.[t]?.color;
+        const key = `t_color_${t}`;
+        if(!color){
+          if(t === 'Big Rock'){
+            localStorage.removeItem(key);
+            color = '#002855';
+          } else {
+            color = localStorage.getItem(key);
+            if(!color){
+              color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
+              localStorage.setItem(key, color);
+            }
+          }
+        } else if(t === 'Big Rock'){
+          localStorage.removeItem(key);
+        }
+        document.documentElement.style.setProperty('--brand-color', color);
+      },
       displayEntries(category) {
         const entries = this.groupedLeaderboard[category] || [];
         // Limit to 10 unless Show All is active
@@ -162,9 +181,10 @@
           const settingsRes = await fetch('/api/settings');
           const settings = await settingsRes.json();
           const tournament = settings.tournament;
-          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
+          const configRes = await fetch('/main.json');
           const allTournaments = await configRes.json();
           this.tournamentLogo = allTournaments[tournament]?.logo || '';
+          this.setBrandColor(tournament, allTournaments);
         } catch(e) { console.error('Logo load failed', e); }
       },
       initLazyLoading() {
@@ -191,6 +211,5 @@
   app.mount('#app');
   </script>
 
-  <style>[v-cloak]{display:none}</style>
 </body>
 </html>

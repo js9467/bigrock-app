@@ -136,15 +136,7 @@
     },
     methods: {
       setBrandColor(t, cfg){
-        let color = cfg?.[t]?.color;
-        if(!color){
-          const key = `t_color_${t}`;
-          color = localStorage.getItem(key);
-          if(!color){
-            color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
-            localStorage.setItem(key, color);
-          }
-        }
+        const color = cfg?.[t]?.color || '#002855';
         document.documentElement.style.setProperty('--brand-color', color);
       },
       displayEntries(category) {

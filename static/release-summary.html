@@ -138,9 +138,7 @@ createApp({
         const summaryData = await fetch('/release-summary-data').then(r=>r.json());
         this.summary = summaryData.summary || [];
         this.demoMode = summaryData.demo_mode || false;
-
-        const eventsData = await fetch('/scrape/events').then(r=>r.json());
-        this.allEvents = eventsData.events || [];
+        this.allEvents = summaryData.events || [];
 
         if (this.demoMode) {
           this.fabricateDemoData();

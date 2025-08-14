@@ -286,6 +286,8 @@ const vm = createApp({
     loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;});},
     getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.webp';},
     onImageError(e){e.target.src='/static/images/bigrock.webp';},
+    
+   
     parseTs(ts){
       if(!ts) return null;
       let dt;

@@ -53,6 +53,11 @@ UA_POOL = [
 ]
 
 image_locks = {}
+# Map of uid -> (boat_name, image_url, base_url) for deferred downloads
+IMAGE_SOURCES = {}
+
+# Shared thread pool for background image downloads
+IMAGE_DL_EXECUTOR = ThreadPoolExecutor(max_workers=6)
 TOURNAMENTS_CACHE = "cache/tournaments.json"
 
 # HTTP session (faster + connection reuse) & suppress SSL warnings for verify=False
@@ -200,6 +205,12 @@ def boat_image(uid):
         fs_path = _resolve_boat_image_fs(uid)
         if fs_path:
             return send_file(fs_path, max_age=24 * 3600)
+        # If we know a source URL for this uid, fetch it asynchronously
+        info = IMAGE_SOURCES.get(uid)
+        if info:
+            boat_name, img_url, base_url = info
+            IMAGE_DL_EXECUTOR.submit(cache_boat_image, boat_name, img_url, base_url)
+
         default_path = os.path.join("static", "images", "boats", "default.jpg")
         if os.path.exists(default_path):
             return send_file(default_path, max_age=24 * 3600)
@@ -493,6 +504,7 @@ def scrape_participants(force: bool = False):
             img_src = _get_best_img_src(img_tag) if img_tag else None
             if img_src:
                 img_src = urljoin(participants_url, img_src)
+                IMAGE_SOURCES[uid] = (boat_name, img_src, participants_url)
 
             updated_participants[uid] = {
                 "uid": uid,
@@ -508,16 +520,9 @@ def scrape_participants(force: bool = False):
         print(f"💾 participants.json written with {len(updated_participants)} entries")
 
         if download_tasks:
-            print(f"📸 Downloading {len(download_tasks)} boat images in background...")
-            def download_and_update(uid, boat_name, url, base):
-                try:
-                    cache_boat_image(boat_name, url, base_url=base)
-                except Exception as e:
-                    print(f"❌ Error downloading image for {uid}: {e}")
-
-            with ThreadPoolExecutor(max_workers=6) as ex:
-                for uid, bname, url, base in download_tasks:
-                    ex.submit(download_and_update, uid, bname, url, base)
+            print(f"📸 Scheduling download of {len(download_tasks)} boat images...")
+            for uid, bname, url, base in download_tasks:
+                IMAGE_DL_EXECUTOR.submit(cache_boat_image, bname, url, base)
 
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)

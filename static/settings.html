@@ -287,9 +287,22 @@
         if (file) { this.previewSound(file); this.saveSettings(); }
       },
       onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
+      setBrandColor(t){
+        let color = this.tournaments[t]?.color;
+        if(!color){
+          const key = `t_color_${t}`;
+          color = localStorage.getItem(key);
+          if(!color){
+            color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
+            localStorage.setItem(key, color);
+          }
+        }
+        document.documentElement.style.setProperty('--brand-color', color);
+      },
       updateTournamentLogo() {
         const t = this.settings.tournament;
         this.tournamentLogo = this.tournaments[t]?.logo || '';
+        this.setBrandColor(t);
       },
       previewSound(file) {
         if (!file) return;

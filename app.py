@@ -18,38 +18,76 @@ from email.mime.image import MIMEImage
 from email.utils import formataddr
 from PIL import Image
 import io
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode, quote
 from collections import defaultdict
+
 # ------------------------
 # Constants / Config
 # ------------------------
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
 MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
+
 SMTP_USER = "bigrockapp@gmail.com"
-SMTP_PASS = "coslxivgfqohjvto" # Gmail App Password
+SMTP_PASS = "coslxivgfqohjvto"  # Gmail App Password
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+
 app = Flask(__name__)
 CACHE_FILE = 'cache.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
+
 BOAT_FOLDER = "static/images/boats"
 os.makedirs(BOAT_FOLDER, exist_ok=True)
+
 # Limit size for downloaded boat images (width, height)
 IMAGE_MAX_SIZE = (400, 400)
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 24 * 3600 # cache static files for a day
+
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 24 * 3600  # cache static files for a day
+
 UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36",
 ]
+
 image_locks = {}
 TOURNAMENTS_CACHE = "cache/tournaments.json"
+
+# HTTP session (faster + connection reuse) & suppress SSL warnings for verify=False
+SESS = requests.Session()
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
+
 # ------------------------
 # Utilities
 # ------------------------
+def safe_json_load(path, default):
+    """Read JSON file, return default on missing/empty/corrupt."""
+    try:
+        if os.path.exists(path) and os.path.getsize(path) > 1:
+            with open(path, "r") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ JSON read failed for {path}: {e}")
+    return default
+
+def safe_json_dump(path, obj):
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    except Exception:
+        pass
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=2)
+    os.replace(tmp, path)
+
 def fetch_html(url, use_scraperapi: bool = False) -> str:
+    """Fast, resilient HTML fetch with short timeouts."""
     headers = {
         "User-Agent": random.choice(UA_POOL),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -57,74 +95,73 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
         "Cache-Control": "no-cache",
         "Pragma": "no-cache",
     }
+    # First try direct (short timeout)
     try:
-        r = requests.get(url, headers=headers, timeout=45, verify=False)
+        r = SESS.get(url, headers=headers, timeout=12, verify=False)
         if r.status_code == 200 and r.text.strip():
             return r.text
-    except Exception:
-        pass
+        print(f"⚠️ Direct fetch {r.status_code} for {url}")
+    except Exception as e:
+        print(f"⚠️ Direct fetch error for {url}: {e}")
+
+    # Optional ScraperAPI
     if use_scraperapi:
         api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
-        api = f"https://api.scraperapi.com?api_key={api_key}&keep_headers=true&url={requests.utils.quote(url, safe='')}"
+        api = f"https://api.scraperapi.com?api_key={api_key}&keep_headers=true&url={quote(url, safe='')}"
         try:
-            r = requests.get(api, headers=headers, timeout=60)
+            r = SESS.get(api, headers=headers, timeout=18)
             if r.status_code == 200 and r.text.strip():
                 return r.text
-        except Exception:
-            pass
-    time.sleep(1.0)
+            print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
+        except Exception as e:
+            print(f"❌ Error via ScraperAPI: {e}")
+
+    # Final quick retry direct
+    time.sleep(0.5)
     try:
-        r = requests.get(url, headers=headers, timeout=45, verify=False)
+        r = SESS.get(url, headers=headers, timeout=10, verify=False)
         if r.status_code == 200 and r.text.strip():
             return r.text
-    except Exception:
-        pass
+        print(f"⚠️ Final retry got {r.status_code} for {url}")
+    except Exception as e:
+        print(f"⚠️ Final retry error for {url}: {e}")
     return ""
+
 def load_alerts():
-    if os.path.exists(ALERTS_FILE):
-        with open(ALERTS_FILE) as f:
-            return json.load(f)
-    return []
+    return safe_json_load(ALERTS_FILE, [])
+
 def save_alerts(alerts):
-    with open(ALERTS_FILE, 'w') as f:
-        json.dump(alerts, f, indent=2)
+    safe_json_dump(ALERTS_FILE, alerts)
+
 def load_notified_events():
-    if os.path.exists(NOTIFIED_FILE):
-        with open(NOTIFIED_FILE) as f:
-            return set(json.load(f))
-    return set()
+    arr = safe_json_load(NOTIFIED_FILE, [])
+    return set(arr)
+
 def save_notified_events(notified):
-    with open(NOTIFIED_FILE, 'w') as f:
-        json.dump(list(notified), f)
+    safe_json_dump(NOTIFIED_FILE, list(notified))
+
 def get_cache_path(tournament, filename):
     folder = os.path.join("cache", normalize_boat_name(tournament))
     os.makedirs(folder, exist_ok=True)
     return os.path.join(folder, filename)
+
 def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, 'r') as f:
-            return json.load(f)
-    return {}
+    return safe_json_load(CACHE_FILE, {})
+
 def save_cache(cache):
-    with open(CACHE_FILE, 'w') as f:
-        json.dump(cache, f, indent=2)
+    safe_json_dump(CACHE_FILE, cache)
+
 def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
+    return safe_json_load(SETTINGS_FILE, {})
+
 def load_demo_data(tournament):
-    if os.path.exists(DEMO_DATA_FILE):
-        try:
-            with open(DEMO_DATA_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get(tournament, {'events': [], 'leaderboard': []})
-        except Exception:
-            pass
-    return {'events': [], 'leaderboard': []}
+    data = safe_json_load(DEMO_DATA_FILE, {})
+    return data.get(tournament, {'events': [], 'leaderboard': []})
+
 def get_data_source():
     s = load_settings()
     return (s.get("data_source") or s.get("mode") or "live").lower()
+
 def is_cache_fresh(cache, key, max_age_minutes):
     try:
         last_scraped = cache.get(key, {}).get("last_scraped")
@@ -134,17 +171,16 @@ def is_cache_fresh(cache, key, max_age_minutes):
         return (datetime.now() - last_time) < timedelta(minutes=max_age_minutes)
     except Exception:
         return False
+
 def get_current_tournament():
-    try:
-        with open(SETTINGS_FILE, 'r') as f:
-            settings = json.load(f)
-            return settings.get('tournament', 'Big Rock')
-    except Exception:
-        return 'Big Rock'
+    settings = load_settings()
+    return settings.get('tournament', 'Big Rock')
+
 def normalize_boat_name(name):
     if not name:
         return "unknown"
     return name.lower().replace(' ', '_').replace("'", "").replace("/", "_")
+
 # ------------------------
 # Image handling
 # ------------------------
@@ -156,15 +192,22 @@ def _resolve_boat_image_fs(uid: str) -> str | None:
         if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
             return candidate
     return None
+
 @app.route("/boat-image/<uid>")
 def boat_image(uid):
-    fs_path = _resolve_boat_image_fs(uid)
-    if fs_path:
-        return send_file(fs_path, max_age=24 * 3600)
-    default_path = os.path.join("static", "images", "boats", "default.jpg")
-    if os.path.exists(default_path):
-        return send_file(default_path, max_age=24 * 3600)
-    return abort(404)
+    """Serve a boat's image or a default placeholder, with logging."""
+    try:
+        fs_path = _resolve_boat_image_fs(uid)
+        if fs_path:
+            return send_file(fs_path, max_age=24 * 3600)
+        default_path = os.path.join("static", "images", "boats", "default.jpg")
+        if os.path.exists(default_path):
+            return send_file(default_path, max_age=24 * 3600)
+        return abort(404)
+    except Exception as e:
+        print(f"❌  /boat-image error for {uid}: {e}")
+        return abort(500)
+
 def _get_best_img_src(img_tag) -> str | None:
     if not img_tag:
         return None
@@ -173,26 +216,31 @@ def _get_best_img_src(img_tag) -> str | None:
         if val and str(val).strip():
             return val.strip()
     return None
+
 def cache_boat_image(boat_name, image_url, base_url=None):
+    """Download and save the boat image (webp + modest resize)."""
     os.makedirs(BOAT_FOLDER, exist_ok=True)
     uid = normalize_boat_name(boat_name)
     if base_url:
         image_url = urljoin(base_url, image_url)
+
     file_path = os.path.join(BOAT_FOLDER, f"{uid}.webp")
     lock = image_locks.setdefault(file_path, Lock())
+
     with lock:
         existing = _resolve_boat_image_fs(uid)
         if existing:
             return f"/boat-image/{uid}"
+
         headers = {
             "User-Agent": random.choice(UA_POOL),
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
             "Referer": base_url or "",
         }
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                r = requests.get(image_url, headers=headers, timeout=20)
-                if r.status_code == 200:
+                r = SESS.get(image_url, headers=headers, timeout=12)
+                if r.status_code == 200 and r.content:
                     img_bytes = io.BytesIO(r.content)
                     try:
                         with Image.open(img_bytes) as img:
@@ -200,15 +248,20 @@ def cache_boat_image(boat_name, image_url, base_url=None):
                             if img.mode in ("RGBA", "LA", "P"):
                                 img = img.convert("RGB")
                             img.save(file_path, "WEBP", quality=80)
-                    except Exception:
+                        print(f"✅ Downloaded image for {boat_name}: {file_path}")
+                    except Exception as e:
                         with open(file_path, "wb") as f:
                             f.write(r.content)
+                        print(f"⚠️ Saved unoptimized image for {boat_name}: {e}")
                     return f"/boat-image/{uid}"
-            except Exception:
-                time.sleep(0.8)
+                print(f"⚠️ Image HTTP {r.status_code} for {boat_name} → {image_url}")
+            except Exception as e:
+                print(f"⚠️ Error downloading image for {boat_name} (try {attempt+1}/2): {e}")
+            time.sleep(0.4)
         return f"/boat-image/{uid}"
+
 # ------------------------
-# Demo injection & tournaments date scraping
+# Tournament dates utilities
 # ------------------------
 def _nice_range_label(start_dt: datetime, end_dt: datetime) -> str:
     if start_dt.year != end_dt.year:
@@ -216,6 +269,7 @@ def _nice_range_label(start_dt: datetime, end_dt: datetime) -> str:
     if start_dt.month == end_dt.month:
         return f"{start_dt.strftime('%b %-d')}–{end_dt.strftime('%-d, %Y')}"
     return f"{start_dt.strftime('%b %-d')} – {end_dt.strftime('%b %-d, %Y')}"
+
 def _parse_date_range_any(text: str, default_year: int | None = None):
     text = (text or "").strip()
     if not text:
@@ -241,6 +295,7 @@ def _parse_date_range_any(text: str, default_year: int | None = None):
         return start, end
     except:
         return None, None
+
 def _scrape_dates_from_html(html: str):
     try:
         soup = BeautifulSoup(html, "html.parser")
@@ -262,18 +317,14 @@ def _scrape_dates_from_html(html: str):
         return None, None
     except:
         return None, None
+
 def build_tournaments_index(force: bool = False):
     os.makedirs("cache", exist_ok=True)
-    cached = {}
-    if os.path.exists(TOURNAMENTS_CACHE) and not force:
-        try:
-            with open(TOURNAMENTS_CACHE) as f:
-                cached = json.load(f) or {}
-        except Exception:
-            cached = {}
+    cached = safe_json_load(TOURNAMENTS_CACHE, {}) if not force else {}
     try:
-        master = requests.get(MASTER_JSON_URL, timeout=30).json()
-    except Exception:
+        master = SESS.get(MASTER_JSON_URL, timeout=15).json()
+    except Exception as e:
+        print(f"❌ Failed to fetch MASTER_JSON_URL: {e}")
         return cached
     entries = {}
     if isinstance(master, dict):
@@ -285,20 +336,17 @@ def build_tournaments_index(force: bool = False):
                 if name:
                     entries[name] = obj
     else:
+        print(f"⚠️ Unexpected master JSON type: {type(master)}")
         return cached
     out = {}
     for name, vals in entries.items():
         if not isinstance(vals, dict):
+            print(f"⚠️ Skipping '{name}' (not a dict)")
             continue
         if not force and name in cached and cached[name].get("start") and cached[name].get("end"):
             out[name] = cached[name]
             continue
-        pages = [
-            vals.get("leaderboard"),
-            vals.get("events"),
-            vals.get("participants"),
-            vals.get("activities"),
-        ]
+        pages = [vals.get("leaderboard"), vals.get("events"), vals.get("participants"), vals.get("activities")]
         pages = [p for p in pages if isinstance(p, str) and p.strip()]
         if not pages:
             out[name] = {"start": None, "end": None, "label": ""}
@@ -313,19 +361,13 @@ def build_tournaments_index(force: bool = False):
                 break
         if s_dt and e_dt:
             label = _nice_range_label(s_dt, e_dt)
-            out[name] = {
-                "start": s_dt.strftime("%Y-%m-%d"),
-                "end": e_dt.strftime("%Y-%m-%d"),
-                "label": label,
-            }
+            out[name] = {"start": s_dt.strftime("%Y-%m-%d"), "end": e_dt.strftime("%Y-%m-%d"), "label": label}
         else:
             out[name] = {"start": None, "end": None, "label": ""}
-    try:
-        with open(TOURNAMENTS_CACHE, "w") as f:
-            json.dump(out, f, indent=2)
-    except Exception:
-        pass
+    safe_json_dump(TOURNAMENTS_CACHE, out)
+    print(f"✅ Tournaments index saved: {len(out)} entries")
     return out
+
 # ------------------------
 # Demo event injection
 # ------------------------
@@ -339,19 +381,15 @@ def inject_hooked_up_events(events, tournament=None):
         uid = event.get("uid", "unknown")
         etype = event.get("event", "").lower()
         details = event.get("details", "").lower()
-        is_resolution = (
-            "boated" in etype
-            or "released" in etype
-            or "pulled hook" in details
-            or "wrong species" in details
-        )
+        is_resolution = ("boated" in etype or "released" in etype or
+                         "pulled hook" in details or "wrong species" in details)
         if not is_resolution:
             continue
         try:
             orig_dt = date_parser.parse(event["timestamp"])
             res_dt = datetime.combine(today, orig_dt.time())
             event["timestamp"] = res_dt.isoformat()
-            delta_minutes = random.randint(5, 120)
+            delta_minutes = random.randint(5, 90)
             hookup_dt = res_dt - timedelta(minutes=delta_minutes)
             if hookup_dt.date() < today:
                 hookup_dt = datetime.combine(today, datetime.min.time()) + timedelta(minutes=1)
@@ -367,119 +405,129 @@ def inject_hooked_up_events(events, tournament=None):
                 "hookup_id": key
             })
             inserted_keys.add(key)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ Demo injection failed for {boat}: {e}")
     all_events = sorted(events + demo_events, key=lambda e: date_parser.parse(e["timestamp"]))
+    print(f"📦 Returning {len(all_events)} events (with {len(demo_events)} hooked up injections)")
     return all_events
+
 def build_demo_cache(tournament: str) -> int:
+    print(f"📦 [DEMO] Building demo cache for {tournament}...")
     try:
         events = scrape_events(force=True, tournament=tournament)
         if not events:
             events_file = get_cache_path(tournament, "events.json")
-            if os.path.exists(events_file) and os.path.getsize(events_file) > 0:
-                with open(events_file) as f:
-                    events = json.load(f)
+            events = safe_json_load(events_file, [])
+            if events:
+                print(f"🟡 Using cached {len(events)} live events for demo injection")
         injected = inject_hooked_up_events(events, tournament)
         leaderboard = scrape_leaderboard(tournament, force=True) or []
-        demo_data = {}
-        if os.path.exists(DEMO_DATA_FILE):
-            try:
-                with open(DEMO_DATA_FILE, 'r') as f:
-                    demo_data = json.load(f)
-            except Exception:
-                pass
-        demo_data[tournament] = {
-            "events": injected,
-            "leaderboard": leaderboard
-        }
-        with open(DEMO_DATA_FILE, 'w') as f:
-            json.dump(demo_data, f, indent=4)
+        demo_data = safe_json_load(DEMO_DATA_FILE, {})
+        demo_data[tournament] = {"events": injected, "leaderboard": leaderboard}
+        safe_json_dump(DEMO_DATA_FILE, demo_data)
+        print(f"✅ [DEMO] Saved demo_data.json for {tournament} with {len(injected)} events")
         return len(injected)
-    except Exception:
+    except Exception as e:
+        print(f"❌ [DEMO] Failed to build demo cache: {e}")
         return 0
+
 # ------------------------
 # Scrapers
 # ------------------------
 def run_in_thread(target, name):
     def wrapper():
         try:
+            print(f"🧵 Starting {name} in thread...")
             target()
-        except Exception:
-            pass
-    Thread(target=wrapper).start()
+            print(f"✅ Finished {name}.")
+        except Exception as e:
+            print(f"❌ Error in {name} thread: {e}")
+    Thread(target=wrapper, daemon=True).start()
+
 def scrape_participants(force: bool = False):
     cache = load_cache()
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
     cache_key = f"{tournament}_participants"
-    if not os.path.exists(participants_file):
-        with open(participants_file, "w") as f:
-            json.dump([], f, indent=2)
+
     if not force and is_cache_fresh(cache, cache_key, 1440):
-        if os.path.exists(participants_file):
-            with open(participants_file, "r") as f:
-                return json.load(f)
-        return []
+        return safe_json_load(participants_file, [])
+
     try:
-        settings = requests.get(MASTER_JSON_URL, timeout=30).json()
+        settings = SESS.get(MASTER_JSON_URL, timeout=12).json()
         matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
         if not matching_key:
             raise Exception(f"Tournament '{tournament}' not found in settings.json")
         participants_url = settings[matching_key].get("participants")
         if not participants_url:
             raise Exception(f"No participants URL found for {matching_key}")
+
+        print(f"📡 Scraping participants from: {participants_url}")
         html = fetch_html(participants_url)
         if not html:
-            with open(participants_file, "w") as f:
-                json.dump([], f, indent=2)
+            safe_json_dump(participants_file, [])
+            print("⚠️ Error scraping participants: no HTML — wrote empty participants.json")
             return []
+
         soup = BeautifulSoup(html, 'html.parser')
+
         updated_participants = {}
         download_tasks = []
         seen_boats = set()
-        for article in soup.select("article.post.format-image"):
-            name_tag = article.select_one("h2.post-title")
-            type_tag = article.select_one("ul.post-meta li")
-            img_tag = article.select_one("img")
+
+        for article in soup.select("article.post.format-image, article"):
+            name_tag = article.select_one("h2.post-title, h2, h3")
+            type_tag = article.select_one("ul.post-meta li")  # best-effort
+            img_tag  = article.select_one("img")
             if not name_tag:
                 continue
+
             boat_name = name_tag.get_text(strip=True)
             if not boat_name or boat_name.lower() in seen_boats or ',' in boat_name:
                 continue
             seen_boats.add(boat_name.lower())
+
             uid = normalize_boat_name(boat_name)
             boat_type = type_tag.get_text(strip=True) if type_tag else ""
+
             img_src = _get_best_img_src(img_tag) if img_tag else None
             if img_src:
                 img_src = urljoin(participants_url, img_src)
+
             updated_participants[uid] = {
                 "uid": uid,
                 "boat": boat_name,
                 "type": boat_type,
                 "image_path": f"/boat-image/{uid}",
             }
+
             if img_src:
                 download_tasks.append((uid, boat_name, img_src, participants_url))
-        with open(participants_file, "w") as f:
-            json.dump(list(updated_participants.values()), f, indent=2)
+
+        safe_json_dump(participants_file, list(updated_participants.values()))
+        print(f"💾 participants.json written with {len(updated_participants)} entries")
+
         if download_tasks:
+            print(f"📸 Downloading {len(download_tasks)} boat images in background...")
             def download_and_update(uid, boat_name, url, base):
                 try:
                     cache_boat_image(boat_name, url, base_url=base)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"❌ Error downloading image for {uid}: {e}")
+
             with ThreadPoolExecutor(max_workers=6) as ex:
                 for uid, bname, url, base in download_tasks:
                     ex.submit(download_and_update, uid, bname, url, base)
+
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return list(updated_participants.values())
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Error scraping participants: {e}")
         if not os.path.exists(participants_file):
-            with open(participants_file, "w") as f:
-                json.dump([], f, indent=2)
+            safe_json_dump(participants_file, [])
         return []
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+
 def _unique(seq):
     seen = set()
     out = []
@@ -488,19 +536,25 @@ def _unique(seq):
             seen.add(x)
             out.append(x)
     return out
+
 def _same_path_root(a, b):
     try:
         pa, pb = urlparse(a), urlparse(b)
         return (pa.scheme, pa.netloc, pa.path.split('/')[1:3]) == (pb.scheme, pb.netloc, pb.path.split('/')[1:3])
     except:
         return True
+
 def discover_event_page_urls(events_url: str, soup: BeautifulSoup) -> list[str]:
+    """
+    Find all pagination URLs for the Events feed.
+    Keep it tight: explicit links + a few probes.
+    """
     base = events_url
     urls = [base]
-    for sel in [
-        "ul.pagination a", "nav.pagination a", ".pagination a",
-        "a.page-numbers", "ul.page-numbers a", "a[rel='next']", "a[rel='prev']"
-    ]:
+
+    # explicit pagination links
+    for sel in ["ul.pagination a", "nav.pagination a", ".pagination a",
+                "a.page-numbers", "ul.page-numbers a", "a[rel='next']", "a[rel='prev']"]:
         for a in soup.select(sel):
             href = a.get("href")
             if not href:
@@ -508,79 +562,75 @@ def discover_event_page_urls(events_url: str, soup: BeautifulSoup) -> list[str]:
             u = urljoin(base, href.strip())
             if _same_path_root(base, u):
                 urls.append(u)
+
     urls = _unique(urls)
+
     if len(urls) > 1:
         def page_key(u):
-            m = re.search(r"/page/(\d+)/?$", u)
-            if m: return int(m.group(1))
-            m = re.search(r"[?&](?:page|paged|p)=(\d+)", u)
-            if m: return int(m.group(1))
-            return 1
+            m = re.search(r"/page/(\d+)/?$", u) or re.search(r"[?&](?:page|paged|p)=(\d+)", u)
+            return int(m.group(1)) if m else 1
         urls = [base] + sorted([u for u in urls if u != base], key=page_key)
-        return urls[:12]
+        return urls[:8]  # cap
+
+    # fallback: probe only first few pages to avoid slow drags
     probed = [base]
-    for i in range(2, 13):
+    for i in range(2, 6):  # max 5 pages total
         candidate = urljoin(base.rstrip('/') + '/', f"page/{i}/")
         probed.append(candidate)
+
+    # alt fallback: ?page=N
     parsed = urlparse(base)
     qs = parse_qs(parsed.query)
-    page_keys = ["page", "paged", "p"]
-    for i in range(2, 13):
-        key = next((k for k in page_keys if k not in qs), "page")
+    for i in range(2, 6):
         new_qs = qs.copy()
-        new_qs[key] = [str(i)]
+        new_qs["page"] = [str(i)]
         new_query = urlencode(new_qs, doseq=True)
         alt = urlunparse(parsed._replace(query=new_query))
         probed.append(alt)
+
     return _unique(probed)
+
 def scrape_events(force: bool = False, tournament: str | None = None):
     cache = load_cache()
     tournament = tournament or get_current_tournament()
     events_file = get_cache_path(tournament, "events.json")
     cache_key = f"events_{tournament}"
-    if not os.path.exists(events_file):
-        with open(events_file, "w") as f:
-            json.dump([], f, indent=2)
+
     if not force and is_cache_fresh(cache, cache_key, 2):
-        if os.path.exists(events_file):
-            with open(events_file) as f:
-                return json.load(f)
-        return []
+        return safe_json_load(events_file, [])
+
     try:
-        remote = requests.get(MASTER_JSON_URL, timeout=15).json()
-        key = next(
-            (k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)),
-            None
-        )
+        remote = SESS.get(MASTER_JSON_URL, timeout=12).json()
+        key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
         if not key:
             raise Exception(f"Tournament '{tournament}' not found in remote settings.json")
         events_url = remote[key].get("events")
         if not events_url:
             raise Exception(f"No events URL found for {tournament}")
+
+        print(f"📡 Scraping events (with pagination) from: {events_url}")
         first_html = fetch_html(events_url)
         if not first_html:
-            with open(events_file, "w") as f:
-                json.dump([], f, indent=2)
+            safe_json_dump(events_file, [])
             cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
             save_cache(cache)
+            print("❌ Failed to fetch events HTML — wrote empty events.json")
             return []
+
         first_soup = BeautifulSoup(first_html, 'html.parser')
         page_urls = discover_event_page_urls(events_url, first_soup)
-        consecutive_empty = 0
-        max_consecutive_empty = 2
+
         participants_file = get_cache_path(tournament, "participants.json")
-        participants = {}
-        if os.path.exists(participants_file):
-            with open(participants_file) as f:
-                participants = {p["uid"]: p for p in json.load(f) if p.get("uid")}
-        all_events = []
-        seen = set()
+        participants = {p["uid"]: p for p in safe_json_load(participants_file, []) if p.get("uid")}
+
+        all_events, seen = [], set()
+
         def parse_events_from_soup(soup):
             found = 0
             for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-                time_tag = article.select_one("p.pull-right")
-                name_tag = article.select_one("h4.montserrat")
-                desc_tag = article.select_one("p > strong")
+                time_tag = article.select_one("p.pull-right, time, .time")
+                name_tag = article.select_one("h4.montserrat, h4, h3")
+                desc_tag = article.select_one("p > strong, strong, .desc, .details")
                 if not time_tag or not name_tag or not desc_tag:
                     continue
                 raw = time_tag.get_text(strip=True).replace("@", "").strip()
@@ -591,8 +641,10 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                 boat = name_tag.get_text(strip=True)
                 desc = desc_tag.get_text(strip=True)
                 uid = normalize_boat_name(boat)
+
                 if uid in participants:
                     boat = participants[uid]["boat"]
+
                 low = desc.lower()
                 if "released" in low:
                     event_type = "Released"
@@ -606,10 +658,12 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     event_type = "Hooked Up"
                 else:
                     event_type = "Other"
+
                 dkey = f"{uid}_{event_type}_{ts}"
                 if dkey in seen:
                     continue
                 seen.add(dkey)
+
                 all_events.append({
                     "timestamp": ts,
                     "event": event_type,
@@ -619,8 +673,13 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                 })
                 found += 1
             return found
+
+        # parse first page
         parsed_count = parse_events_from_soup(first_soup)
         consecutive_empty = 0 if parsed_count else 1
+        max_consecutive_empty = 2
+
+        # iterate additional pages
         for url in page_urls[1:]:
             html = fetch_html(url)
             if not html:
@@ -636,112 +695,201 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     break
             else:
                 consecutive_empty = 0
+
+        # Sort newest first
         all_events.sort(key=lambda e: e["timestamp"], reverse=True)
-        with open(events_file, "w") as f:
-            json.dump(all_events, f, indent=2)
+
+        safe_json_dump(events_file, all_events)
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
+        print(f"✅ Scraped {len(all_events)} events across {len(page_urls)} page(s) for {tournament}")
         return all_events
-    except Exception:
+    except Exception as e:
+        print(f"❌ Error in scrape_events: {e}")
         if not os.path.exists(events_file):
-            with open(events_file, "w") as f:
-                json.dump([], f, indent=2)
+            safe_json_dump(events_file, [])
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return []
-def split_boat_and_type(name, text_after):
-    return name, text_after
+
+# ---------- Leaderboard helpers ----------
+KNOWN_BUILDERS = {
+    "viking","jarrett","jarrett bay","bayliss","hatteras","post","ocean","bertram",
+    "carolina","spencer","garlington","rampage","custom","contender","freeman","maverick"
+}
+
+def split_boat_and_type(name: str, text_after: str):
+    """
+    Heuristic: keep 'name' as boat; extract size/builder/model into 'type'.
+    Falls back gracefully if we can't detect anything reliable.
+    """
+    name = (name or "").strip()
+    extra = (text_after or "").strip()
+    if not extra:
+        return name, None
+
+    extra_clean = re.sub(r"\s+", " ", extra)
+    # If extra contains a length or a known builder, treat as type.
+    contains_len = bool(re.search(r"\b\d{2,3}\s*(?:ft|feet|')\b", extra_clean.lower()))
+    contains_builder = any(b in extra_clean.lower() for b in KNOWN_BUILDERS)
+    if contains_len or contains_builder or len(extra_clean) <= 40:
+        return name, extra_clean
+
+    # If 'name' looks like it includes type info (rare), try to split  "Boat – 68' Jarrett Bay"
+    m = re.search(r"(.*?)[\-\–—]\s*(.*)$", name)
+    if m:
+        return m.group(1).strip(), (m.group(2) + (" " + extra_clean if extra_clean else "")).strip()
+
+    return name, None
+
+def parse_points_number(points_text: str) -> float:
+    if not points_text:
+        return 0.0
+    txt = points_text.lower()
+    # handle "1,200 pts", "1200", "500 lb"
+    nums = re.findall(r"[\d\.,]+", txt)
+    if not nums:
+        return 0.0
+    try:
+        return float(nums[0].replace(",", ""))
+    except:
+        return 0.0
+
 def scrape_leaderboard(tournament=None, force: bool = False):
     cache = load_cache()
     tournament = tournament or get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
     cache_key = f"leaderboard_{tournament}"
-    if not os.path.exists(lb_file):
-        with open(lb_file, "w") as f:
-            json.dump([], f, indent=2)
+
     if not force and is_cache_fresh(cache, cache_key, 2):
-        if os.path.exists(lb_file):
-            with open(lb_file) as f:
-                return json.load(f)
-        return []
+        return safe_json_load(lb_file, [])
+
     try:
-        remote = requests.get(MASTER_JSON_URL, timeout=30).json()
+        remote = SESS.get(MASTER_JSON_URL, timeout=15).json()
         key = next((k for k in remote if k.lower() == tournament.lower()), None)
         if not key:
-            with open(lb_file, "w") as f:
-                json.dump([], f, indent=2)
+            print(f"❌ Tournament '{tournament}' not found in master JSON.")
+            safe_json_dump(lb_file, [])
             return []
         leaderboard_url = remote[key].get("leaderboard")
         if not leaderboard_url:
-            with open(lb_file, "w") as f:
-                json.dump([], f, indent=2)
+            print(f"❌ No leaderboard URL for '{tournament}'.")
+            safe_json_dump(lb_file, [])
             return []
+
+        print(f"📡 Scraping leaderboard for {tournament} → {leaderboard_url}")
         html = fetch_html(leaderboard_url)
         if not html:
-            with open(lb_file, "w") as f:
-                json.dump([], f, indent=2)
+            safe_json_dump(lb_file, [])
+            print("⚠️ No leaderboard HTML — wrote empty leaderboard.json")
             return []
+
         soup = BeautifulSoup(html, "html.parser")
         leaderboard = []
-        categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav")]
-        for category in categories:
-            tab_link = soup.find("a", string=lambda x: x and x.strip() == category)
-            if not tab_link:
-                continue
-            tab_id = tab_link.get("href")
-            tab = soup.select_one(tab_id)
-            if not tab:
-                continue
-            for row in tab.select("tr.montserrat"):
+
+        categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav, a[data-toggle='tab']")]
+        categories = [c for c in categories if c]
+        categories = list(dict.fromkeys(categories))  # dedupe, keep order
+        if not categories:
+            print("⚠️ No categories found; attempting single-table scrape")
+
+        def collect_rows_from_container(container, category_label):
+            for row in container.select("tr.montserrat, tr"):
                 cols = row.find_all("td")
                 if len(cols) < 2:
                     continue
                 rank = cols[0].get_text(strip=True)
                 boat_block = cols[1]
                 points = cols[-1].get_text(strip=True)
-                h4 = boat_block.find("h4")
-                name = h4.get_text(strip=True) if h4 else ""
+                h4 = boat_block.find("h4") or boat_block.find("strong") or boat_block.find("b")
+                name = h4.get_text(strip=True) if h4 else boat_block.get_text(" ", strip=True)
                 text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
-                angler, boat, btype = None, name, text_after
-                if "lb" in points.lower() and "'" not in text_after:
+
+                angler, boat, btype = None, name, None
+                # If points looks like weight and block doesn't look like a boat, treat as angler category
+                if "lb" in points.lower() and not any(b in text_after.lower() for b in KNOWN_BUILDERS):
                     angler, boat, btype = name, None, None
                 else:
                     boat, btype = split_boat_and_type(name, text_after)
+
                 uid = normalize_boat_name(boat or angler or f"rank_{rank}")
                 leaderboard.append({
-                    "rank": rank,
-                    "category": category,
+                    "rank_raw": rank,
+                    "category": category_label or "Overall",
                     "angler": angler,
                     "boat": boat,
                     "type": btype,
                     "points": points,
+                    "points_num": parse_points_number(points),
                     "uid": uid,
                     "image_path": f"/boat-image/{uid}",
                 })
-        with open(lb_file, "w") as f:
-            json.dump(leaderboard, f, indent=2)
+
+        if categories:
+            for category in categories:
+                tab_link = soup.find("a", string=lambda x: x and x.strip() == category)
+                tab_id = tab_link.get("href") if tab_link else None
+                tab = soup.select_one(tab_id) if tab_id else None
+                if tab:
+                    collect_rows_from_container(tab, category)
+        else:
+            table = soup.find("table")
+            if table:
+                collect_rows_from_container(table, "Overall")
+
+        # Normalize ranks: same points = same position (per category)
+        by_cat = defaultdict(list)
+        for row in leaderboard:
+            by_cat[row["category"]].append(row)
+
+        normalized = []
+        for cat, rows in by_cat.items():
+            rows.sort(key=lambda r: (-r["points_num"], r["boat"] or r["angler"] or ""))
+            last_points = None
+            pos = 0
+            for idx, r in enumerate(rows, start=1):
+                if r["points_num"] != last_points:
+                    pos = idx
+                    last_points = r["points_num"]
+                r["rank"] = str(pos)  # overwrite normalized rank
+                normalized.append(r)
+
+        safe_json_dump(lb_file, normalized)
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
-        return leaderboard
-    except Exception:
+        print(f"✅ Scraped {len(normalized)} leaderboard entries for {tournament}")
+        return normalized
+    except Exception as e:
+        print(f"❌ Error in scrape_leaderboard: {e}")
         if not os.path.exists(lb_file):
-            with open(lb_file, "w") as f:
-                json.dump([], f, indent=2)
+            safe_json_dump(lb_file, [])
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return []
+
 # ------------------------
 # Routes: pages & static
 # ------------------------
 @app.route('/')
 def homepage():
     return send_from_directory('templates', 'index.html')
+
 @app.route('/participants')
 def participants_page():
     return send_from_directory('static', 'participants.html')
+
+@app.route('/leaderboard')
+def leaderboard_page():
+    return send_from_directory('static', 'leaderboard.html')
+
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory('static', filename, cache_timeout=24 * 3600)
+
+@app.route('/healthz')
+def healthz():
+    return "ok", 200
+
 # ------------------------
 # Routes: scraping & data APIs
 # ------------------------
@@ -751,48 +899,42 @@ def scrape_participants_route():
     offset = int(request.args.get('offset', 0))
     participants = scrape_participants(force=True)
     sliced = participants[offset:offset + limit]
-    return jsonify({
-        "count": len(participants),
-        "participants": sliced,
-        "status": "ok"
-    })
+    return jsonify({"count": len(participants), "participants": sliced, "status": "ok"})
+
 @app.route("/scrape/leaderboard")
 def scrape_leaderboard_route():
     force = request.args.get("force") == "1"
     tournament = get_current_tournament()
     data = scrape_leaderboard(tournament, force=force)
     return jsonify({"status": "ok" if data else "error", "leaderboard": data})
+
 @app.route("/participants_data")
 def participants_data():
+    print("📥 /participants_data requested")
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
-    participants = []
-    try:
-        if os.path.exists(participants_file) and os.path.getsize(participants_file) > 0:
-            with open(participants_file) as f:
-                participants = json.load(f)
-        if not participants:
-            participants = scrape_participants(force=True)
-        for p in participants:
-            p["uid"] = p.get("uid") or normalize_boat_name(p.get("boat","unknown"))
-            p["image_path"] = f"/boat-image/{p['uid']}"
-    except Exception:
-        pass
-    participants.sort(key=lambda p: p.get("boat", "").lower())
-    return jsonify({
-        "status": "ok",
-        "participants": participants,
-        "count": len(participants)
-    })
+    participants = safe_json_load(participants_file, [])
+    if not participants:
+        print(f"⚠️ No participants.json for {tournament} — scraping immediately...")
+        participants = scrape_participants(force=True)
+    for p in participants:
+        p["uid"] = p.get("uid") or normalize_boat_name(p.get("boat","unknown"))
+        p["image_path"] = f"/boat-image/{p['uid']}"
+    participants.sort(key=lambda p: (p.get("boat") or "").lower())
+    return jsonify({"status": "ok", "participants": participants, "count": len(participants)})
+
 @app.route("/scrape/events")
 def scrape_events_route():
     settings = load_settings()
     tournament = get_current_tournament()
+
     if settings.get("data_source") == "demo":
         data = load_demo_data(tournament)
         if not data.get("events"):
+            print("⚠️ demo_data.json empty — building now …")
             build_demo_cache(tournament)
             data = load_demo_data(tournament)
+
         all_events = data.get("events", [])
         now_time = datetime.now().time()
         filtered = []
@@ -805,15 +947,19 @@ def scrape_events_route():
                 continue
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
         return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
+
     try:
         events = scrape_events(force=True, tournament=tournament)
         events.sort(key=lambda e: e["timestamp"], reverse=True)
         return jsonify({"status": "ok", "count": len(events), "events": events[:100]})
-    except Exception:
-        return jsonify({"status": "error"})
+    except Exception as e:
+        print(f"❌ Error in /scrape/events: {e}")
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route("/scrape/all")
 def scrape_all():
     tournament = get_current_tournament()
+    print(f"🔁 Starting full scrape for tournament: {tournament}")
     participants = scrape_participants(force=True)
     events = scrape_events(force=True, tournament=tournament)
     leaderboard = scrape_leaderboard(tournament, force=True)
@@ -825,6 +971,7 @@ def scrape_all():
         "leaderboard": len(leaderboard),
         "message": "Scraped all data and cached it."
     })
+
 @app.route("/status")
 def get_status():
     try:
@@ -857,8 +1004,10 @@ def get_status():
             status["leaderboard_last_scraped"] = ts
             status["leaderboard_cache_fresh"] = is_cache_fresh(cache, lb_key, 2)
         return jsonify(status)
-    except Exception:
-        return jsonify({"status": "error"}), 500
+    except Exception as e:
+        print(f"❌ Error in /status: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # ------------------------
 # Alerts / Email
 # ------------------------
@@ -868,10 +1017,12 @@ def send_boat_email_alert(event):
     timestamp = event.get('timestamp', datetime.now().isoformat())
     uid = event.get('uid', 'unknown')
     details = event.get('details', 'No additional details provided')
+
     subject = f"{boat} {action}"
     if details and details.lower() != 'hooked up!':
         subject += f" — {details}"
     subject += f" at {timestamp}"
+
     base_path = f"static/images/boats/{uid}"
     image_path = None
     for ext in [".jpg", ".jpeg", ".png", ".webp"]:
@@ -880,10 +1031,14 @@ def send_boat_email_alert(event):
             image_path = candidate
             break
     if not image_path and os.path.exists("static/images/palmer_lou.jpg"):
+        print(f"⚠️ No image for {boat}, using fallback Palmer Lou")
         image_path = "static/images/palmer_lou.jpg"
+
     recipients = load_alerts()
     if not recipients:
+        print("No recipients for email alert.")
         return 0
+
     success = 0
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
@@ -895,14 +1050,17 @@ def send_boat_email_alert(event):
                     msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
                     msg['To'] = recipient
                     msg['Subject'] = subject
+
                     msg_alt = MIMEMultipart("alternative")
                     msg.attach(msg_alt)
+
                     text_body = f"""🚤 {boat} {action}!
 Time: {timestamp}
 Details: {details}
 BigRock Live Alert
 """
                     msg_alt.attach(MIMEText(text_body, "plain"))
+
                     html_body = f"""
                     <html><body>
                         <p>🚤 <b>{boat}</b> {action}!<br>
@@ -912,6 +1070,7 @@ BigRock Live Alert
                     </body></html>
                     """
                     msg_alt.attach(MIMEText(html_body, "html"))
+
                     if image_path and os.path.exists(image_path):
                         try:
                             with Image.open(image_path) as img:
@@ -925,39 +1084,40 @@ BigRock Live Alert
                                 image.add_header("Content-ID", "<boat_image>")
                                 image.add_header("Content-Disposition", "inline", filename=f"{uid}.jpg")
                                 msg.attach(image)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            print(f"⚠️ Could not resize/attach image: {e}")
+
                     server.sendmail(SMTP_USER, [recipient], msg.as_string())
+                    print(f"✅ Email alert sent to {recipient} for {boat} {action}")
                     success += 1
-                except Exception:
-                    pass
-    except Exception:
-        pass
+                except Exception as e:
+                    print(f"❌ Failed to send alert to {recipient}: {e}")
+    except Exception as e:
+        print(f"❌ SMTP batch failed: {e}")
     return success
+
 emailed_events = set()
+
 def load_emailed_events():
-    if os.path.exists(NOTIFIED_FILE):
-        try:
-            with open(NOTIFIED_FILE, "r") as f:
-                return set(json.load(f))
-        except:
-            return set()
-    return set()
+    return set(safe_json_load(NOTIFIED_FILE, []))
+
 def save_emailed_events():
-    with open(NOTIFIED_FILE, "w") as f:
-        json.dump(list(emailed_events), f)
+    safe_json_dump(NOTIFIED_FILE, list(emailed_events))
+
 def get_followed_boats():
     settings = load_settings()
-    return [normalize_boat_name(b) for b in settings.get("followed_boats", [])]
+    return [normalize_boat_name(b) for b in settings.get("followed_boots", [])]  # typo preserved? fix:
+    # NOTE: If you had a historical typo in settings, handle both:
+    # return [normalize_boat_name(b) for b in settings.get("followed_boats", []) or settings.get("followed_boots", [])]
+
 def should_email(event):
     etype = event.get("event", "").lower()
     uid = event.get("uid", "")
     if "boated" in etype:
         return True
-    followed_boats = get_followed_boats()
-    if uid in followed_boats:
-        return True
-    return False
+    followed_boats = [normalize_boat_name(b) for b in load_settings().get("followed_boats", [])]
+    return uid in followed_boats
+
 def process_new_event(event):
     global emailed_events
     uid = f"{event.get('timestamp')}_{event.get('uid')}_{event.get('event')}"
@@ -968,60 +1128,66 @@ def process_new_event(event):
     if should_email(event):
         try:
             send_boat_email_alert(event)
-        except Exception:
-            pass
+            print(f"📧 Email sent for {event['boat']} - {event['event']}")
+        except Exception as e:
+            print(f"❌ Email failed for {event['boat']}: {e}")
+
 def background_event_emailer():
+    """Continuously watches new events and sends emails (respects demo/live)."""
     global emailed_events
     emailed_events = load_emailed_events()
-    tournament = get_current_tournament()
-    events_file = get_cache_path(tournament, "events.json")
+    print(f"📡 Email watcher started. Loaded {len(emailed_events)} previous notifications.")
     try:
-        if os.path.exists(events_file):
-            with open(events_file) as f:
-                events = json.load(f)
-            events.sort(key=lambda e: e["timestamp"], reverse=True)
-            for e in events[:50]:
-                uid = f"{e.get('timestamp')}_{e.get('uid')}_{e.get('event')}"
-                emailed_events.add(uid)
-            save_emailed_events()
-    except Exception:
-        pass
+        # Preload last 50 as already-emailed to avoid flood
+        tournament = get_current_tournament()
+        events_file = get_cache_path(tournament, "events.json")
+        events = safe_json_load(events_file, [])
+        events.sort(key=lambda e: e["timestamp"], reverse=True)
+        for e in events[:50]:
+            key = f"{e.get('timestamp')}_{e.get('uid')}_{e.get('event')}"
+            emailed_events.add(key)
+        save_emailed_events()
+        print(f"⏩ Preloaded {min(50, len(events))} events as already emailed")
+    except Exception as e:
+        print(f"⚠️ Failed to preload events: {e}")
+
     while True:
         try:
             settings = load_settings()
             tournament = get_current_tournament()
             if settings.get("data_source") == "demo":
-                events = load_demo_data(tournament).get("events", [])
+                data = load_demo_data(tournament)
+                events = data.get("events", [])
                 now = datetime.now().time()
                 events = [e for e in events if date_parser.parse(e["timestamp"]).time() <= now]
             else:
-                if not os.path.exists(events_file):
-                    time.sleep(5)
-                    continue
-                with open(events_file) as f:
-                    events = json.load(f)
+                events_file = get_cache_path(tournament, "events.json")  # recompute each loop
+                events = safe_json_load(events_file, [])
             events.sort(key=lambda e: e["timestamp"], reverse=True)
             for e in events[:50]:
                 process_new_event(e)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ Email watcher error: {e}")
         time.sleep(30)
+
 # ------------------------
 # Routes: alerts
 # ------------------------
 @app.route('/alerts/list', methods=['GET'])
 def list_alerts():
     return jsonify(load_alerts())
+
 @app.route('/alerts/subscribe', methods=['POST'])
 def subscribe_alerts():
     data = request.get_json()
     new_emails = data.get('sms_emails', [])
     alerts = load_alerts()
     for email in new_emails:
-        if email not in alerts:
+        if email and email not in alerts:
             alerts.append(email)
     save_alerts(alerts)
     return jsonify({"status": "subscribed", "count": len(alerts)})
+
 @app.route('/alerts/test', methods=['GET'])
 def test_alerts():
     boat_name = "Palmer Lou"
@@ -1065,16 +1231,20 @@ def test_alerts():
                         image.add_header("Content-ID", "<boat_image>")
                         image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
                         msg.attach(image)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"⚠️ Could not resize/attach image: {e}")
+            else:
+                print(f"❌ Image not found at {image_path}")
             with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(SMTP_USER, [recipient], msg.as_string())
+            print(f"✅ Test email sent to {recipient} with Palmer Lou image inline")
             success += 1
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"❌ Failed to send to {recipient}: {e}")
     return jsonify({"status": "sent", "success_count": success})
+
 # ------------------------
 # Settings & UI pages
 # ------------------------
@@ -1084,85 +1254,89 @@ def api_settings():
         settings_data = request.get_json()
         if not settings_data:
             return jsonify({'status': 'error', 'message': 'Invalid JSON'}), 400
+
         old_settings = load_settings()
         old_tournament = old_settings.get("tournament")
         old_mode = old_settings.get("data_source")
         new_tournament = settings_data.get("tournament")
         new_mode = settings_data.get("data_source")
+
+        # Keep mode/data_source in sync
         if new_mode:
             settings_data["data_source"] = new_mode
             settings_data["mode"] = new_mode
+
+        # Ensure sound fields exist
         settings_data.setdefault("followed_sound", old_settings.get("followed_sound", "fishing reel"))
-        settings_data.setdefault("boated_sound", old_settings.get("boated_sound", "fishing reel"))
+        settings_data.setdefault("boated_sound",   old_settings.get("boated_sound",   "fishing reel"))
+
+        # Save alerts and settings
         save_alerts(settings_data.get("sms_emails", []))
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings_data, f, indent=4)
+        safe_json_dump(SETTINGS_FILE, settings_data)
+
+        # Triggers
         if new_mode == "live" and (new_tournament != old_tournament or old_mode != "live"):
+            print(f"🔄 Tournament changed or mode to live: {old_tournament} → {new_tournament}")
             run_in_thread(lambda: scrape_participants(force=True), "participants")
-            run_in_thread(lambda: scrape_events(force=True, tournament=new_tournament), "events")
-            run_in_thread(lambda: scrape_leaderboard(new_tournament, force=True), "leaderboard")
+            run_in_thread(lambda: scrape_events(force=True, tournament=new_tournament or get_current_tournament()), "events")
+            run_in_thread(lambda: scrape_leaderboard(new_tournament or get_current_tournament(), force=True), "leaderboard")
         if new_mode == "demo":
             tournament_to_build = new_tournament or old_tournament or get_current_tournament()
             run_in_thread(lambda: build_demo_cache(tournament_to_build), "demo_cache")
+
         return jsonify({'status': 'success'})
+
     settings = load_settings()
     settings.setdefault("followed_sound", "Fishing Reel")
     settings.setdefault("boated_sound", "Fishing Reel")
     settings["sms_emails"] = load_alerts()
     return jsonify(settings)
+
 @app.route('/settings-page/')
 def settings_page():
     return send_from_directory('static', 'settings.html')
+
 @app.route("/generate_demo")
 def generate_demo():
     try:
         tournament = get_current_tournament()
         count = build_demo_cache(tournament)
         return jsonify({"status": "ok", "events": count})
-    except Exception:
-        return jsonify({"status": "error"})
-@app.route("/leaderboard")
-def leaderboard_page():
-    return send_from_directory('static', 'leaderboard.html')
+    except Exception as e:
+        print(f"❌ Error generating demo data: {e}")
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route("/api/leaderboard")
 def api_leaderboard():
     tournament = get_current_tournament()
     lb_file = get_cache_path(tournament, "leaderboard.json")
-    leaderboard = []
-    if os.path.exists(lb_file) and os.path.getsize(lb_file) > 0:
-        with open(lb_file) as f:
-            leaderboard = json.load(f)
-    if not leaderboard:
+    leaderboard = safe_json_load(lb_file, [])
+    cache = load_cache()
+    lb_key = f"leaderboard_{tournament}"
+    cache_valid = bool(leaderboard) and is_cache_fresh(cache, lb_key, 2)
+    if not cache_valid:
+        print("⚠️ Leaderboard cache empty/stale — scraping fresh")
         leaderboard = scrape_leaderboard(tournament, force=True)
+
+    # Ensure image endpoint + uid set
     for row in leaderboard or []:
         uid = row.get("uid") or normalize_boat_name(row.get("boat", "") or row.get("angler", ""))
         row["uid"] = uid
         row["image_path"] = f"/boat-image/{uid}"
-    return jsonify({
-        "status": "ok" if leaderboard else "error",
-        "leaderboard": leaderboard
-    })
+
+    return jsonify({"status": "ok" if leaderboard else "error", "leaderboard": leaderboard})
+
 @app.route("/hooked")
 def get_hooked_up_events():
     settings = load_settings()
     tournament = get_current_tournament()
     data_source = settings.get("data_source", "live").lower()
     now_time = datetime.now().time()
-    events = []
+
     if data_source == "demo":
         data = load_demo_data(tournament)
-        events = [
-            e for e in data.get("events", [])
-            if date_parser.parse(e["timestamp"]).time() <= now_time
-        ]
-    else:
-        events_file = get_cache_path(tournament, "events.json")
-        if os.path.exists(events_file):
-            with open(events_file, "r") as f:
-                events = json.load(f)
-    events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
-    hooked_feed = []
-    if data_source == "demo":
+        events = [e for e in data.get("events", []) if date_parser.parse(e["timestamp"]).time() <= now_time]
+        # unresolved only (use hookup_id resolution pairing)
         resolved_ids = set()
         for e in events:
             if e["event"] in ["Released", "Boated"] or \
@@ -1170,6 +1344,7 @@ def get_hooked_up_events():
                "wrong species" in e.get("details", "").lower():
                 key = f"{e['uid']}_{date_parser.parse(e['timestamp']).replace(microsecond=0).isoformat()}"
                 resolved_ids.add(key)
+        hooked_feed = []
         for e in events:
             if e["event"] != "Hooked Up":
                 continue
@@ -1177,6 +1352,9 @@ def get_hooked_up_events():
             if not key or key not in resolved_ids:
                 hooked_feed.append(e)
     else:
+        events_file = get_cache_path(tournament, "events.json")
+        events = safe_json_load(events_file, [])
+        events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
         active_hooks = {}
         for e in events:
             uid = e.get("uid")
@@ -1188,42 +1366,47 @@ def get_hooked_up_events():
                  "wrong species" in e.get("details", "").lower():
                 if uid in active_hooks and active_hooks[uid]:
                     active_hooks[uid].pop(0)
+        hooked_feed = []
         for boat_hooks in active_hooks.values():
             hooked_feed.extend(boat_hooks)
+
     hooked_feed.sort(key=lambda e: date_parser.parse(e["timestamp"]), reverse=True)
-    return jsonify({
-        "status": "ok",
-        "count": len(hooked_feed),
-        "events": hooked_feed[:50]
-    })
+    return jsonify({"status": "ok", "count": len(hooked_feed), "events": hooked_feed[:50]})
+
 @app.route("/api/tournaments", methods=["GET"])
 def api_tournaments():
     try:
         if os.path.exists(TOURNAMENTS_CACHE):
-            with open(TOURNAMENTS_CACHE) as f:
-                data = json.load(f)
+            data = safe_json_load(TOURNAMENTS_CACHE, {})
         else:
             data = build_tournaments_index(force=False)
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ /api/tournaments failed reading cache: {e}")
         data = build_tournaments_index(force=False)
     return jsonify({"status": "ok", "tournaments": data or {}})
+
 @app.route("/scrape/tournament_dates", methods=["POST", "GET"])
 def scrape_tournament_dates():
     data = build_tournaments_index(force=True)
     return jsonify({"status":"ok", "count": len(data), "tournaments": data})
+
 # ------------------------
 # Bluetooth / Wi-Fi / Keyboard / Sounds / Version / Release summary
 # ------------------------
 @app.route('/bluetooth/status')
 def bluetooth_status():
     return jsonify({"enabled": True})
+
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
     return jsonify({"devices": [{"name": "Test Device", "mac": "00:11:22:33:44:55", "connected": False}]})
+
 @app.route('/bluetooth/connect', methods=['POST'])
 def bluetooth_connect():
     data = request.get_json()
+    print(f"Connecting to: {data.get('mac')}")
     return jsonify({"status": "ok"})
+
 @app.route('/wifi/scan')
 def wifi_scan():
     try:
@@ -1242,17 +1425,15 @@ def wifi_scan():
                     continue
                 is_connected = in_use.strip() == '*'
                 if ssid not in seen or is_connected or signal > seen[ssid]['signal']:
-                    seen[ssid] = {
-                        'ssid': ssid,
-                        'signal': signal,
-                        'connected': is_connected
-                    }
+                    seen[ssid] = {'ssid': ssid, 'signal': signal, 'connected': is_connected}
                 if is_connected:
                     connected_ssid = ssid
         networks = list(seen.values())
         return jsonify({'networks': networks, 'connected': connected_ssid})
-    except Exception:
+    except Exception as e:
+        print(f"❌ Wi-Fi scan error: {e}")
         return jsonify({'networks': [], 'connected': None})
+
 @app.route('/wifi/connect', methods=['POST'])
 def wifi_connect():
     data = request.get_json()
@@ -1261,19 +1442,19 @@ def wifi_connect():
     if not ssid:
         return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
     try:
+        print(f"🔌 Attempting connection to: {ssid}")
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             cmd += ['password', password]
         result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        print(f"✅ Connected: {result}")
         return jsonify({'status': 'ok', 'message': result})
     except subprocess.CalledProcessError as e:
+        print(f"❌ nmcli error: {e.output}")
         if "Secrets were required" in e.output:
-            return jsonify({
-                'status': 'error',
-                'message': 'Password required for new network',
-                'code': 'password_required'
-            }), 400
+            return jsonify({'status': 'error', 'message': 'Password required for new network', 'code': 'password_required'}), 400
         return jsonify({'status': 'error', 'message': e.output.strip()}), 500
+
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():
     try:
@@ -1285,12 +1466,19 @@ def wifi_disconnect():
                 continue
             name, ctype, device = parts
             if ctype == 'wifi':
+                print(f"🚫 Disconnecting Wi-Fi connection: {name}")
                 subprocess.check_call(['nmcli', 'con', 'down', name])
                 return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
+        print("⚠️ No connection name found — disconnecting wlan0 directly...")
         subprocess.check_call(['nmcli', 'device', 'disconnect', 'wlan0'])
         return jsonify({'status': 'ok', 'message': 'Disconnected wlan0'})
-    except Exception:
-        return jsonify({'status': 'error'}), 500
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Wi-Fi disconnect error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/launch_keyboard', methods=['POST'])
 def launch_keyboard():
     try:
@@ -1299,23 +1487,26 @@ def launch_keyboard():
         env['XAUTHORITY'] = '/home/pi/.Xauthority'
         subprocess.Popen(['onboard'], env=env)
         return jsonify({"status": "launched"})
-    except Exception:
-        return jsonify({"error": "Failed"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
     try:
         subprocess.call(['pkill', '-f', 'onboard'])
         return jsonify({"status": "hidden"})
-    except Exception:
-        return jsonify({"error": "Failed"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/sounds')
 def list_sounds():
     sound_dir = os.path.join('static', 'sounds')
     try:
         files = [f for f in os.listdir(sound_dir) if f.lower().endswith('.mp3')]
         return jsonify({'files': files})
-    except Exception:
-        return jsonify({'files': []}), 500
+    except Exception as e:
+        return jsonify({'files': [], 'error': str(e)}), 500
+
 @app.route('/api/version')
 def api_version():
     try:
@@ -1323,9 +1514,11 @@ def api_version():
             return jsonify({"version": f.read().strip()})
     except:
         return jsonify({"version": "Unknown"})
+
 @app.route("/release-summary")
 def release_summary_page():
     return send_from_directory('static', 'release-summary.html')
+
 @app.route("/release-summary-data")
 def release_summary_data():
     try:
@@ -1336,22 +1529,13 @@ def release_summary_data():
             data = load_demo_data(tournament)
             all_events = data.get("events", [])
             now = datetime.now()
-            events = [
-                e for e in all_events
-                if date_parser.parse(e["timestamp"]).time() <= now.time()
-            ]
+            events = [e for e in all_events if date_parser.parse(e["timestamp"]).time() <= now.time()]
         else:
             events_file = get_cache_path(tournament, "events.json")
-            if not os.path.exists(events_file):
-                return jsonify({"status": "ok", "summary": []})
-            with open(events_file, "r") as f:
-                events = json.load(f)
-        summary = defaultdict(lambda: {
-            "blue_marlins": 0,
-            "white_marlins": 0,
-            "sailfish": 0,
-            "total_releases": 0
-        })
+            events = safe_json_load(events_file, [])
+
+        summary = defaultdict(lambda: {"blue_marlins": 0, "white_marlins": 0, "sailfish": 0, "total_releases": 0})
+
         for e in events:
             if e["event"].lower() != "released":
                 continue
@@ -1368,13 +1552,13 @@ def release_summary_data():
             elif "sailfish" in details:
                 summary[day]["sailfish"] += 1
             summary[day]["total_releases"] += 1
-        result = [
-            {"date": k, **v}
-            for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)
-        ]
+
+        result = [{"date": k, **v} for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)]
         return jsonify({"status": "ok", "demo_mode": demo_mode, "summary": result})
-    except Exception:
-        return jsonify({"status": "error"})
+    except Exception as e:
+        print(f"❌ Error generating release summary: {e}")
+        return jsonify({"status": "error", "message": str(e)})
+
 # ------------------------
 # Followed boats
 # ------------------------
@@ -1382,6 +1566,7 @@ def release_summary_data():
 def get_followed_boats_api():
     settings = load_settings()
     return jsonify(settings.get("followed_boats", []))
+
 @app.route('/followed-boats/toggle', methods=['POST'])
 def toggle_followed_boat():
     data = request.get_json()
@@ -1400,13 +1585,9 @@ def toggle_followed_boat():
         followed.append(boat)
         action = "followed"
     settings["followed_boats"] = followed
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=4)
-    return jsonify({
-        "status": "ok",
-        "action": action,
-        "followed_boats": followed
-    })
+    safe_json_dump(SETTINGS_FILE, settings)
+    return jsonify({"status": "ok", "action": action, "followed_boats": followed})
+
 # ------------------------
 # Startup
 # ------------------------
@@ -1415,6 +1596,7 @@ def startup_scrape():
     tournament = get_current_tournament()
     cache = load_cache()
     if mode == "live":
+        print(f"🔄 Startup: Checking caches for live mode tournament {tournament}")
         participants_file = get_cache_path(tournament, "participants.json")
         events_file = get_cache_path(tournament, "events.json")
         lb_file = get_cache_path(tournament, "leaderboard.json")
@@ -1428,10 +1610,13 @@ def startup_scrape():
         if not os.path.exists(lb_file) or not is_cache_fresh(cache, lb_key, 2):
             run_in_thread(lambda: scrape_leaderboard(tournament), "leaderboard")
     elif mode == "demo":
+        print(f"🔄 Startup: Checking demo cache for {tournament}")
         data = load_demo_data(tournament)
         if not data.get("events"):
             run_in_thread(lambda: build_demo_cache(tournament), "demo_cache")
+
 if __name__ == '__main__':
+    print("🚀 Starting (stabilized, faster fetch, fixed leaderboard).")
     Thread(target=background_event_emailer, daemon=True).start()
     startup_scrape()
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

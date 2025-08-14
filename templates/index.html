@@ -286,8 +286,21 @@ const vm = createApp({
     loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;});},
     getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.webp';},
     onImageError(e){e.target.src='/static/images/bigrock.webp';},
-    formatTime(ts){const dt=new Date(ts);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});},
-    formatDate(ts){const dt=new Date(ts);return dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});},
+    
+   
+    parseTs(ts){
+      if(!ts) return null;
+      let dt;
+      if(typeof ts==='number'){
+        dt=ts.toString().length===10?new Date(ts*1000):new Date(ts);
+      }else{
+        dt=new Date(ts);
+        if(isNaN(dt))dt=new Date(String(ts).replace(' ','T'));
+      }
+      return isNaN(dt)?null:dt;
+    },
+    formatTime(ts){const dt=this.parseTs(ts);return dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';},
+    formatDate(ts){const dt=this.parseTs(ts);return dt?dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}):'';},
     applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;},
     toggleRadio(){
       const p=document.getElementById('radio-player');if(!p)return;

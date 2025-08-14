@@ -23,7 +23,7 @@
   </style>
 </head>
 
-<body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-hidden">
+<body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-x-hidden">
 <div id="app" class="h-full flex flex-col">
 
   <!-- Header (non-scrolling) -->
@@ -100,7 +100,7 @@
 
           <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
             <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
+                 loading="lazy" decoding="async" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
                  @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
           </div>
 
@@ -143,7 +143,7 @@
 
           <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
             <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
+                 loading="lazy" decoding="async" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
                  @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
           </div>
 

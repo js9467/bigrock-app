@@ -122,13 +122,13 @@
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
         <div class="text-sm text-gray-700 mb-2">Connected To: <span class="font-semibold">{{ connectedSSID }}</span></div>
-        <button @click="wifiPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Wi-Fi</button>
+        <button @click="wifiPopup = true; fetchWifi()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Wi-Fi</button>
       </div>
 
       <!-- Bluetooth -->
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">Bluetooth</h2>
-        <button @click="bluetoothPopup = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Bluetooth</button>
+        <button @click="bluetoothPopup = true; scanBluetooth()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Scan Bluetooth</button>
       </div>
     </div>
 
@@ -137,7 +137,44 @@
       {{ toast.message }}
     </div>
 
-    <!-- Wi-Fi & Bluetooth modals unchanged -->
+    <!-- Wi-Fi Modal -->
+    <div v-if="wifiPopup" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white p-4 rounded shadow w-11/12 md:w-1/2 max-h-[80vh] overflow-y-auto">
+        <h3 class="text-lg font-bold mb-2">Available Wi-Fi Networks</h3>
+        <div v-if="wifiNetworks.length === 0" class="text-gray-500 mb-2">No networks found.</div>
+        <ul>
+          <li v-for="net in wifiNetworks" :key="net.ssid" class="flex items-center justify-between py-2 border-b">
+            <span>{{ net.ssid }} <span v-if="net.connected" class="text-green-600 font-semibold">(Connected)</span></span>
+            <div class="flex gap-2">
+              <button v-if="!net.connected" @click="connectWifi(net.ssid)" class="text-blue-600 hover:underline">Connect</button>
+              <button v-else @click="disconnectWifi" class="text-red-600 hover:underline">Disconnect</button>
+            </div>
+          </li>
+        </ul>
+        <div class="mt-4 flex justify-end gap-2">
+          <button @click="fetchWifi" class="px-3 py-1 bg-blue-500 text-white rounded">Rescan</button>
+          <button @click="wifiPopup=false" class="px-3 py-1 bg-gray-300 rounded">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bluetooth Modal -->
+    <div v-if="bluetoothPopup" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white p-4 rounded shadow w-11/12 md:w-1/2 max-h-[80vh] overflow-y-auto">
+        <h3 class="text-lg font-bold mb-2">Bluetooth Devices</h3>
+        <div v-if="bluetoothDevices.length === 0" class="text-gray-500 mb-2">No devices found.</div>
+        <ul>
+          <li v-for="dev in bluetoothDevices" :key="dev.mac" class="flex items-center justify-between py-2 border-b">
+            <span>{{ dev.name || dev.mac }}</span>
+            <button @click="connectBluetooth(dev.mac)" class="text-blue-600 hover:underline">Connect</button>
+          </li>
+        </ul>
+        <div class="mt-4 flex justify-end gap-2">
+          <button @click="scanBluetooth" class="px-3 py-1 bg-blue-500 text-white rounded">Rescan</button>
+          <button @click="bluetoothPopup=false" class="px-3 py-1 bg-gray-300 rounded">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -262,6 +299,33 @@
       },
       fetchWifi() {
         axios.get('/wifi/scan').then(res => { this.wifiNetworks = res.data.networks; });
+      },
+      connectWifi(ssid) {
+        const password = prompt(`Password for ${ssid} (leave blank if open)`, '');
+        axios.post('/wifi/connect', { ssid, password }).then(() => {
+          this.showToast(`Connecting to ${ssid}`, 'success');
+          this.fetchWifi();
+        }).catch(() => {
+          this.showToast('❌ Failed to connect.', 'error');
+        });
+      },
+      disconnectWifi() {
+        axios.post('/wifi/disconnect').then(() => {
+          this.showToast('Disconnected from Wi-Fi', 'success');
+          this.fetchWifi();
+        }).catch(() => {
+          this.showToast('❌ Disconnect failed.', 'error');
+        });
+      },
+      scanBluetooth() {
+        axios.get('/bluetooth/scan').then(res => { this.bluetoothDevices = res.data.devices || []; });
+      },
+      connectBluetooth(mac) {
+        axios.post('/bluetooth/connect', { mac }).then(() => {
+          this.showToast('Connecting to device...', 'success');
+        }).catch(() => {
+          this.showToast('❌ Failed to connect.', 'error');
+        });
       }
     },
     mounted() {

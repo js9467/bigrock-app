@@ -6,9 +6,15 @@
 }
 
 body {
-  font-family: 'Barlow', sans-serif;
-  touch-action: manipulation;
-  font-size: 1rem;
+    font-family: 'Barlow', sans-serif;
+    touch-action: manipulation;
+    font-size: 1rem;
+  }
+
+@media (max-width: 767px) and (orientation: landscape) {
+  body {
+    font-size: 0.75rem;
+  }
 }
 
 @media (min-width: 768px) {

@@ -960,16 +960,16 @@ def scrape_events_route():
             data = load_demo_data(tournament)
 
         all_events = data.get("events", [])
-        now_time = datetime.now().time()
+        now = datetime.now()
         filtered = []
         for e in all_events:
             try:
-                ts_time = date_parser.parse(e["timestamp"]).time()
-                if ts_time <= now_time:
-                    filtered.append(e)
-            except:
+                ts = date_parser.parse(e["timestamp"])
+            except Exception:
                 continue
-        filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+            if ts <= now:
+                filtered.append(e)
+        filtered.sort(key=lambda e: date_parser.parse(e["timestamp"]), reverse=True)
         return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
 
     try:

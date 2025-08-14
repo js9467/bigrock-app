@@ -4,32 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wi-Fi Setup</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/base.css">
 </head>
-<body>
-    <div class="wifi-setup">
-        <h1>Connect to Wi-Fi</h1>
-        <form id="wifi-form" method="POST" action="/wifi">
-            <label for="ssid">Wi-Fi Network:</label>
-            <input type="text" id="ssid" name="ssid" required>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password">
-            <button type="submit">Connect</button>
+<body class="bg-gray-100 text-gray-800 font-sans">
+    <div class="max-w-md mx-auto mt-12 bg-white p-6 rounded-xl shadow">
+        <h1 class="text-2xl font-bold text-center mb-4">Connect to Wi‑Fi</h1>
+        <form id="wifi-form" class="space-y-4">
+            <div>
+                <label for="ssid" class="block font-semibold mb-1">Wi‑Fi Network</label>
+                <input type="text" id="ssid" name="ssid" class="w-full border" required>
+            </div>
+            <div>
+                <label for="password" class="block font-semibold mb-1">Password</label>
+                <input type="password" id="password" name="password" class="w-full border">
+            </div>
+            <button type="submit" class="w-full bg-brand-blue text-white py-2 rounded">Connect</button>
         </form>
     </div>
+
     <script>
         document.getElementById('wifi-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(e.target);
-            const response = await fetch('/wifi', {
+            const body = {
+                ssid: document.getElementById('ssid').value,
+                password: document.getElementById('password').value
+            };
+            const r = await fetch('/wifi/connect', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
             });
-            const result = await response.json();
-            if (result.status === 'success') {
-                alert('Connecting to Wi-Fi... Please wait.');
+            const result = await r.json();
+            if (result.status === 'ok') {
+                alert('Connecting to Wi‑Fi...');
+            } else {
+                alert(result.message || 'Connection failed');
             }
         });
     </script>
+    <script src="/static/js/keyboard.js"></script>
 </body>
 </html>

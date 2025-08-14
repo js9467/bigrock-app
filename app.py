@@ -961,16 +961,24 @@ def scrape_events_route():
 
         all_events = data.get("events", [])
 
-        now_time = datetime.now().time()
+        now = datetime.now()
         today = now.date()
+        day_filter = request.args.get("day")
         filtered = []
         for e in all_events:
             try:
                 ts = date_parser.parse(e["timestamp"])
             except Exception:
                 continue
+            if day_filter:
+                if ts.date() == today and ts <= now:
+                    filtered.append(e)
+            else:
+                if ts <= now:
+                    filtered.append(e)
 
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+        return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
 
     try:
         events = scrape_events(force=True, tournament=tournament)

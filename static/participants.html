@@ -186,8 +186,12 @@
           this.setBrandColor(tournament, allTournaments);
         } catch(e) { console.error('Logo load failed', e); }
       },
-      launchKeyboard() { fetch('/launch_keyboard').catch(()=>{}); },
-      hideKeyboard() { fetch('/hide_keyboard').catch(()=>{}); },
+      launchKeyboard() {
+        fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
+      },
+      hideKeyboard() {
+        fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+      },
 
       initLazyLoading() {
         const images = document.querySelectorAll('img.lazy');

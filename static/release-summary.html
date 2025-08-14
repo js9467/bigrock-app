@@ -8,9 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
-  <style>
-    .modal-bg { background-color: rgba(0, 0, 0, 0.6); }
-  </style>
+  
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
 <div id="app">
@@ -218,14 +216,36 @@ createApp({
           this.boatImages = images;
         });
     },
+    setBrandColor(t, cfg){
+      let color = cfg?.[t]?.color;
+      const key = `t_color_${t}`;
+      if(!color){
+        if(t === 'Big Rock'){
+          localStorage.removeItem(key);
+          color = '#002855';
+        } else {
+          color = localStorage.getItem(key);
+          if(!color){
+            color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
+            localStorage.setItem(key, color);
+          }
+        }
+      } else if(t === 'Big Rock'){
+        localStorage.removeItem(key);
+      }
+      document.documentElement.style.setProperty('--brand-color', color);
+    },
     loadTournamentLogo() {
       fetch('/api/settings')
         .then(res => res.json())
         .then(settings => {
           const tournament = settings.tournament;
-          return fetch('https://js9467.github.io/Brtourney/settings.json')
+          return fetch('/main.json')
             .then(res => res.json())
-            .then(all => { this.tournamentLogo = all[tournament]?.logo || ''; });
+            .then(all => {
+              this.tournamentLogo = all[tournament]?.logo || '';
+              this.setBrandColor(tournament, all);
+            });
         });
     },
     formatDate(dateStr) {

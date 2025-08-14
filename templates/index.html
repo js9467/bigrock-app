@@ -9,18 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
 
-  <style>
-    @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-    .message-strip-wrapper { position: relative; overflow: hidden; height: 2.25rem; background-color: #002855; }
-    .message-strip {
-      display: inline-block; white-space: nowrap; font-size: 1.2rem; font-weight: 600; color: white;
-      animation: marquee 40s linear infinite; will-change: transform; padding-left: 100%;
-    }
-    .message-strip a { color: #facc15; text-decoration: underline; font-weight: bold; padding: 0 0.5rem; }
-    .message-strip-wrapper:hover .message-strip { animation-play-state: paused; cursor: pointer; }
-    @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-    .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-  </style>
+  
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-x-hidden">
@@ -206,17 +195,38 @@ const vm = createApp({
   },
 
   methods:{
+    setBrandColor(t, cfg){
+      let color = cfg?.[t]?.color;
+      const key = `t_color_${t}`;
+      if(!color){
+        if(t === 'Big Rock'){
+          localStorage.removeItem(key);
+          color = '#002855';
+        } else {
+          color = localStorage.getItem(key);
+          if(!color){
+            color = `#${Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0')}`;
+            localStorage.setItem(key, color);
+          }
+        }
+      } else if(t === 'Big Rock'){
+        localStorage.removeItem(key);
+      }
+      document.documentElement.style.setProperty('--brand-color', color);
+    },
+
     // fetch logo + date (with fallback to /api/tournaments label)
     loadTournamentLogo(){
       fetch('/api/settings')
         .then(r=>r.json())
         .then(s=>{
           const t=s.tournament;
-          fetch('https://js9467.github.io/Brtourney/settings.json')
+          fetch('/main.json')
             .then(r=>r.json())
             .then(all=>{
               this.tournamentLogo = all[t]?.logo || '';
               this.tournamentDate = all[t]?.dates || '';
+              this.setBrandColor(t, all);
               if(!this.tournamentDate){
                 fetch('/api/tournaments')
                   .then(r=>r.json())
@@ -271,7 +281,7 @@ const vm = createApp({
       else{
         fetch('/api/settings').then(r=>r.json()).then(s=>{
           const t=s.tournament;
-          fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{
+          fetch('/main.json').then(r=>r.json()).then(all=>{
             const stream=all[t]?.stream||all[t]?.fallback_stream;
             if(stream){
               if(Hls.isSupported()){

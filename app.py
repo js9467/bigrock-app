@@ -406,6 +406,7 @@ def inject_hooked_up_events(events, tournament=None):
     inserted_keys = set()
     name_summary = re.compile(r"^[A-Z][a-z]+\s+[A-Z][a-z]+\s+(released|boated|weighed)", re.IGNORECASE)
     events = [e for e in events if not name_summary.match(e.get("details", ""))]
+
     events.sort(key=lambda e: date_parser.parse(e["timestamp"]))
     for event in events:
         boat = event.get("boat", "Unknown")

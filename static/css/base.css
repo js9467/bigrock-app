@@ -3,6 +3,19 @@
 body {
   font-family: 'Barlow', sans-serif;
   touch-action: manipulation;
+  font-size: 1rem;
+}
+
+@media (min-width: 768px) {
+  body {
+    font-size: 1.125rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  body {
+    font-size: 1.25rem;
+  }
 }
 
 .bg-brand-blue {

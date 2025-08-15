@@ -77,20 +77,38 @@
       <!-- Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Stacked Bar Chart -->
-        <div class="bg-white rounded shadow-md p-4">
+        <div class="bg-white rounded shadow-md p-4 relative">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Daily Releases by Species</h2>
+          <div v-if="chartLoading.release" class="absolute inset-0 flex items-center justify-center bg-white/75">
+            <svg class="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </div>
           <canvas id="releaseChart" height="200"></canvas>
         </div>
 
         <!-- Line Chart -->
-        <div class="bg-white rounded shadow-md p-4">
+        <div class="bg-white rounded shadow-md p-4 relative">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Total Releases Trend</h2>
+          <div v-if="chartLoading.trend" class="absolute inset-0 flex items-center justify-center bg-white/75">
+            <svg class="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </div>
           <canvas id="trendChart" height="200"></canvas>
         </div>
 
         <!-- Smaller Doughnut Chart -->
-        <div class="bg-white rounded shadow-md p-4 lg:col-span-2">
+        <div class="bg-white rounded shadow-md p-4 lg:col-span-2 relative">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Cumulative Species Distribution</h2>
+          <div v-if="chartLoading.species" class="absolute inset-0 flex items-center justify-center bg-white/75">
+            <svg class="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </div>
           <div class="flex justify-center">
             <canvas id="speciesChart" class="max-w-[200px]" height="120" width="120"></canvas>
           </div>
@@ -138,6 +156,7 @@ createApp({
       tournamentLogo: '',
       demoMode: false,
       charts: {},
+      chartLoading: { release: true, trend: true, species: true },
       showModal: false,
       selectedDate: '',
       drilldownBoats: [],
@@ -260,39 +279,47 @@ createApp({
     },
     renderCharts() {
       if (!this.summary.length) return;
+      this.chartLoading.release = true;
+      this.chartLoading.trend = true;
+      this.chartLoading.species = true;
       for (const key in this.charts) { this.charts[key].destroy(); }
 
-      const labels = this.summary.map(day => this.formatDate(day.date));
-      const blue = this.summary.map(day => day.blue_marlins);
-      const white = this.summary.map(day => day.white_marlins);
-      const sail = this.summary.map(day => day.sailfish);
-      const totals = this.summary.map(day => day.total_releases);
+      this.$nextTick(() => {
+        const labels = this.summary.map(day => this.formatDate(day.date));
+        const blue = this.summary.map(day => day.blue_marlins);
+        const white = this.summary.map(day => day.white_marlins);
+        const sail = this.summary.map(day => day.sailfish);
+        const totals = this.summary.map(day => day.total_releases);
 
-      const anim = { duration: 800, easing: 'easeOutQuart' };
+        const anim = { duration: 800, easing: 'easeOutQuart' };
 
-      this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
-        type: 'bar',
-        data: { labels, datasets: [
-          { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
-          { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
-          { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
-        ] },
-        options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
-      });
+        this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
+          type: 'bar',
+          data: { labels, datasets: [
+            { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
+            { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
+            { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
+          ] },
+          options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+        });
+        this.chartLoading.release = false;
 
-      this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
-        type: 'line',
-        data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
-        options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
-      });
+        this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
+          options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
+        });
+        this.chartLoading.trend = false;
 
-      const totalBlue = blue.reduce((a,b)=>a+b,0);
-      const totalWhite = white.reduce((a,b)=>a+b,0);
-      const totalSail = sail.reduce((a,b)=>a+b,0);
-      this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
-        type: 'doughnut',
-        data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
-        options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
+        const totalBlue = blue.reduce((a,b)=>a+b,0);
+        const totalWhite = white.reduce((a,b)=>a+b,0);
+        const totalSail = sail.reduce((a,b)=>a+b,0);
+        this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
+          type: 'doughnut',
+          data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
+          options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
+        });
+        this.chartLoading.species = false;
       });
     },
     openDrilldown(date) {

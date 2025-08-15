@@ -1459,7 +1459,7 @@ def scrape_tournament_dates():
 def bluetooth_status():
     try:
         out = subprocess.check_output(['bluetoothctl', 'show'], text=True)
-        enabled = 'Powered: yes' in out
+
         connected_devices = []
         try:
             devices_out = subprocess.check_output(
@@ -1483,17 +1483,22 @@ def bluetooth_status():
     except Exception as e:
         return jsonify({"enabled": False, "connected": False, "devices": [], "error": str(e)}), 500
 
+
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
     try:
+
         out = subprocess.check_output(
             ['bluetoothctl', '--timeout', '5', 'scan', 'on'], text=True
         )
+
+        
         subprocess.run(
             ['bluetoothctl', 'scan', 'off'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+
         found = {}
         for line in out.splitlines():
             if line.startswith('Device '):
@@ -1513,6 +1518,7 @@ def bluetooth_scan():
                     devices.append({"name": name, "mac": mac, "connected": connected})
             except Exception:
                 devices.append({"name": name, "mac": mac, "connected": False})
+
         return jsonify({"devices": devices})
     except Exception as e:
         return jsonify({"devices": [], "error": str(e)}), 500
@@ -1525,6 +1531,7 @@ def bluetooth_connect():
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
     try:
         subprocess.check_call(['bluetoothctl', 'connect', mac])
+
         info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
         connected = 'Connected: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
@@ -1534,6 +1541,7 @@ def bluetooth_connect():
             "connected": connected,
             "device": {"mac": mac, "name": name}
         })
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1632,7 +1640,11 @@ def hide_keyboard():
 def list_sounds():
     sound_dir = os.path.join('static', 'sounds')
     try:
-        files = [f for f in os.listdir(sound_dir) if f.lower().endswith('.mp3')]
+        files = [
+            f
+            for f in os.listdir(sound_dir)
+            if f.lower().endswith(('.mp3', '.wav'))
+        ]
         return jsonify({'files': files})
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500

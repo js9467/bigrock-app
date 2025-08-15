@@ -940,6 +940,7 @@ def _audio_env():
     env = os.environ.copy()
     env["XDG_RUNTIME_DIR"] = f"/run/user/{_AUDIO_UID}"
     env["PULSE_RUNTIME_PATH"] = f"/run/user/{_AUDIO_UID}/pulse"
+    env["PULSE_SERVER"] = f"unix:/run/user/{_AUDIO_UID}/pulse/native"
     return env
 
 def _sudo_prefix():
@@ -953,7 +954,8 @@ def _sudo_prefix():
             "sudo", "-u", AUDIO_USER,
             "env",
             f"XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}",
-            f"PULSE_RUNTIME_PATH={env['PULSE_RUNTIME_PATH']}"
+            f"PULSE_RUNTIME_PATH={env['PULSE_RUNTIME_PATH']}",
+            f"PULSE_SERVER={env['PULSE_SERVER']}"
         ]
     return []
 

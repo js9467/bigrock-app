@@ -210,6 +210,19 @@ const vm = createApp({
 
     const player=document.getElementById('radio-player');
     if(player) player.volume=this.settings.radio_volume/100;
+    const savedVol=localStorage.getItem('vhfVolume');
+    if(savedVol!==null){
+      this.settings.radio_volume=Number(savedVol);
+      this.applyRadioVolume();
+    }
+    if(localStorage.getItem('vhfPlaying')==='true'){
+      this.toggleRadio();
+      const resume=()=>{
+        if(player && player.paused){ player.play().catch(()=>{}); }
+      };
+      document.addEventListener('click',resume,{once:true});
+      document.addEventListener('touchstart',resume,{once:true});
+    }
 
     // Console sound test helpers
     window.playFollowed = () => this.playSound(this.settings.followed_sound);
@@ -311,10 +324,10 @@ const vm = createApp({
     },
     formatTime(ts){const dt=this.parseTs(ts);return dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';},
     formatDate(ts){const dt=this.parseTs(ts);return dt?dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}):'';},
-    applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;},
+    applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;localStorage.setItem('vhfVolume',this.settings.radio_volume);},
     toggleRadio(){
       const p=document.getElementById('radio-player');if(!p)return;
-      if(this.radioPlaying){p.pause();this.radioPlaying=false;}
+      if(this.radioPlaying){p.pause();this.radioPlaying=false;localStorage.setItem('vhfPlaying','false');}
       else{
         fetch('/api/settings').then(r=>r.json()).then(s=>{
           const t=s.tournament;
@@ -329,7 +342,7 @@ const vm = createApp({
               }else{
                 p.src=stream;p.play();
               }
-              this.radioPlaying=true;
+              this.radioPlaying=true;localStorage.setItem('vhfPlaying','true');
             }else alert('No VHF stream available.');
           });
         });

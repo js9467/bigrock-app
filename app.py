@@ -925,6 +925,10 @@ def scrape_leaderboard(tournament=None, force: bool = False):
 def homepage():
     return send_from_directory('templates', 'index.html')
 
+@app.route('/offline')
+def offline_page():
+    return send_from_directory('templates', 'offline.html')
+
 @app.route('/participants')
 def participants_page():
     return send_from_directory('static', 'participants.html')

@@ -925,6 +925,10 @@ def scrape_leaderboard(tournament=None, force: bool = False):
 def homepage():
     return send_from_directory('templates', 'index.html')
 
+@app.route('/offline')
+def offline_page():
+    return send_from_directory('templates', 'offline.html')
+
 @app.route('/participants')
 def participants_page():
     return send_from_directory('static', 'participants.html')
@@ -1459,7 +1463,9 @@ def scrape_tournament_dates():
 def bluetooth_status():
     try:
         out = subprocess.check_output(['bluetoothctl', 'show'], text=True)
+
         enabled = 'Powered: yes' in out
+
         connected_devices = []
         try:
             devices_out = subprocess.check_output(
@@ -1483,9 +1489,11 @@ def bluetooth_status():
     except Exception as e:
         return jsonify({"enabled": False, "connected": False, "devices": [], "error": str(e)}), 500
 
+
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
     try:
+
         print("\ud83d\udd0d Starting Bluetooth scan...")
         scan_out = subprocess.check_output(
             ['bluetoothctl', '--timeout', '5', 'scan', 'on'],
@@ -1496,16 +1504,19 @@ def bluetooth_scan():
         devices_out = subprocess.check_output(['bluetoothctl', 'devices'], text=True)
         devices = []
         for line in devices_out.splitlines():
+
             if line.startswith('Device '):
                 parts = line.split(' ', 2)
                 if len(parts) >= 3:
                     mac, name = parts[1], parts[2]
+
                     try:
                         info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
                         paired = 'Paired: yes' in info
                         connected = 'Connected: yes' in info
                     except Exception as e_info:
                         print(f"Failed to get info for {mac}: {e_info}")
+
                         paired = False
                         connected = False
                     if not connected:
@@ -1515,10 +1526,12 @@ def bluetooth_scan():
                             "paired": paired,
                             "connected": connected,
                         })
+
         print(f"Bluetooth scan found {len(devices)} device(s)")
         return jsonify({"devices": devices})
     except Exception as e:
         print(f"Bluetooth scan failed: {e}")
+
         return jsonify({"devices": [], "error": str(e)}), 500
 
 @app.route('/bluetooth/connect', methods=['POST'])
@@ -1528,6 +1541,7 @@ def bluetooth_connect():
     if not mac:
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
     try:
+
         try:
             subprocess.check_output(
                 ['bluetoothctl', 'connect', mac],
@@ -1549,6 +1563,7 @@ def bluetooth_connect():
             except subprocess.CalledProcessError as e:
                 return jsonify({"status": "error", "message": e.output.strip()}), 500
 
+
         info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
         connected = 'Connected: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
@@ -1556,8 +1571,10 @@ def bluetooth_connect():
         return jsonify({
             "status": "ok" if connected else "error",
             "connected": connected,
+
             "device": {"mac": mac, "name": name},
         })
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1656,7 +1673,11 @@ def hide_keyboard():
 def list_sounds():
     sound_dir = os.path.join('static', 'sounds')
     try:
-        files = [f for f in os.listdir(sound_dir) if f.lower().endswith('.mp3')]
+        files = [
+            f
+            for f in os.listdir(sound_dir)
+            if f.lower().endswith(('.mp3', '.wav'))
+        ]
         return jsonify({'files': files})
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500

@@ -73,6 +73,17 @@
       </div>
     </div>
 
+    <!-- Followed Boats Chips -->
+    <div v-if="followed.length" class="mt-2 overflow-x-auto">
+      <div class="flex gap-2">
+        <div v-for="boat in followed" :key="boat"
+             class="flex items-center bg-yellow-200 text-blue-900 px-3 py-1 rounded-full text-sm font-semibold flex-shrink-0">
+          {{ boat }}
+          <button @click="toggleFollow(boat)" class="ml-1 text-red-600 hover:text-red-800">✕</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Live Alert Bar -->
     <div v-if="messageQueue.length > 0" class="w-full mt-3 message-strip-wrapper">
       <div class="message-strip" v-html="currentMessage"></div>
@@ -124,18 +135,6 @@
         <div class="h-16 px-4 border-b text-2xl font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
 
           Event Feed
-        </div>
-
-        <!-- Followed Boats Chips -->
-        <div v-if="followed.length" class="px-4 py-2 bg-white border-b border-gray-200">
-          <div class="font-semibold text-gray-600 mb-1">Followed Boats:</div>
-          <div class="flex flex-wrap gap-2">
-            <div v-for="boat in followed" :key="boat"
-                 class="flex items-center bg-yellow-200 text-yellow-900 font-semibold px-3 py-1 rounded-full shadow-sm">
-              {{ boat }}
-              <button @click="toggleFollow(boat)" class="ml-2 text-red-600 hover:text-red-800 font-bold text-sm">❌</button>
-            </div>
-          </div>
         </div>
 
         <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
@@ -244,7 +243,15 @@ const vm = createApp({
         const data=await r.json(); if(data.status==='ok') this.followed=data.followed_boats;
       }catch(e){console.error('toggleFollow failed',e);}
     },
-    isFollowed(uid){const norm=s=> (s||'').toLowerCase().replace(/[' ]/g,'_'); return this.followed.some(b=>norm(b)===norm(uid));},
+    isFollowed(uid){
+      const norm = s => (s||'')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^a-z0-9]+/g,'_')
+        .replace(/^_+|_+$/g,'');
+      return this.followed.some(b=>norm(b)===norm(uid));
+    },
     playSound(f){if(!f||!this.settings.sounds_enabled)return;let fn=f.trim();if(!fn.toLowerCase().endsWith('.mp3'))fn+='.mp3';const a=new Audio(`/static/sounds/${encodeURIComponent(fn)}`);a.volume=(this.settings.event_volume||80)/100;a.play().catch(()=>{});},
 
     fetchAll(){

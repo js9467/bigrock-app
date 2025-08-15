@@ -194,9 +194,24 @@ def get_tournament_logo() -> str | None:
     return None
 
 def normalize_boat_name(name):
+    """Normalize boat names for comparison/storage.
+
+    Converts to ASCII, lowercases, and replaces any non-alphanumeric
+    characters with underscores. This allows following boats whose names
+    contain spaces, apostrophes, or other special characters.
+    """
     if not name:
         return "unknown"
-    return name.lower().replace(' ', '_').replace("'", "").replace("/", "_")
+    import unicodedata, re
+    # Convert to ASCII and lowercase
+    ascii_name = (
+        unicodedata.normalize("NFKD", name)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .lower()
+    )
+    # Replace any remaining non-alphanumeric characters with underscores
+    return re.sub(r"[^a-z0-9]+", "_", ascii_name).strip("_")
 
 # ------------------------
 # Image handling
@@ -1611,11 +1626,10 @@ def toggle_followed_boat():
         return jsonify({"status": "error", "message": "Missing 'boat'"}), 400
     settings = load_settings()
     followed = settings.get("followed_boats", [])
-    def norm(b): return b.lower().replace("'", "").replace(" ", "_").replace("/", "_")
-    uid = norm(boat)
-    followed_norm = [norm(b) for b in followed]
+    uid = normalize_boat_name(boat)
+    followed_norm = [normalize_boat_name(b) for b in followed]
     if uid in followed_norm:
-        followed = [b for b in followed if norm(b) != uid]
+        followed = [b for b in followed if normalize_boat_name(b) != uid]
         action = "unfollowed"
     else:
         followed.append(boat)

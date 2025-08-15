@@ -5,19 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Events Feed</title>
   <script>
-    function goOffline() {
-      window.location.href = '/offline';
+
+    async function ensureOnline() {
+      if (!navigator.onLine) return location.replace('/offline');
+      try {
+        await fetch('/', { method: 'HEAD', cache: 'no-store' });
+      } catch (e) {
+        return location.replace('/offline');
+      }
+      window.addEventListener('offline', () => location.replace('/offline'));
     }
-    if (!navigator.onLine) {
-      goOffline();
-    } else {
-      window.addEventListener('offline', goOffline);
-    }
+    ensureOnline();
   </script>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
   <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/tailwind.css">
+  <script src="/static/js/bundle.js" defer></script>
 
   <style>
     @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }

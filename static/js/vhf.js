@@ -25,7 +25,7 @@
       const s = await fetch('/api/settings').then(r=>r.json());
       const t = s.tournament;
       const all = await fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json());
-      streamUrl = all[t]?.stream || all[t]?.fallback_stream || '';
+      streamUrl = (all[t] && all[t].stream) || all.fallback_stream || '';
     }catch(e){console.error('stream fetch failed',e);}
     return streamUrl;
   }

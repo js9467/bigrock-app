@@ -365,7 +365,7 @@ const vm = createApp({
         fetch('/api/settings').then(r=>r.json()).then(s=>{
           const t=s.tournament;
           fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{
-            const stream=all[t]?.stream||all[t]?.fallback_stream;
+            const stream=(all[t]&&all[t].stream)||all.fallback_stream;
             if(stream){
               if(Hls.isSupported()){
                 if(!this.hls)this.hls=new Hls();

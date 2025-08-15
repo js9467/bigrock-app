@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import subprocess
 from threading import Thread, Lock
+import threading
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -1222,8 +1223,25 @@ def _audio_router_monitor():
             safe_print(f"⚠️ audio monitor loop error: {e}")
             time.sleep(1)
 
+_audio_monitor_lock = Lock()
+_audio_monitor_thread = None
+
 def start_audio_router_monitor():
-    Thread(target=_audio_router_monitor, daemon=True).start()
+    """Start the audio router monitor once per process."""
+    global _audio_monitor_thread
+    with _audio_monitor_lock:
+        if _audio_monitor_thread and _audio_monitor_thread.is_alive():
+            return
+        if any(t.name == "audio_router_monitor" for t in threading.enumerate()):
+            return
+        _audio_monitor_thread = Thread(
+            target=_audio_router_monitor,
+            daemon=True,
+            name="audio_router_monitor",
+        )
+        _audio_monitor_thread.start()
+# Start monitor at import time
+start_audio_router_monitor()
 # ========= end auto audio routing =========
 
 
@@ -2289,5 +2307,4 @@ if __name__ == '__main__':
     print("🚀 Starting (stabilized, faster fetch, fixed leaderboard).")
     Thread(target=background_event_emailer, daemon=True).start()
     startup_scrape()
-    start_audio_router_monitor()
     app.run(host='0.0.0.0', port=5000, debug=True)

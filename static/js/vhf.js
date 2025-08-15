@@ -31,18 +31,22 @@
   }
   async function play(){
     const url = await getStream();
-    if(!url){alert('No VHF stream available.');return;}
+
+    if(!url){alert('No VHF stream available.');return Promise.reject();}
+
     if(window.Hls && Hls.isSupported()){
       if(!hls) hls = new Hls();
       hls.loadSource(url);
       hls.attachMedia(audio);
-      hls.on(Hls.Events.MANIFEST_PARSED,()=>{audio.play().catch(()=>{});});
+
     }else{
       audio.src = url;
-      audio.play().catch(()=>{});
     }
+    const p = audio.play();
     localStorage.setItem(STORAGE_PLAYING,'true');
     updateButton(true);
+    return p;
+
   }
   function stop(){
     audio.pause();
@@ -50,7 +54,8 @@
     updateButton(false);
   }
   async function toggle(){
-    if(audio.paused) await play(); else stop();
+    if(audio.paused) await play().catch(()=>{}); else stop();
+
   }
   function applyVolume(v){
     audio.volume = v/100;
@@ -66,8 +71,18 @@
     const v = savedVol !== null ? Number(savedVol) : (vol?Number(vol.value):30);
     if(vol) { vol.value = v; updateVolumeDisplay(v); }
     applyVolume(v);
+
+    function resumeOnInteraction(){
+      if(audio.paused && localStorage.getItem(STORAGE_PLAYING)==='true'){
+        play().catch(()=>{});
+      }
+    }
     if(localStorage.getItem(STORAGE_PLAYING)==='true'){
-      play();
+      play().catch(()=>{
+        document.addEventListener('click',resumeOnInteraction,{once:true});
+        document.addEventListener('touchstart',resumeOnInteraction,{once:true});
+      });
+
     }else updateButton(false);
   });
 })();

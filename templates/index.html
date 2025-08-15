@@ -217,6 +217,13 @@ const vm = createApp({
     }
     if(localStorage.getItem('vhfPlaying')==='true'){
       this.toggleRadio();
+
+      const resume=()=>{
+        if(player && player.paused){ player.play().catch(()=>{}); }
+      };
+      document.addEventListener('click',resume,{once:true});
+      document.addEventListener('touchstart',resume,{once:true});
+
     }
 
     // Console sound test helpers

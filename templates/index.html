@@ -267,7 +267,17 @@ const vm = createApp({
         });
     },
 
-    async loadFollowed(){ try{ const r=await fetch('/followed-boats'); this.followed=await r.json(); }catch{this.followed={};} },
+
+    async loadFollowed(){
+      try{
+        const r=await fetch('/followed-boats');
+        const data=await r.json();
+        this.followed = (data && typeof data==="object" && !Array.isArray(data))
+          ? data
+          : { [this.settings.tournament]: data || [] };
+      }catch{this.followed={};}
+    },
+
     async toggleFollow(boat,tournament=this.settings.tournament){
       try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
         const data=await r.json(); if(data.status==='ok') this.followed=data.followed_boats;
@@ -294,7 +304,7 @@ const vm = createApp({
 
     fetchAll(){
       this.loading=true;
-      Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
+      Promise.all([fetch('/api/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
         .then(([ed,hd])=>{
           const ne=ed.events||[],nh=hd.events||[];
           for(const e of ne){

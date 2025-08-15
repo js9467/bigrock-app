@@ -1349,6 +1349,17 @@ def scrape_events_route():
         print(f"❌ Error in /scrape/events: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route("/api/events")
+def api_events():
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
+    events = safe_json_load(events_file, [])
+    try:
+        events.sort(key=lambda e: e.get("timestamp"), reverse=True)
+    except Exception:
+        pass
+    return jsonify({"status": "ok", "count": len(events), "events": events[:100]})
+
 @app.route("/scrape/all")
 def scrape_all():
     tournament = get_current_tournament()

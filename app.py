@@ -1666,68 +1666,65 @@ def bluetooth_connect():
     mac = data.get('mac')
     if not mac:
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
-    try:
 
+    try:
+        # First try a direct connect
         try:
             subprocess.check_output(
                 ['bluetoothctl', 'connect', mac],
-                text=True,
-                encoding='utf-8',
-                errors='replace',
+                text=True, encoding='utf-8', errors='replace',
                 stderr=subprocess.STDOUT,
             )
         except subprocess.CalledProcessError:
+            # Fallback: pair, then connect
             try:
                 subprocess.check_output(
                     ['bluetoothctl', 'pair', mac],
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
+                    text=True, encoding='utf-8', errors='replace',
                     stderr=subprocess.STDOUT,
                 )
                 subprocess.check_output(
                     ['bluetoothctl', 'connect', mac],
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
+                    text=True, encoding='utf-8', errors='replace',
                     stderr=subprocess.STDOUT,
                 )
             except subprocess.CalledProcessError as e:
-                return jsonify({"status": "error", "message": e.output.strip()}), 500
+                # Bubble up bluetoothctl error output to client
+                return jsonify({"status": "error", "message": (e.output or '').strip()}), 500
 
-
+        # Query device info
         info = subprocess.check_output(
-    ['bluetoothctl', 'info', mac],
-    text=True,
-    encoding='utf-8',
-    errors='replace'
-)
-connected = 'Connected: yes' in info
-name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
-name = name_line.split('Name:', 1)[1].strip() if name_line else None
+            ['bluetoothctl', 'info', mac],
+            text=True, encoding='utf-8', errors='replace'
+        )
+        connected = 'Connected: yes' in info
+        paired = 'Paired: yes' in info
+        name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
+        name = name_line.split('Name:', 1)[1].strip() if name_line else None
 
-if connected:
-    try:
-        sink_name = _find_bt_sink_name(mac)
-        if sink_name:
-            _route_all_audio_to_sink(sink_name)
-        else:
-            safe_print("No bluez sink found yet; will rely on default.")
-    except Exception as audio_e:
-        safe_print(f"Audio routing failed: {audio_e}")
+        # If connected, set the BT sink as default and migrate all current streams
+        active_sink = None
+        if connected:
+            try:
+                sink_name = _find_bt_sink_name(mac)
+                if sink_name:
+                    _route_all_audio_to_sink(sink_name)
+                    active_sink = sink_name
+                else:
+                    safe_print("No bluez sink found yet; will rely on default.")
+            except Exception as audio_e:
+                safe_print(f"Audio routing failed: {audio_e}")
 
-return jsonify({
-    "status": "ok" if connected else "error",
-    "connected": connected,
-    "name": name
-})
-
+        return jsonify({
             "status": "ok" if connected else "error",
             "connected": connected,
+            "paired": paired,
             "device": {"mac": mac, "name": name},
+            "active_sink": active_sink
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 @app.route('/bluetooth/disconnect', methods=['POST'])

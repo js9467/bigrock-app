@@ -54,11 +54,6 @@ CACHE_FILE = 'cache.json'
 SETTINGS_FILE = 'settings.json'
 DEMO_DATA_FILE = 'demo_data.json'
 
-# Cached settings to avoid repeated disk reads
-_SETTINGS_CACHE = None
-_SETTINGS_MTIME = 0
-_SETTINGS_LOCK = Lock()
-
 BOAT_FOLDER = "static/images/boats"
 os.makedirs(BOAT_FOLDER, exist_ok=True)
 
@@ -178,30 +173,7 @@ def save_cache(cache):
     safe_json_dump(CACHE_FILE, cache)
 
 def load_settings():
-    """Load settings from disk with simple mtime-based caching."""
-    global _SETTINGS_CACHE, _SETTINGS_MTIME
-    try:
-        mtime = os.path.getmtime(SETTINGS_FILE)
-    except OSError:
-        mtime = 0
-    with _SETTINGS_LOCK:
-        if _SETTINGS_CACHE is not None and _SETTINGS_MTIME == mtime:
-            return _SETTINGS_CACHE
-        _SETTINGS_CACHE = safe_json_load(SETTINGS_FILE, {})
-        _SETTINGS_MTIME = mtime
-        return _SETTINGS_CACHE
-
-
-def save_settings(settings):
-    """Persist settings to disk and update cache."""
-    safe_json_dump(SETTINGS_FILE, settings)
-    with _SETTINGS_LOCK:
-        global _SETTINGS_CACHE, _SETTINGS_MTIME
-        _SETTINGS_CACHE = settings
-        try:
-            _SETTINGS_MTIME = os.path.getmtime(SETTINGS_FILE)
-        except OSError:
-            _SETTINGS_MTIME = 0
+    return safe_json_load(SETTINGS_FILE, {})
 
 def load_demo_data(tournament):
     data = safe_json_load(DEMO_DATA_FILE, {})
@@ -1757,7 +1729,7 @@ def api_settings():
 
         # Save alerts and settings
         save_alerts(settings_data.get("sms_emails", []))
-        save_settings(settings_data)
+        safe_json_dump(SETTINGS_FILE, settings_data)
 
         # Triggers
         if new_mode == "live" and (new_tournament != old_tournament or old_mode != "live"):
@@ -2301,7 +2273,7 @@ def toggle_followed_boat():
         followed.append(boat)
         action = "followed"
     settings["followed_boats"] = followed
-    save_settings(settings)
+    safe_json_dump(SETTINGS_FILE, settings)
     return jsonify({"status": "ok", "action": action, "followed_boats": followed})
 
 # ------------------------

@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Events Feed</title>
+  <script>
+    function goOffline() {
+      window.location.href = '/offline';
+    }
+    if (!navigator.onLine) {
+      goOffline();
+    } else {
+      window.addEventListener('offline', goOffline);
+    }
+  </script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -252,7 +262,14 @@ const vm = createApp({
         .replace(/^_+|_+$/g,'');
       return this.followed.some(b=>norm(b)===norm(uid));
     },
-    playSound(f){if(!f||!this.settings.sounds_enabled)return;let fn=f.trim();if(!fn.toLowerCase().endsWith('.mp3'))fn+='.mp3';const a=new Audio(`/static/sounds/${encodeURIComponent(fn)}`);a.volume=(this.settings.event_volume||80)/100;a.play().catch(()=>{});},
+    playSound(f){
+      if(!f||!this.settings.sounds_enabled)return;
+      let fn=f.trim();
+      if(!fn.toLowerCase().match(/\.(mp3|wav)$/))fn+='.mp3';
+      const a=new Audio(`/static/sounds/${encodeURIComponent(fn)}`);
+      a.volume=(this.settings.event_volume||80)/100;
+      a.play().catch(()=>{});
+    },
 
     fetchAll(){
       this.loading=true;

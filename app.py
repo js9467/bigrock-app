@@ -1697,16 +1697,16 @@ def bluetooth_connect():
 
 
         info = subprocess.check_output(
-            ['bluetoothctl', 'info', mac],
-            text=True,
-            encoding='utf-8',
-            errors='replace'
-        )
-        connected = 'Connected: yes' in info
-        name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
-        name = name_line.split('Name:', 1)[1].strip() if name_line else None
+    ['bluetoothctl', 'info', mac],
+    text=True,
+    encoding='utf-8',
+    errors='replace'
+)
+connected = 'Connected: yes' in info
+name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
+name = name_line.split('Name:', 1)[1].strip() if name_line else None
 
-        if connected:
+if connected:
     try:
         sink_name = _find_bt_sink_name(mac)
         if sink_name:
@@ -1716,8 +1716,12 @@ def bluetooth_connect():
     except Exception as audio_e:
         safe_print(f"Audio routing failed: {audio_e}")
 
+return jsonify({
+    "status": "ok" if connected else "error",
+    "connected": connected,
+    "name": name
+})
 
-        return jsonify({
             "status": "ok" if connected else "error",
             "connected": connected,
             "device": {"mac": mac, "name": name},

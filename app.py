@@ -2280,6 +2280,7 @@ def release_summary_data():
             events = safe_json_load(events_file, [])
 
         summary = defaultdict(lambda: {"blue_marlins": 0, "white_marlins": 0, "sailfish": 0, "total_releases": 0})
+        release_events = []
 
         for e in events:
             if e["event"].lower() != "released":
@@ -2289,6 +2290,7 @@ def release_summary_data():
                 day = dt.strftime("%Y-%m-%d")
             except:
                 continue
+            release_events.append(e)
             details = e.get("details", "").lower()
             if "blue marlin" in details:
                 summary[day]["blue_marlins"] += 1
@@ -2300,7 +2302,7 @@ def release_summary_data():
 
         result = [{"date": k, **v} for k, v in sorted(summary.items(), key=lambda x: x[0], reverse=True)]
         return jsonify({"status": "ok", "demo_mode": demo_mode,
-                        "summary": result, "events": events})
+                        "summary": result, "events": release_events})
     except Exception as e:
         print(f"❌ Error generating release summary: {e}")
         return jsonify({"status": "error", "message": str(e)})

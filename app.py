@@ -16,10 +16,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFile
 import io
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode, quote
 from collections import defaultdict
+
+# Allow processing of partially downloaded images
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # ------------------------
 # Constants / Config
@@ -231,6 +234,15 @@ def boat_image(uid):
     try:
         fs_path = _resolve_boat_image_fs(uid)
         if fs_path:
+            try:
+                with Image.open(fs_path) as img:
+                    if img.getexif().get(274, 1) != 1:
+                        img = ImageOps.exif_transpose(img)
+                        if img.mode in ("RGBA", "LA", "P"):
+                            img = img.convert("RGB")
+                        img.save(fs_path)
+            except Exception as e:
+                print(f"⚠️ Auto-orient failed for {uid}: {e}")
             return send_file(fs_path, max_age=24 * 3600)
         # If we know a source URL for this uid, fetch it asynchronously
         info = IMAGE_SOURCES.get(uid)

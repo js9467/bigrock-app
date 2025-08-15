@@ -1463,15 +1463,21 @@ def scrape_tournament_dates():
 def bluetooth_status():
     try:
 
-        out = subprocess.check_output(['bluetoothctl', 'show'], text=True)
+        out = subprocess.check_output(
+            ['bluetoothctl', 'show'],
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
 
         enabled = 'Powered: yes' in out
         connected_devices = []
         try:
             devices_out = subprocess.check_output(
-
-                ['bluetoothctl', 'devices', 'Connected'], text=True
-
+                ['bluetoothctl', 'devices', 'Connected'],
+                text=True,
+                encoding='utf-8',
+                errors='replace'
             )
             for line in devices_out.splitlines():
                 if line.startswith('Device '):
@@ -1502,8 +1508,9 @@ def bluetooth_scan():
         scan_out = subprocess.check_output(
             ['bluetoothctl', '--timeout', '5', 'scan', 'on'],
             text=True,
+            encoding='utf-8',
+            errors='replace',
             stderr=subprocess.STDOUT,
-
         )
         print(scan_out)
         devices = {}
@@ -1520,7 +1527,12 @@ def bluetooth_scan():
         results = []
         for mac, name in devices.items():
             try:
-                info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
+                info = subprocess.check_output(
+                    ['bluetoothctl', 'info', mac],
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
                 paired = 'Paired: yes' in info
                 connected = 'Connected: yes' in info
             except Exception as e_info:
@@ -1553,35 +1565,48 @@ def bluetooth_connect():
             subprocess.check_output(
                 ['bluetoothctl', 'connect', mac],
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 stderr=subprocess.STDOUT,
-
             )
         except subprocess.CalledProcessError:
             try:
                 subprocess.check_output(
                     ['bluetoothctl', 'pair', mac],
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     stderr=subprocess.STDOUT,
-
                 )
                 subprocess.check_output(
                     ['bluetoothctl', 'connect', mac],
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     stderr=subprocess.STDOUT,
-
                 )
             except subprocess.CalledProcessError as e:
                 return jsonify({"status": "error", "message": e.output.strip()}), 500
 
 
-        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
+        info = subprocess.check_output(
+            ['bluetoothctl', 'info', mac],
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
         connected = 'Connected: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
         name = name_line.split('Name:', 1)[1].strip() if name_line else None
 
         if connected:
             try:
-                sinks = subprocess.check_output(['pactl', 'list', 'short', 'sinks'], text=True)
+                sinks = subprocess.check_output(
+                    ['pactl', 'list', 'short', 'sinks'],
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
                 mac_id = mac.replace(':', '_').lower()
                 sink_name = None
                 for line in sinks.splitlines():
@@ -1590,7 +1615,12 @@ def bluetooth_connect():
                         sink_name = parts[1]
                         break
                 if sink_name:
-                    subprocess.check_output(['pactl', 'set-default-sink', sink_name], text=True)
+                    subprocess.check_output(
+                        ['pactl', 'set-default-sink', sink_name],
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
             except Exception as audio_e:
                 print(f"Failed to set audio sink: {audio_e}")
 
@@ -1613,10 +1643,17 @@ def bluetooth_disconnect():
         subprocess.check_output(
             ['bluetoothctl', 'disconnect', mac],
             text=True,
+            encoding='utf-8',
+            errors='replace',
             stderr=subprocess.STDOUT,
         )
         try:
-            sinks = subprocess.check_output(['pactl', 'list', 'short', 'sinks'], text=True)
+            sinks = subprocess.check_output(
+                ['pactl', 'list', 'short', 'sinks'],
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
             mac_id = mac.replace(':', '_').lower()
             fallback = None
             for line in sinks.splitlines():
@@ -1625,7 +1662,12 @@ def bluetooth_disconnect():
                     fallback = parts[1]
                     break
             if fallback:
-                subprocess.check_output(['pactl', 'set-default-sink', fallback], text=True)
+                subprocess.check_output(
+                    ['pactl', 'set-default-sink', fallback],
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
         except Exception:
             pass
         return jsonify({"status": "ok"})

@@ -83,20 +83,20 @@
       </div>
     </div>
 
-    <!-- Followed Boats Chips -->
-    <div v-if="Object.keys(followed).length" class="mt-2 overflow-x-auto">
-      <div class="flex flex-col gap-2">
-        <div v-for="(boats, tourney) in followed" :key="tourney">
-          <div class="text-xs font-bold text-yellow-200">{{ tourney }}</div>
-          <div class="flex gap-2 mt-1">
-            <div v-for="boat in boats" :key="tourney + boat"
-                 class="flex items-center bg-yellow-200 text-blue-900 px-3 py-1 rounded-full text-sm font-semibold flex-shrink-0">
-              {{ boat }}
-              <button @click="toggleFollow(boat, tourney)" class="ml-1 text-red-600 hover:text-red-800">✕</button>
-            </div>
+
+    <!-- Followed Boats List -->
+    <div v-if="Object.keys(followed).length" class="mt-2 max-h-40 overflow-y-auto space-y-2">
+      <details v-for="(boats, tourney) in followed" :key="tourney" v-if="boats.length">
+        <summary class="cursor-pointer text-xs font-bold text-yellow-200">{{ tourney }}</summary>
+        <div class="flex flex-wrap gap-2 mt-1">
+          <div v-for="boat in boats" :key="tourney + boat"
+               class="flex items-center bg-yellow-200 text-blue-900 px-3 py-1 rounded-full text-sm font-semibold flex-shrink-0">
+            {{ boat }}
+            <button @click="toggleFollow(boat, tourney)" class="ml-1 text-red-600 hover:text-red-800">✕</button>
+
           </div>
         </div>
-      </div>
+      </details>
     </div>
 
     <!-- Live Alert Bar -->
@@ -272,15 +272,17 @@ const vm = createApp({
       try{
         const r=await fetch('/followed-boats');
         const data=await r.json();
-        this.followed = (data && typeof data==="object" && !Array.isArray(data))
+
+        const obj=(data && typeof data==="object" && !Array.isArray(data))
           ? data
           : { [this.settings.tournament]: data || [] };
+        this.followed=Object.fromEntries(Object.entries(obj).filter(([k,v])=>Array.isArray(v)&&v.length));
       }catch{this.followed={};}
     },
-
     async toggleFollow(boat,tournament=this.settings.tournament){
       try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
-        const data=await r.json(); if(data.status==='ok') this.followed=data.followed_boats;
+        const data=await r.json(); if(data.status==='ok') this.followed=Object.fromEntries(Object.entries(data.followed_boats||{}).filter(([k,v])=>Array.isArray(v)&&v.length));
+
       }catch(e){console.error('toggleFollow failed',e);}
     },
     isFollowed(uid){

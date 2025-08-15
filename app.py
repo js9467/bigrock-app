@@ -1683,66 +1683,88 @@ def bluetooth_connect():
     if not mac:
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
 
-    try:
-        # First try a direct connect
-        try:
-            subprocess.check_output(
-                ['bluetoothctl', 'connect', mac],
-                text=True, encoding='utf-8', errors='replace',
-                stderr=subprocess.STDOUT,
-            )
-        except subprocess.CalledProcessError:
-            # Fallback: pair, then connect
-            try:
-                subprocess.check_output(
-                    ['bluetoothctl', 'pair', mac],
-                    text=True, encoding='utf-8', errors='replace',
-                    stderr=subprocess.STDOUT,
-                )
-                subprocess.check_output(
-                    ['bluetoothctl', 'connect', mac],
-                    text=True, encoding='utf-8', errors='replace',
-                    stderr=subprocess.STDOUT,
-                )
-            except subprocess.CalledProcessError as e:
-                # Bubble up bluetoothctl error output to client
-                return jsonify({"status": "error", "message": (e.output or '').strip()}), 500
+    def _run(cmd):
+        return subprocess.check_output(cmd, text=True, encoding='utf-8', errors='replace', stderr=subprocess.STDOUT)
 
-        # Query device info
-        info = subprocess.check_output(
-            ['bluetoothctl', 'info', mac],
-            text=True, encoding='utf-8', errors='replace'
-        )
+    def _try_run(cmd):
+        try:
+            return _run(cmd)
+        except Exception as e:
+            safe_print(f"cmd failed: {cmd} -> {e}")
+            return ""
+
+    try:
+        # 1) Connect (pair if needed)
+        try:
+            _run(['bluetoothctl', 'connect', mac])
+        except subprocess.CalledProcessError:
+            _run(['bluetoothctl', 'pair', mac])
+            _run(['bluetoothctl', 'connect', mac])
+
+        # 2) Confirm connected + name
+        info = _run(['bluetoothctl', 'info', mac])
         connected = 'Connected: yes' in info
         paired = 'Paired: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
-        name = name_line.split('Name:', 1)[1].strip() if name_line else None
+        name = name_line.split('Name:', 1)[1].strip() if name_line else mac
 
-        # If connected, set the BT sink as default and migrate all current streams
+        # 3) Force A2DP profile on the card (best effort)
+        #    bluez card name uses underscored MAC
+        card_name = f"bluez_card.{mac.replace(':', '_')}"
+        _try_run(['pactl', 'set-card-profile', card_name, 'a2dp-sink'])
+
+        # 4) Wait/retry for the bluez sink to show up (PipeWire can be lazy)
+        sink_name = None
+        for _ in range(10):  # ~5s total
+            sink_name = _find_bt_sink_name(mac)
+            if sink_name:
+                break
+            time.sleep(0.5)
+
         active_sink = None
-        if connected:
-            try:
-                chromium_user = os.getenv('CHROMIUM_USER', 'pi')
-                pactl_env = _build_pactl_env(chromium_user)
-                sink_name = _find_bt_sink_name(mac, env=pactl_env)
-                if sink_name:
-                    _route_all_audio_to_sink(sink_name, env=pactl_env)
-                    active_sink = sink_name
-                else:
-                    safe_print("No bluez sink found yet; will rely on default.")
-            except Exception as audio_e:
-                safe_print(f"Audio routing failed: {audio_e}")
+        moved = []
+
+        if connected and sink_name:
+            # 5) Make BT sink default
+            _try_run(['pactl', 'set-default-sink', sink_name])
+
+            # 6) Unmute & set volume to 100% (avoid silent profile/volume)
+            _try_run(['pactl', 'set-sink-mute', sink_name, '0'])
+            _try_run(['pactl', 'set-sink-volume', sink_name, '100%'])
+
+            # 7) Move ALL current sink-inputs (exactly what you did manually)
+            inputs = _try_run(['pactl', 'list', 'short', 'sink-inputs'])
+            for line in inputs.splitlines():
+                cols = line.split()
+                if not cols:
+                    continue
+                input_id = cols[0]
+                try:
+                    _run(['pactl', 'move-sink-input', input_id, sink_name])
+                    moved.append(input_id)
+                except Exception as e:
+                    safe_print(f"move-sink-input {input_id} -> {sink_name} failed: {e}")
+
+            active_sink = sink_name
+
+        # 8) If we still didn’t find a sink, return a helpful hint
+        if connected and not active_sink:
+            safe_print("Connected but no bluez sink detected yet. PipeWire may still be creating it.")
+            # fall through; UI can retry /status or call /bluetooth/connect again
 
         return jsonify({
             "status": "ok" if connected else "error",
             "connected": connected,
             "paired": paired,
             "device": {"mac": mac, "name": name},
-            "active_sink": active_sink
+            "active_sink": active_sink,
+            "moved_stream_ids": moved
         })
+
+    except subprocess.CalledProcessError as e:
+        return jsonify({"status": "error", "message": (e.output or '').strip()}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 
 @app.route('/bluetooth/disconnect', methods=['POST'])

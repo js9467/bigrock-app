@@ -77,7 +77,7 @@
       <div>
         <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
         <select v-model="settings.followed_sound" @change="onFollowedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option disabled value="">-- Select Sound --</option>
+          <option value="">None</option>
           <option v-for="s in availableSounds" :key="s.file" :value="s.file">{{ s.name }}</option>
         </select>
       </div>
@@ -85,7 +85,7 @@
       <div>
         <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
         <select v-model="settings.boated_sound" @change="onBoatedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option disabled value="">-- Select Sound --</option>
+          <option value="">None</option>
           <option v-for="s in availableSounds" :key="s.file" :value="s.file">{{ s.name }}</option>
         </select>
       </div>
@@ -103,8 +103,7 @@
           <input type="email" v-model="recipient.email" placeholder="name@example.com"
                  class="border px-2 py-1 rounded w-full mb-2"
                  @focus="launchKeyboard" @blur="hideKeyboard" />
-          <button v-if="recipients.length > 1"
-                  @click="removeRecipient(index)"
+          <button @click="removeRecipient(index)"
                   class="text-red-600 mt-1 text-sm hover:underline">
             Remove
           </button>
@@ -327,8 +326,8 @@
           this.showToast(`✅ Test alert sent to ${res.data.success_count} recipients.`, 'success');
         }).catch(() => this.showToast('❌ Failed to send test alert.', 'error'));
       },
-      onFollowedSoundChange() { const f = this.settings.followed_sound; if (f) { this.previewSound(f); this.saveSettings(); } },
-      onBoatedSoundChange()   { const f = this.settings.boated_sound;   if (f) { this.previewSound(f); this.saveSettings(); } },
+      onFollowedSoundChange() { const f = this.settings.followed_sound; if (f) this.previewSound(f); this.saveSettings(); },
+      onBoatedSoundChange()   { const f = this.settings.boated_sound;   if (f) this.previewSound(f); this.saveSettings(); },
       onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
       setBrandColor(t){ const color = this.tournaments[t]?.color || '#002855'; document.documentElement.style.setProperty('--brand-color', color); },
       updateTournamentLogo() { const t = this.settings.tournament; this.tournamentLogo = this.tournaments[t]?.logo || ''; this.setBrandColor(t); },

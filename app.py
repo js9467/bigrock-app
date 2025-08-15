@@ -1186,6 +1186,53 @@ def get_followed_boats():
     # NOTE: If you had a historical typo in settings, handle both:
     # return [normalize_boat_name(b) for b in settings.get("followed_boats", []) or settings.get("followed_boots", [])]
 
+def _find_bt_sink_name(mac: str) -> str | None:
+    """Return Pulse/PipeWire sink name for a BT device MAC (underscored)."""
+    try:
+        sinks = subprocess.check_output(
+            ['pactl', 'list', 'short', 'sinks'],
+            text=True, encoding='utf-8', errors='replace'
+        )
+        mac_id = mac.replace(':', '_').lower()
+        for line in sinks.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                name = parts[1]
+                low = name.lower()
+                if 'bluez' in low or mac_id in low:
+                    return name
+    except Exception as e:
+        safe_print(f"find_bt_sink error: {e}")
+    return None
+
+def _route_all_audio_to_sink(sink_name: str):
+    """Move every current sink-input to the target sink, then set it default."""
+    try:
+        # Make it default
+        subprocess.check_output(
+            ['pactl', 'set-default-sink', sink_name],
+            text=True, encoding='utf-8', errors='replace'
+        )
+        # Move existing streams (Chromium, system sounds, etc.)
+        inputs = subprocess.check_output(
+            ['pactl', 'list', 'short', 'sink-inputs'],
+            text=True, encoding='utf-8', errors='replace'
+        )
+        for line in inputs.splitlines():
+            cols = line.split()
+            if not cols:
+                continue
+            input_id = cols[0]
+            try:
+                subprocess.check_output(
+                    ['pactl', 'move-sink-input', input_id, sink_name],
+                    text=True, encoding='utf-8', errors='replace'
+                )
+            except Exception as e:
+                safe_print(f"move-sink-input {input_id} -> {sink_name} failed: {e}")
+    except Exception as e:
+        safe_print(f"route_all_audio_to_sink error: {e}")
+
 def should_email(event):
     etype = event.get("event", "").lower()
     uid = event.get("uid", "")
@@ -1660,29 +1707,15 @@ def bluetooth_connect():
         name = name_line.split('Name:', 1)[1].strip() if name_line else None
 
         if connected:
-            try:
-                sinks = subprocess.check_output(
-                    ['pactl', 'list', 'short', 'sinks'],
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace'
-                )
-                mac_id = mac.replace(':', '_').lower()
-                sink_name = None
-                for line in sinks.splitlines():
-                    parts = line.split()
-                    if len(parts) >= 2 and mac_id in parts[1].lower():
-                        sink_name = parts[1]
-                        break
-                if sink_name:
-                    subprocess.check_output(
-                        ['pactl', 'set-default-sink', sink_name],
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace'
-                    )
-            except Exception as audio_e:
-                print(f"Failed to set audio sink: {audio_e}")
+    try:
+        sink_name = _find_bt_sink_name(mac)
+        if sink_name:
+            _route_all_audio_to_sink(sink_name)
+        else:
+            safe_print("No bluez sink found yet; will rely on default.")
+    except Exception as audio_e:
+        safe_print(f"Audio routing failed: {audio_e}")
+
 
         return jsonify({
             "status": "ok" if connected else "error",

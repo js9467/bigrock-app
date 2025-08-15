@@ -122,8 +122,7 @@
         <!-- Status line -->
         <div class="text-sm text-gray-700 mb-3">
           <template v-if="btStatus.enabled">
-            <span class="mr-2">Adapter: <strong>{{ btStatus.adapter?.name || 'Unknown' }}</strong></span>
-            <span class="mr-2">Power: <strong>On</strong></span>
+            
             <span class="mr-2">Connected:
               <strong v-if="btStatus.connected && btStatus.devices.length">{{ btStatus.devices[0].name }} ({{ btStatus.devices[0].mac }})</strong>
               <strong v-else>None</strong>
@@ -403,3 +402,4 @@
   </script>
 </body>
 </html>
+

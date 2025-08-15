@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:js": "esbuild src/main.js --bundle --minify --outfile=static/js/bundle.js",
+    "build:css": "tailwindcss -i src/input.css -o static/css/tailwind.css --minify",
+    "build": "npm run build:js && npm run build:css"
   },
   "keywords": [],
   "author": "",

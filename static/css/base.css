@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap');
+/* Font import removed for offline use; install "Barlow" locally if desired */
 
 :root {
   /* Default brand color; can be overridden dynamically */
@@ -6,7 +6,7 @@
 }
 
 body {
-    font-family: 'Barlow', sans-serif;
+    font-family: Barlow, system-ui, sans-serif;
     touch-action: manipulation;
     font-size: 1rem;
   }

@@ -1349,6 +1349,39 @@ def scrape_events_route():
         print(f"❌ Error in /scrape/events: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route("/api/events")
+def api_events():
+    tournament = get_current_tournament()
+    if get_data_source() == "demo":
+        data = load_demo_data(tournament)
+        all_events = data.get("events", [])
+        now = datetime.now()
+        today = now.date()
+
+        filtered = []
+        for e in all_events:
+            try:
+                original_ts = date_parser.parse(e["timestamp"])
+                ts = datetime.combine(today, original_ts.time())
+            except Exception:
+                continue
+
+            if ts <= now:
+                adjusted = dict(e)
+                adjusted["timestamp"] = ts.isoformat()
+                filtered.append(adjusted)
+
+        filtered.sort(key=lambda e: e["timestamp"], reverse=True)
+        return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
+
+    events_file = get_cache_path(tournament, "events.json")
+    events = safe_json_load(events_file, [])
+    try:
+        events.sort(key=lambda e: e.get("timestamp"), reverse=True)
+    except Exception:
+        pass
+    return jsonify({"status": "ok", "count": len(events), "events": events[:100]})
+
 @app.route("/scrape/all")
 def scrape_all():
     tournament = get_current_tournament()
@@ -1502,9 +1535,23 @@ def get_followed_boats():
     settings = load_settings()
     # Older configs stored "followed boats" under a misspelled key. Prefer the
     # correct key but fall back to the legacy one so users don't lose their
-    # selections.
+    # selections. The structure now supports per‑tournament lists, but we keep
+    # backward compatibility with a flat list.
     boats = settings.get("followed_boats") or settings.get("followed_boots", [])
+    if isinstance(boats, dict):
+        tournament = get_current_tournament()
+        boats = boats.get(tournament, [])
     return [normalize_boat_name(b) for b in boats]
+
+
+def get_all_followed_boats():
+    """Return mapping of tournament -> followed boats (raw names)."""
+    settings = load_settings()
+    boats = settings.get("followed_boats") or settings.get("followed_boots", [])
+    if isinstance(boats, list):
+        tournament = get_current_tournament()
+        return {tournament: boats}
+    return {t: b for t, b in boats.items() if b}
 
 def _build_pactl_env(user: str) -> dict | None:
     """Return env vars so pactl talks to user's Pulse/PipeWire session."""
@@ -1571,7 +1618,7 @@ def should_email(event):
     uid = event.get("uid", "")
     if "boated" in etype:
         return True
-    followed_boats = [normalize_boat_name(b) for b in load_settings().get("followed_boats", [])]
+    followed_boats = get_followed_boats()
     return uid in followed_boats
 
 def process_new_event(event):
@@ -1591,26 +1638,25 @@ def process_new_event(event):
 def background_event_emailer():
     """Continuously watches new events and sends emails (respects demo/live)."""
     global emailed_events
-    emailed_events = load_emailed_events()
-    print(f"📡 Email watcher started. Loaded {len(emailed_events)} previous notifications.")
-    try:
-        # Preload last 50 as already-emailed to avoid flood
-        tournament = get_current_tournament()
-        events_file = get_cache_path(tournament, "events.json")
-        events = safe_json_load(events_file, [])
-        events.sort(key=lambda e: e["timestamp"], reverse=True)
-        for e in events[:50]:
-            key = f"{e.get('timestamp')}_{e.get('uid')}_{e.get('event')}"
-            emailed_events.add(key)
-        save_emailed_events()
-        print(f"⏩ Preloaded {min(50, len(events))} events as already emailed")
-    except Exception as e:
-        print(f"⚠️ Failed to preload events: {e}")
+    emailed_events = set()
+    current_tournament = get_current_tournament()
+    tournament_start = datetime.now()
+    print(
+        f"📡 Email watcher started. Emails will be sent for {current_tournament} events after {tournament_start.isoformat()}"
+    )
 
     while True:
         try:
             settings = load_settings()
             tournament = get_current_tournament()
+            if tournament != current_tournament:
+                current_tournament = tournament
+                tournament_start = datetime.now()
+                emailed_events.clear()
+                save_emailed_events()
+                print(
+                    f"🔁 Switched to {tournament}. Only events after {tournament_start.isoformat()} will trigger emails."
+                )
             if settings.get("data_source") == "demo":
                 data = load_demo_data(tournament)
                 events = data.get("events", [])
@@ -1621,6 +1667,12 @@ def background_event_emailer():
                 events = safe_json_load(events_file, [])
             events.sort(key=lambda e: e["timestamp"], reverse=True)
             for e in events[:50]:
+                try:
+                    event_time = date_parser.parse(e["timestamp"])
+                except Exception:
+                    continue
+                if event_time < tournament_start:
+                    continue
                 process_new_event(e)
         except Exception as e:
             print(f"⚠️ Email watcher error: {e}")
@@ -2253,8 +2305,7 @@ def release_summary_data():
 # ------------------------
 @app.route('/followed-boats', methods=['GET'])
 def get_followed_boats_api():
-    settings = load_settings()
-    return jsonify(settings.get("followed_boats", []))
+    return jsonify(get_all_followed_boats())
 
 @app.route('/followed-boats/toggle', methods=['POST'])
 def toggle_followed_boat():
@@ -2262,19 +2313,27 @@ def toggle_followed_boat():
     boat = data.get("boat")
     if not boat:
         return jsonify({"status": "error", "message": "Missing 'boat'"}), 400
+    tournament = data.get("tournament") or get_current_tournament()
     settings = load_settings()
-    followed = settings.get("followed_boats", [])
+    followed = settings.get("followed_boats", {})
+    if isinstance(followed, list):
+        followed = {tournament: followed}
+    boats = followed.get(tournament, [])
     uid = normalize_boat_name(boat)
-    followed_norm = [normalize_boat_name(b) for b in followed]
-    if uid in followed_norm:
-        followed = [b for b in followed if normalize_boat_name(b) != uid]
+    boats_norm = [normalize_boat_name(b) for b in boats]
+    if uid in boats_norm:
+        boats = [b for b in boats if normalize_boat_name(b) != uid]
         action = "unfollowed"
     else:
-        followed.append(boat)
+        boats.append(boat)
         action = "followed"
+    if boats:
+        followed[tournament] = boats
+    else:
+        followed.pop(tournament, None)
     settings["followed_boats"] = followed
     safe_json_dump(SETTINGS_FILE, settings)
-    return jsonify({"status": "ok", "action": action, "followed_boats": followed})
+    return jsonify({"status": "ok", "action": action, "followed_boats": {t: b for t, b in followed.items() if b}})
 
 # ------------------------
 # Startup

@@ -25,7 +25,7 @@
       display:flex; flex-direction:column;
     }
 
-    /* Header (simple, text only) */
+    /* Header (text only, on-brand) */
     .header{
       background:var(--brand-blue); color:#fff;
       display:flex; align-items:center; justify-content:space-between;
@@ -47,7 +47,7 @@
       color:#ffe7a6; border-radius:12px; padding:10px 12px; font-weight:600; text-align:center; margin-bottom:14px;
     }
 
-    /* Layout: list + feature card (image) */
+    /* Layout: list + feature image */
     .grid{display:grid; grid-template-columns:1.2fr .8fr; gap:16px}
     @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
 
@@ -58,6 +58,8 @@
     .badge{font-size:.78rem; padding:4px 8px; border-radius:999px; background:#121c31; border:1px solid var(--card-border); color:var(--muted)}
     .badge.connected{color:#c9f7dc; border-color:rgba(53,179,106,.35); background:rgba(53,179,106,.1)}
     .badge.secured{color:#e0defd; border-color:rgba(125,102,240,.35); background:rgba(125,102,240,.10)}
+    .badge.open{color:#e9f8ff; border-color:rgba(90,185,230,.35); background:rgba(90,185,230,.10)}
+
     .bars{display:inline-flex; align-items:flex-end; gap:3px; margin-right:6px}
     .bar{width:4px; height:6px; background:#415378; border-radius:2px; opacity:.6}
     .bar.on{background:#a6c3ff; opacity:1}
@@ -69,7 +71,7 @@
     /* Feature image card (Palmer Lou) */
     .feature{background:var(--card); border:1px solid var(--card-border); border-radius:16px; overflow:hidden}
     .feature .imagewrap{position:relative; width:100%; aspect-ratio:16/10; background:#0d1730}
-    .feature picture, .feature img{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transform:scale(1.02); transition:opacity 600ms ease, transform 1200ms ease}
+    .feature img{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transform:scale(1.02); transition:opacity 600ms ease, transform 1200ms ease}
     .feature img.loaded{opacity:1; transform:scale(1)}
     .feature .caption{padding:10px 12px; color:var(--muted); font-size:.9rem; border-top:1px solid var(--card-border)}
 
@@ -80,14 +82,13 @@
       z-index: 9999;
     }
     .sheet{
-      margin-top: 8px; /* stick near top to avoid keyboard overlap */
+      margin-top: 8px; /* near top so keyboard won't cover it */
       background:var(--card); border:1px solid var(--card-border); border-radius:16px;
       width:min(640px, calc(100% - 20px)); padding:12px; box-shadow:0 10px 30px rgba(0,0,0,.35);
       transform:translateY(-8px); opacity:0; transition:opacity .18s ease, transform .18s ease;
     }
-    .sheet.open + .sheet{ /* dummy to avoid accidental selection */ }
     .sheet-backdrop.show{display:flex}
-    .sheet.show .sheet{transform:translateY(0); opacity:1}
+    .sheet.show{transform:translateY(0); opacity:1}
     .sheet-header{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px}
     .sheet-title{display:flex; align-items:center; gap:10px; font-weight:700}
     .sheet-body{display:grid; gap:10px}
@@ -101,11 +102,10 @@
       background:#12203f; color:#cdd9f6; cursor:pointer; display:grid; place-items:center; font-size:18px; user-select:none;
     }
     .show-pass{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.95rem}
-    .sheet-actions{display:flex; gap:10px; justify-content:flex-end}
+    .sheet-actions{display:flex; gap:10px; justify-content:flex-end; align-items:center}
     .btn.big{padding:12px 16px; border-radius:12px; font-size:1rem; font-weight:700}
     .hint-mini{color:var(--muted); font-size:.85rem}
 
-    /* Safe area padding for devices with insets (future proofing) */
     .header, .sheet{padding-left:calc(12px + env(safe-area-inset-left)); padding-right:calc(12px + env(safe-area-inset-right))}
   </style>
 </head>
@@ -123,7 +123,7 @@
   </header>
 
   <main class="wrap">
-    <div class="notice">Tip: Saved networks won’t ask for a password again. You can also <strong>show the password</strong> while typing.</div>
+    <div class="notice">Tip: You can always enter a password, even if the network is detected as open.</div>
 
     <section class="grid">
       <!-- Left: networks -->
@@ -134,13 +134,10 @@
         <div class="status" id="status" aria-live="polite"></div>
       </div>
 
-      <!-- Right: classy Palmer Lou feature -->
-      <aside class="feature" aria-label="Palmer Lou">
+      <!-- Right: Palmer Lou feature (with solid fallback) -->
+      <aside id="palmerFeature" class="feature" aria-label="Palmer Lou">
         <div class="imagewrap">
-          <picture>
-            <source srcset="/static/images/palmer_lou.webp" type="image/webp">
-            <img id="palmerImg" src="/static/images/palmer_lou.jpg" alt="Palmer Lou">
-          </picture>
+          <img id="palmerImg" alt="Palmer Lou">
         </div>
         <div class="caption">Palmer Lou — Big Rock vibes while you connect.</div>
       </aside>
@@ -154,13 +151,14 @@
         <div class="sheet-title" id="sheetTitle">
           <span id="sheetSignalBars" class="bars" aria-hidden="true"></span>
           <span id="sheetSSID">SSID</span>
-          <span id="sheetSec" class="badge" style="margin-left:6px">Secured</span>
+          <span id="sheetSec" class="badge" style="margin-left:6px">Security: detected</span>
         </div>
         <button class="btn" id="sheetClose" type="button" aria-label="Close">Back</button>
       </div>
       <div class="sheet-body">
         <div class="input-row">
-          <input id="sheetPw" class="text" type="password" placeholder="Network password">
+          <!-- ALWAYS enabled & password-capable -->
+          <input id="sheetPw" class="text" type="password" placeholder="Enter password (leave blank if open)">
           <button id="sheetEye" class="toggle-eye" type="button" title="Show/Hide password">👁</button>
         </div>
         <label class="show-pass">
@@ -175,12 +173,20 @@
   </div>
 
   <script>
-    /* Fade-in Palmer Lou image */
-    (function(){
+    /* Robust image loader for Palmer Lou (webp -> jpg -> hide) */
+    (function loadPalmer(){
+      const feature = document.getElementById('palmerFeature');
       const img = document.getElementById('palmerImg');
-      if (!img) return;
-      if (img.complete) img.classList.add('loaded');
-      else img.addEventListener('load', () => img.classList.add('loaded'));
+      if (!img || !feature) return;
+      const sources = ['/static/images/palmer_lou.webp', '/static/images/palmer_lou.jpg'];
+      let i = 0;
+      const tryNext = () => {
+        if (i >= sources.length){ feature.style.display = 'none'; return; }
+        img.src = sources[i++];
+      };
+      img.onload = () => img.classList.add('loaded');
+      img.onerror = tryNext;
+      tryNext();
     })();
 
     /* Globals */
@@ -211,7 +217,6 @@
 
     function indicateKeyboard(input){
       input.addEventListener('focus', () => {
-        // move view to top so top-sheet is fully visible above the keyboard
         window.scrollTo({ top: 0, behavior: 'smooth' });
         fetch('/launch_keyboard', { method:'POST' }).catch(()=>{});
       });
@@ -242,10 +247,17 @@
       list.forEach(net=>{
         const card=el('div',{className:'card', role:'listitem'});
         const left=el('div',{className:'ssid'},[barsFor(net.signal||0), el('span',{textContent:net.ssid})]);
+
+        const securityDetected = (net.secured === true) ? 'Secured (detected)'
+                                : (net.secured === false) ? 'Open (detected)'
+                                : 'Security unknown';
+        const secClass = (net.secured === true) ? 'badge secured' : (net.secured === false) ? 'badge open' : 'badge';
+
         const tags=el('div',{},[
           net.connected?el('span',{className:'badge connected',textContent:'Connected'}):null,
-          net.secured?el('span',{className:'badge secured',textContent:'Secured'}):el('span',{className:'badge',textContent:'Open'})
+          el('span',{className:secClass, textContent: securityDetected})
         ].filter(Boolean));
+
         const actions=el('div',{},[]);
         if(net.connected){
           const b=el('button',{className:'btn',textContent:'Disconnect'});
@@ -282,26 +294,31 @@
       currentNet = net;
 
       sheetSSID.textContent = net.ssid;
-      sheetSec.textContent = net.secured ? 'Secured' : 'Open';
-      sheetSec.className = 'badge ' + (net.secured ? 'secured' : '');
+
+      const securityDetected = (net.secured === true) ? 'Secured (detected)'
+                              : (net.secured === false) ? 'Open (detected)'
+                              : 'Security unknown';
+      sheetSec.textContent = securityDetected;
+      sheetSec.className = (net.secured === true) ? 'badge secured' : (net.secured === false) ? 'badge open' : 'badge';
+
       sheetSignal.innerHTML = ''; sheetSignal.appendChild(barsFor(net.signal||0));
 
-      sheetPw.disabled = !net.secured;
-      sheetPw.placeholder = net.secured ? 'Network password' : 'No password required';
-      sheetPw.type = net.secured ? 'password' : 'text';
+      // ALWAYS allow typing a password (even for "open")
+      sheetPw.disabled = false;
+      sheetPw.type = 'password';
+      sheetPw.placeholder = 'Enter password (leave blank if open)';
       sheetPw.value = '';
 
+      // Show modal near top
       sheetBackdrop.classList.add('show');
-      // ensure the modal is at the top and visible
+      sheet.classList.add('show');
       window.scrollTo({ top: 0, behavior: 'instant' });
-      setTimeout(()=> sheet.classList.add('show'), 0);
       setTimeout(()=> sheetPw.focus(), 50);
     }
     function closeSheet(){
       sheet.classList.remove('show');
       sheetBackdrop.classList.remove('show');
       sheetPw.blur();
-      // resume scanning when leaving the sheet
       scanningPaused = false;
       currentNet = null;
       scan();
@@ -325,7 +342,7 @@
         const res = await fetch('/wifi/connect', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ ssid: currentNet.ssid, password: currentNet.secured ? (sheetPw.value || '') : '' })
+          body: JSON.stringify({ ssid: currentNet.ssid, password: sheetPw.value || '' })
         });
         const data = await res.json();
         statusEl.textContent = data.message || data.status || '';

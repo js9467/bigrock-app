@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Connect to Wi-Fi</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 2rem; background: #f7f7f7; }
-    h1 { color: #333; }
-    #networks > div { margin: 0.5rem 0; }
-    button { padding: 0.4rem 0.8rem; margin-left: 0.5rem; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Please connect to a network for tournament updates</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/base.css">
 </head>
-<body>
-  <h1>Offline</h1>
-  <p>No network connection detected. Select a Wi-Fi network to connect.</p>
-  <div id="networks">Scanning...</div>
-  <div id="status"></div>
+<body class="bg-gray-100 text-brand-blue flex flex-col items-center justify-center min-h-screen p-4">
+  <h1 class="text-2xl font-bold mb-4">Offline</h1>
+  <p class="mb-6 text-center">No network connection detected. Select a Wi-Fi network to connect.</p>
+  <div id="networks" class="w-full max-w-md space-y-2 text-left">Scanning...</div>
+  <div id="status" class="mt-4 text-center"></div>
+
   <script>
     async function scan() {
       try {
@@ -28,24 +26,57 @@
         }
         data.networks.forEach(net => {
           const row = document.createElement('div');
-          row.textContent = `${net.ssid} (${net.signal}%)`;
-          const btn = document.createElement('button');
+          row.className = 'flex items-center gap-2';
+
+          const label = document.createElement('span');
+          label.textContent = `${net.ssid} (${net.signal}%)`;
+          row.appendChild(label);
+
           if (net.connected) {
-            btn.textContent = 'Connected';
-            btn.disabled = true;
+            const tag = document.createElement('span');
+            tag.textContent = 'Connected';
+            tag.className = 'text-green-600 font-semibold';
+            row.appendChild(tag);
           } else {
+            const btn = document.createElement('button');
             btn.textContent = 'Connect';
-            btn.onclick = () => connect(net.ssid);
+            btn.className = 'px-3 py-1 bg-brand-blue text-white rounded';
+            btn.onclick = () => showConnectForm(net.ssid, row);
+            row.appendChild(btn);
           }
-          row.appendChild(btn);
           container.appendChild(row);
         });
       } catch (e) {
         document.getElementById('networks').textContent = 'Scan failed.';
       }
     }
-    async function connect(ssid) {
-      const password = prompt('Password for ' + ssid + ' (leave blank if open):', '');
+
+    function showConnectForm(ssid, row) {
+      row.innerHTML = '';
+      row.className = 'flex items-center gap-2';
+
+      const label = document.createElement('span');
+      label.textContent = ssid;
+      row.appendChild(label);
+
+      const input = document.createElement('input');
+      input.type = 'password';
+      input.placeholder = 'Password (leave blank if open)';
+      input.className = 'border px-2 py-1 flex-1 rounded';
+      input.addEventListener('focus', () => fetch('/launch_keyboard', { method: 'POST' }).catch(() => {}));
+      input.addEventListener('blur', () => fetch('/hide_keyboard', { method: 'POST' }).catch(() => {}));
+      row.appendChild(input);
+
+      const btn = document.createElement('button');
+      btn.textContent = 'Join';
+      btn.className = 'px-3 py-1 bg-brand-blue text-white rounded';
+      btn.onclick = () => connect(ssid, input.value);
+      row.appendChild(btn);
+
+      input.focus();
+    }
+
+    async function connect(ssid, password) {
       const res = await fetch('/wifi/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,8 +88,11 @@
         setTimeout(() => window.location.replace('/'), 2000);
       }
     }
+
     window.addEventListener('online', () => window.location.replace('/'));
     scan();
+    setInterval(scan, 15000);
   </script>
 </body>
 </html>
+

@@ -44,7 +44,13 @@
   <div class="p-6 max-w-6xl mx-auto w-full">
     <h1 class="text-2xl font-bold text-brand-blue mb-4">Release Summary</h1>
 
-    <div v-if="loading" class="text-gray-500 italic">Loading release summary...</div>
+    <div v-if="loading" class="text-gray-500 italic flex items-center">
+      <svg class="animate-spin h-5 w-5 mr-2 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      Loading release summary...
+    </div>
     <div v-else>
       <!-- Table -->
       <table class="w-full border border-gray-300 bg-white rounded shadow-md overflow-hidden mb-8">
@@ -100,7 +106,13 @@
         <h2 class="text-xl font-bold text-brand-blue">Releases for {{ formatDate(selectedDate) }}</h2>
         <button @click="closeModal" class="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
       </div>
-      <div v-if="drilldownLoading" class="text-gray-500 italic">Loading boat details...</div>
+      <div v-if="drilldownLoading" class="text-gray-500 italic flex items-center">
+        <svg class="animate-spin h-4 w-4 mr-2 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        Loading boat details...
+      </div>
       <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
           <img :src="boat.image || tournamentLogo" class="w-24 h-24 object-cover rounded mb-2" @error="e => e.target.src = tournamentLogo"/>

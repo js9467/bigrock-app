@@ -1457,17 +1457,65 @@ def scrape_tournament_dates():
 # ------------------------
 @app.route('/bluetooth/status')
 def bluetooth_status():
-    return jsonify({"enabled": True})
+    try:
+        out = subprocess.check_output(['bluetoothctl', 'show'], text=True)
+        enabled = 'Powered: yes' in out
+        return jsonify({"enabled": enabled})
+    except Exception as e:
+        return jsonify({"enabled": False, "error": str(e)}), 500
 
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
-    return jsonify({"devices": [{"name": "Test Device", "mac": "00:11:22:33:44:55", "connected": False}]})
+    try:
+        try:
+            subprocess.run(
+                ['bluetoothctl', 'scan', 'on'],
+                check=True,
+                timeout=5,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+        subprocess.run(
+            ['bluetoothctl', 'scan', 'off'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        out = subprocess.check_output(['bluetoothctl', 'devices'], text=True)
+        devices = []
+        for line in out.splitlines():
+            if line.startswith('Device '):
+                parts = line.split(' ', 2)
+                if len(parts) >= 2:
+                    mac = parts[1]
+                    name = parts[2] if len(parts) > 2 else mac
+                    connected = False
+                    try:
+                        info = subprocess.check_output(
+                            ['bluetoothctl', 'info', mac], text=True
+                        )
+                        connected = 'Connected: yes' in info
+                    except Exception:
+                        pass
+                    devices.append(
+                        {"name": name, "mac": mac, "connected": connected}
+                    )
+        return jsonify({"devices": devices})
+    except Exception as e:
+        return jsonify({"devices": [], "error": str(e)}), 500
 
 @app.route('/bluetooth/connect', methods=['POST'])
 def bluetooth_connect():
-    data = request.get_json()
-    print(f"Connecting to: {data.get('mac')}")
-    return jsonify({"status": "ok"})
+    data = request.get_json() or {}
+    mac = data.get('mac')
+    if not mac:
+        return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
+    try:
+        subprocess.check_call(['bluetoothctl', 'connect', mac])
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/wifi/scan')
 def wifi_scan():

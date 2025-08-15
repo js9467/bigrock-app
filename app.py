@@ -1044,6 +1044,99 @@ def _ensure_bt_profile_a2dp():
     if card_name:
         _pactl("set-card-profile", card_name, "a2dp-sink", check=False)
 
+# ---------- Minimal audio retarget helpers ----------
+def _pactl_user(*args):
+    # Run pactl in the 'pi' desktop audio context
+    return subprocess.check_output(
+        ['sudo', '-u', 'pi', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', 'pactl', *args],
+        text=True, encoding='utf-8', errors='replace'
+    )
+
+def _get_sink_by(pattern: str) -> str | None:
+    try:
+        out = _pactl_user('list', 'short', 'sinks')
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and pattern.lower() in parts[1].lower():
+                return parts[1]
+    except Exception as e:
+        safe_print(f"_get_sink_by({pattern}) error: {e}")
+    return None
+
+def _move_chromium_inputs(target_sink: str) -> int:
+    """Move ONLY Chromium/Electron/WebKit sink-inputs to target_sink. Returns count moved."""
+    moved = 0
+    try:
+        detail = _pactl_user('list', 'sink-inputs')
+        # Split per input block
+        for block in detail.split('Sink Input #'):
+            block = block.strip()
+            if not block or not block.splitlines()[0].strip().isdigit():
+                continue
+            idx = block.splitlines()[0].strip()
+
+            # app detection: chromium, electron, webkit, browser
+            low = block.lower()
+            is_browser = ('chromium' in low or
+                          'application.name = "chromium"' in block.lower() or
+                          'application.name = "Chromium"' in block or
+                          'electron' in low or
+                          'webkit' in low or
+                          'browser' in low)
+
+            if is_browser:
+                try:
+                    _pactl_user('move-sink-input', idx, target_sink)
+                    moved += 1
+                except subprocess.CalledProcessError as me:
+                    safe_print(f"move-sink-input {idx}->{target_sink} failed: {me}")
+
+    except Exception as e:
+        safe_print(f"_move_chromium_inputs error: {e}")
+    return moved
+
+# ---------- Minimal test route ----------
+@app.route('/audio/retarget', methods=['POST'])
+def audio_retarget():
+    """
+    Prefer BT sink if available; else HDMI; else keep default.
+    Moves Chromium/Electron/WebKit sink-inputs to chosen sink.
+    Optional JSON body: {"prefer":"bt"|"hdmi"}  (default "bt")
+    """
+    try:
+        prefer = (request.json or {}).get('prefer', 'bt')
+    except Exception:
+        prefer = 'bt'
+
+    bt = _get_sink_by('bluez_output')
+    hdmi = _get_sink_by('hdmi')
+
+    target = None
+    if prefer == 'bt' and bt:
+        target = bt
+    elif prefer == 'hdmi' and hdmi:
+        target = hdmi
+
+    if not target:
+        # Fallback to current default
+        try:
+            target = _pactl_user('get-default-sink').strip()
+        except Exception:
+            target = None
+
+    if not target:
+        return jsonify({"status": "error", "message": "No sink available"}), 500
+
+    # Make it default (harmless even if already default)
+    try:
+        _pactl_user('set-default-sink', target)
+    except Exception as e:
+        safe_print(f"set-default-sink {target} failed: {e}")
+
+    moved = _move_chromium_inputs(target)
+
+    return jsonify({"status": "ok", "target": target, "moved": moved})
+
 def _reconcile_audio_route(verbose=True):
     """
     If a BT (bluez) sink exists -> set default to BT and move streams.

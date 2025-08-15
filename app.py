@@ -1459,48 +1459,66 @@ def scrape_tournament_dates():
 def bluetooth_status():
     try:
         out = subprocess.check_output(['bluetoothctl', 'show'], text=True)
-        enabled = 'Powered: yes' in out
-        return jsonify({"enabled": enabled})
+
+        connected_devices = []
+        try:
+            devices_out = subprocess.check_output(
+                ['bluetoothctl', 'devices', 'Connected'], text=True
+            )
+            for line in devices_out.splitlines():
+                if line.startswith('Device '):
+                    parts = line.split(' ', 2)
+                    if len(parts) >= 3:
+                        connected_devices.append({
+                            "mac": parts[1],
+                            "name": parts[2]
+                        })
+        except Exception:
+            pass
+        return jsonify({
+            "enabled": enabled,
+            "connected": bool(connected_devices),
+            "devices": connected_devices
+        })
     except Exception as e:
-        return jsonify({"enabled": False, "error": str(e)}), 500
+        return jsonify({"enabled": False, "connected": False, "devices": [], "error": str(e)}), 500
+
 
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
     try:
-        try:
-            subprocess.run(
-                ['bluetoothctl', 'scan', 'on'],
-                check=True,
-                timeout=5,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except subprocess.TimeoutExpired:
-            pass
+
+        out = subprocess.check_output(
+            ['bluetoothctl', '--timeout', '5', 'scan', 'on'], text=True
+        )
+
+        
         subprocess.run(
             ['bluetoothctl', 'scan', 'off'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        out = subprocess.check_output(['bluetoothctl', 'devices'], text=True)
-        devices = []
+
+        found = {}
         for line in out.splitlines():
             if line.startswith('Device '):
                 parts = line.split(' ', 2)
-                if len(parts) >= 2:
-                    mac = parts[1]
-                    name = parts[2] if len(parts) > 2 else mac
-                    connected = False
-                    try:
-                        info = subprocess.check_output(
-                            ['bluetoothctl', 'info', mac], text=True
-                        )
-                        connected = 'Connected: yes' in info
-                    except Exception:
-                        pass
-                    devices.append(
-                        {"name": name, "mac": mac, "connected": connected}
-                    )
+                if len(parts) >= 3:
+                    mac, name = parts[1], parts[2]
+                    found[mac] = name
+        devices = []
+        for mac, name in found.items():
+            try:
+                info = subprocess.check_output(
+                    ['bluetoothctl', 'info', mac], text=True
+                )
+                paired = 'Paired: yes' in info
+                connected = 'Connected: yes' in info
+                if not paired and not connected:
+                    devices.append({"name": name, "mac": mac, "connected": connected})
+            except Exception:
+                devices.append({"name": name, "mac": mac, "connected": False})
+
         return jsonify({"devices": devices})
     except Exception as e:
         return jsonify({"devices": [], "error": str(e)}), 500
@@ -1513,7 +1531,17 @@ def bluetooth_connect():
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
     try:
         subprocess.check_call(['bluetoothctl', 'connect', mac])
-        return jsonify({"status": "ok"})
+
+        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
+        connected = 'Connected: yes' in info
+        name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
+        name = name_line.split('Name:', 1)[1].strip() if name_line else None
+        return jsonify({
+            "status": "ok" if connected else "error",
+            "connected": connected,
+            "device": {"mac": mac, "name": name}
+        })
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

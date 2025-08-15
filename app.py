@@ -20,6 +20,17 @@ from PIL import Image, ImageOps, ImageFile
 import io
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode, quote
 from collections import defaultdict
+import sys
+
+def safe_str(s: str) -> str:
+    # Ensure no surrogate code points sneak into responses/logs
+    return (s or "").encode("utf-8", "replace").decode("utf-8", "replace")
+
+def safe_print(*args, **kwargs):
+    # Print without crashing on odd characters
+    text = " ".join(safe_str(str(a)) for a in args)
+    print(text, **{k:v for k,v in kwargs.items() if k not in ("file",)})
+
 
 # Allow processing of partially downloaded images
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -1459,99 +1470,134 @@ def scrape_tournament_dates():
 # ------------------------
 # Bluetooth / Wi-Fi / Keyboard / Sounds / Version / Release summary
 # ------------------------
+
 @app.route('/bluetooth/status')
 def bluetooth_status():
     try:
-
         out = subprocess.check_output(
             ['bluetoothctl', 'show'],
-            text=True,
-            encoding='utf-8',
-            errors='replace'
+            text=True, encoding='utf-8', errors='replace'
         )
+        # Typical lines:
+        # "Controller XX:XX:XX:XX:XX:XX (public)"
+        # "        Name: ...", "        Alias: ...", "        Powered: yes"
+        powered = 'Powered: yes' in out
+        address = None
+        name = None
+        for line in out.splitlines():
+            ls = line.strip()
+            if ls.startswith('Controller '):
+                # Controller AA:BB:... (public)
+                try:
+                    address = ls.split()[1]
+                except Exception:
+                    pass
+            elif ls.startswith('Name:'):
+                name = ls.split('Name:',1)[1].strip()
 
-        enabled = 'Powered: yes' in out
+        # Collect currently connected devices
         connected_devices = []
         try:
             devices_out = subprocess.check_output(
                 ['bluetoothctl', 'devices', 'Connected'],
-                text=True,
-                encoding='utf-8',
-                errors='replace'
+                text=True, encoding='utf-8', errors='replace'
             )
             for line in devices_out.splitlines():
-                if line.startswith('Device '):
-                    parts = line.split(' ', 2)
+                ls = line.strip()
+                if ls.startswith('Device '):
+                    parts = ls.split(' ', 2)
                     if len(parts) >= 3:
                         connected_devices.append({
                             "mac": parts[1],
-                            "name": parts[2]
+                            "name": safe_str(parts[2]),
                         })
         except Exception:
             pass
-        return jsonify({
-            "enabled": enabled,
 
+        return jsonify({
+            "enabled": powered,
+            "connected": bool(connected_devices),
+            "adapter": {"address": address, "name": safe_str(name) if name else None},
             "devices": connected_devices,
             "device": connected_devices[0] if connected_devices else None,
         })
     except Exception as e:
-        return jsonify({"enabled": False, "connected": False, "devices": [], "device": None, "error": str(e)}), 500
+        return jsonify({
+            "enabled": False, "connected": False,
+            "devices": [], "device": None,
+            "error": safe_str(str(e))
+        }), 500
 
 
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
     try:
+        safe_print("🔍 Starting Bluetooth scan (5s)…")
 
-        print("\ud83d\udd0d Starting Bluetooth scan...")
-
+        # Start a short scan; --timeout stops it automatically
         scan_out = subprocess.check_output(
             ['bluetoothctl', '--timeout', '5', 'scan', 'on'],
-            text=True,
-            encoding='utf-8',
-            errors='replace',
+            text=True, encoding='utf-8', errors='replace',
             stderr=subprocess.STDOUT,
         )
-        print(scan_out)
-        devices = {}
+        # Just in case ensure scanning is off now
+        try:
+            subprocess.check_output(['bluetoothctl', 'scan', 'off'],
+                                    text=True, encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+        # Parse "Device XX:XX:… Name"
+        discovered = {}
         for line in scan_out.splitlines():
-            line = line.strip()
-
-            if line.startswith('Device '):
-                parts = line.split(' ', 2)
+            ls = line.strip()
+            if ls.startswith('Device '):
+                parts = ls.split(' ', 2)
                 if len(parts) >= 3:
-                    mac, name = parts[1], parts[2]
+                    mac, name = parts[1], safe_str(parts[2])
+                    discovered[mac] = name
 
-                    devices[mac] = name
-
+        # Only keep devices that look like audio targets
+        AUDIO_KEYWORDS = ('Audio Sink', 'Headset', 'Handsfree', 'AVRCP', 'A2DP')
         results = []
-        for mac, name in devices.items():
+        for mac, name in discovered.items():
             try:
                 info = subprocess.check_output(
                     ['bluetoothctl', 'info', mac],
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace'
+                    text=True, encoding='utf-8', errors='replace'
                 )
                 paired = 'Paired: yes' in info
                 connected = 'Connected: yes' in info
+
+                # Filter to audio-ish devices by UUID lines
+                # Examples contain lines like: "UUID: Audio Sink (0000110b-0000-1000-8000-00805f9b34fb)"
+                is_audio = any(k.lower() in info.lower() for k in AUDIO_KEYWORDS)
+
+                if not is_audio:
+                    continue  # hide non-audio devices to reduce noise
+
+                # If you only want *unpaired & not connected* devices, keep this:
+                if (not paired) and (not connected):
+                    results.append({
+                        "name": name,
+                        "mac": mac,
+                        "paired": paired,
+                        "connected": connected,
+                    })
+
+                # If you also want to *show* paired but not connected devices, add:
+                # elif paired and not connected:
+                #     results.append({...})
+
             except Exception as e_info:
-                print(f"Failed to get info for {mac}: {e_info}")
-                paired = False
-                connected = False
-            if not paired and not connected:
-                results.append({
-                    "name": name,
-                    "mac": mac,
-                    "paired": paired,
-                    "connected": connected,
-                })
-        print(f"Bluetooth scan found {len(results)} device(s)")
+                safe_print(f"Failed to get info for {mac}: {e_info}")
+
+        safe_print(f"Bluetooth scan found {len(results)} candidate device(s).")
         return jsonify({"devices": results})
     except Exception as e:
-        print(f"Bluetooth scan failed: {e}")
+        safe_print(f"Bluetooth scan failed: {e}")
+        return jsonify({"devices": [], "error": safe_str(str(e))}), 500
 
-        return jsonify({"devices": [], "error": str(e)}), 500
 
 @app.route('/bluetooth/connect', methods=['POST'])
 def bluetooth_connect():

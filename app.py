@@ -1494,25 +1494,14 @@ def bluetooth_status():
 def bluetooth_scan():
     try:
 
-        # Start a timed scan for nearby devices
-        subprocess.run(
-            ['bluetoothctl', 'scan', 'on'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+        print("\ud83d\udd0d Starting Bluetooth scan...")
+        scan_out = subprocess.check_output(
+            ['bluetoothctl', '--timeout', '5', 'scan', 'on'],
+            text=True,
+            stderr=subprocess.STDOUT,
         )
-        time.sleep(5)
-
-        subprocess.run(
-            ['bluetoothctl', 'scan', 'off'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-
-        # Collect discovered devices
-        devices_out = subprocess.check_output(
-            ['bluetoothctl', 'devices'], text=True
-        )
+        print(scan_out)
+        devices_out = subprocess.check_output(['bluetoothctl', 'devices'], text=True)
         devices = []
         for line in devices_out.splitlines():
 
@@ -1522,12 +1511,12 @@ def bluetooth_scan():
                     mac, name = parts[1], parts[2]
 
                     try:
-                        info = subprocess.check_output(
-                            ['bluetoothctl', 'info', mac], text=True
-                        )
+                        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
                         paired = 'Paired: yes' in info
                         connected = 'Connected: yes' in info
-                    except Exception:
+                    except Exception as e_info:
+                        print(f"Failed to get info for {mac}: {e_info}")
+
                         paired = False
                         connected = False
                     if not connected:
@@ -1538,8 +1527,11 @@ def bluetooth_scan():
                             "connected": connected,
                         })
 
+        print(f"Bluetooth scan found {len(devices)} device(s)")
         return jsonify({"devices": devices})
     except Exception as e:
+        print(f"Bluetooth scan failed: {e}")
+
         return jsonify({"devices": [], "error": str(e)}), 500
 
 @app.route('/bluetooth/connect', methods=['POST'])

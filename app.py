@@ -929,43 +929,68 @@ def scrape_leaderboard(tournament=None, force: bool = False):
         cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
         save_cache(cache)
         return []
-# ========= Auto audio routing (BT <-> HDMI) =========
-import pwd
+# ========= Auto audio routing (BT <-> HDMI), robust =========
+import pwd, select
 from subprocess import CalledProcessError
 
-AUDIO_USER = os.environ.get("AUDIO_USER", "pi")   # desktop user running Chromium
+AUDIO_USER = os.environ.get("AUDIO_USER", "pi")   # desktop user (Chromium owner)
 _AUDIO_UID = pwd.getpwnam(AUDIO_USER).pw_uid
 
 def _audio_env():
     env = os.environ.copy()
-    # make sure we talk to the user's PipeWire/PulseAudio (not root/system)
     env["XDG_RUNTIME_DIR"] = f"/run/user/{_AUDIO_UID}"
     env["PULSE_RUNTIME_PATH"] = f"/run/user/{_AUDIO_UID}/pulse"
     return env
 
-def _run(cmd, check=True, timeout=None):
-    """Run a command and return stdout. Raises if check=True and non-zero exit."""
+def _sudo_prefix():
+    # If Flask runs as root (systemd service), run pactl as AUDIO_USER.
+    return ["sudo", "-u", AUDIO_USER] if os.geteuid() == 0 else []
+
+def _run_raw(cmd, check=True, timeout=None):
     cp = subprocess.run(cmd, text=True, capture_output=True, env=_audio_env(), timeout=timeout)
     if check and cp.returncode != 0:
         raise CalledProcessError(cp.returncode, cmd, cp.stdout + cp.stderr)
     return cp.stdout
 
+def _run_pulse(cmd, check=True, timeout=None):
+    # Always hit the user's Pulse/PipeWire
+    full = _sudo_prefix() + cmd
+    return _run_raw(full, check=check, timeout=timeout)
+
 def _pactl(*args, check=True, timeout=None):
-    return _run(["pactl", *args], check=check, timeout=timeout)
+    return _run_pulse(["pactl", *args], check=check, timeout=timeout)
+
+def _wpctl(*args, check=True, timeout=None):
+    return _run_pulse(["wpctl", *args], check=check, timeout=timeout)
 
 def _list_sinks():
     out = _pactl("list", "short", "sinks", check=False)
-    # columns: id name driver sample state
     sinks = []
     for line in out.splitlines():
         parts = line.split()
         if len(parts) >= 2:
-            sinks.append({"raw": line, "id": parts[0], "name": parts[1]})
+            sinks.append({"id": parts[0], "name": parts[1], "raw": line})
+    # Fallback via wpctl if pactl returns nothing
+    if not sinks:
+        s = _wpctl("status", check=False)
+        block = []
+        rec = False
+        for ln in s.splitlines():
+            if ln.strip().startswith("Sinks:"):
+                rec = True
+                continue
+            if rec:
+                if not ln.strip():
+                    break
+                # lines like "  41. bluez_output.F8_DF_...  [vol: ...]"
+                bits = ln.strip().split()
+                if len(bits) >= 2 and "." in bits[0]:
+                    name = bits[1]
+                    sinks.append({"id": bits[0].rstrip("."), "name": name, "raw": ln})
     return sinks
 
 def _list_inputs():
     out = _pactl("list", "short", "sink-inputs", check=False)
-    # columns: id sink other...
     ids = []
     for line in out.splitlines():
         cols = line.split()
@@ -996,7 +1021,6 @@ def _pick_bt_sink(sinks=None):
 
 def _pick_hdmi_sink(sinks=None):
     sinks = sinks or _list_sinks()
-    # Prefer any sink with 'hdmi' in name; fallback to first non-bluez sink
     for s in sinks:
         if "hdmi" in s["name"].lower():
             return s["name"]
@@ -1004,6 +1028,21 @@ def _pick_hdmi_sink(sinks=None):
         if "bluez" not in s["name"].lower():
             return s["name"]
     return None
+
+def _ensure_bt_profile_a2dp():
+    """
+    Force the bluez card (if present) into a2dp-sink profile.
+    """
+    out = _pactl("list", "cards", check=False)
+    card_name = None
+    for ln in out.splitlines():
+        t = ln.strip()
+        if t.startswith("Name:") and "bluez_card." in t:
+            card_name = t.split("Name:",1)[1].strip()
+        if card_name and t.startswith("Profiles:"):
+            break
+    if card_name:
+        _pactl("set-card-profile", card_name, "a2dp-sink", check=False)
 
 def _reconcile_audio_route(verbose=True):
     """
@@ -1019,22 +1058,20 @@ def _reconcile_audio_route(verbose=True):
         if bt:
             if current != bt:
                 _set_default_sink(bt)
-                # give the server a breath to accept the new default
-                time.sleep(0.2)
+                time.sleep(0.3)
             _move_all_inputs(bt)
             if verbose: safe_print(f"🔊 Routed to Bluetooth sink: {bt}")
             return {"routed_to": "bluetooth", "sink": bt}
         else:
             if hdmi and current != hdmi:
                 _set_default_sink(hdmi)
-                time.sleep(0.2)
+                time.sleep(0.3)
             if hdmi:
                 _move_all_inputs(hdmi)
                 if verbose: safe_print(f"🔊 Routed to HDMI sink: {hdmi}")
                 return {"routed_to": "hdmi", "sink": hdmi}
-            else:
-                if verbose: safe_print("⚠️ No HDMI or BT sinks found; leaving as-is.")
-                return {"routed_to": "unknown", "sink": current}
+            if verbose: safe_print("⚠️ No HDMI or BT sinks found; leaving as-is.")
+            return {"routed_to": "unknown", "sink": current}
     except Exception as e:
         safe_print(f"⚠️ reconcile error: {e}")
         return {"error": str(e)}
@@ -1043,38 +1080,34 @@ def _audio_router_monitor():
     """
     Background watcher:
       - Subscribes to pactl events (new/remove sink/input, card changes)
-      - Also runs a periodic reconcile (every ~3s) in case an event is missed
+      - Periodic reconcile as a safety net
     """
     safe_print("🎧 Audio router monitor started.")
-    # Start subscription
+    proc = None
     try:
         proc = subprocess.Popen(
-            ["pactl", "subscribe"],
+            _sudo_prefix() + ["pactl", "subscribe"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, env=_audio_env()
         )
     except Exception as e:
         safe_print(f"❌ pactl subscribe failed: {e}")
-        proc = None
 
     last_tick = 0
     while True:
         try:
             line = None
             if proc and proc.stdout:
-                # non-blocking-ish read with small timeout
-                ready = select.select([proc.stdout], [], [], 0.5)[0]
-                if ready:
+                r, _, _ = select.select([proc.stdout], [], [], 0.5)
+                if r:
                     line = proc.stdout.readline().strip()
-            now = time.time()
 
-            # react to interesting events immediately
+            now = time.time()
             if line:
                 low = line.lower()
                 if any(k in low for k in ("on sink", "on sink-input", "on card", "new", "remove", "change")):
                     _reconcile_audio_route(verbose=False)
 
-            # periodic reconcile as a safety net
             if now - last_tick > 3.0:
                 _reconcile_audio_route(verbose=False)
                 last_tick = now
@@ -1083,10 +1116,10 @@ def _audio_router_monitor():
             safe_print(f"⚠️ audio monitor loop error: {e}")
             time.sleep(1)
 
-# Kick off the monitor at startup (add this next to your other startup threads)
 def start_audio_router_monitor():
     Thread(target=_audio_router_monitor, daemon=True).start()
 # ========= end auto audio routing =========
+
 
 
 
@@ -1844,27 +1877,22 @@ def bluetooth_connect():
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
 
     try:
-        # Try connect; if not paired, pair then connect
-        rc1 = subprocess.run(['bluetoothctl', 'connect', mac],
-                             text=True, capture_output=True)
+        # Connect (pair if needed)
+        rc1 = subprocess.run(['bluetoothctl', 'connect', mac], text=True, capture_output=True)
         if rc1.returncode != 0:
-            subprocess.run(['bluetoothctl', 'pair', mac],
-                           text=True, capture_output=True, check=False)
-            rc2 = subprocess.run(['bluetoothctl', 'connect', mac],
-                                 text=True, capture_output=True)
+            subprocess.run(['bluetoothctl', 'pair', mac], text=True, capture_output=True, check=False)
+            rc2 = subprocess.run(['bluetoothctl', 'connect', mac], text=True, capture_output=True)
             if rc2.returncode != 0:
-                return jsonify({"status": "error",
-                                "message": (rc2.stdout + rc2.stderr).strip()}), 500
+                return jsonify({"status": "error", "message": (rc2.stdout + rc2.stderr).strip()}), 500
 
-        # Brief wait for PipeWire/Pulse to publish the bluez sink
-        time.sleep(1.2)
+        # Give bluez time to publish sinks, then ensure A2DP
+        time.sleep(1.5)
+        _ensure_bt_profile_a2dp()
+        time.sleep(0.5)
 
-        # Route audio where it belongs (BT if present, else HDMI)
         routing = _reconcile_audio_route(verbose=True)
 
-        # Pull some device info for the UI
-        info = subprocess.check_output(['bluetoothctl', 'info', mac],
-                                       text=True, errors='replace')
+        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='replace')
         connected = 'Connected: yes' in info
         paired = 'Paired: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
@@ -1872,15 +1900,26 @@ def bluetooth_connect():
 
         return jsonify({
             "status": "ok" if connected else "error",
-            "connected": connected,
-            "paired": paired,
+            "connected": connected, "paired": paired,
             "device": {"mac": mac, "name": name},
             "routing": routing
         }), 200 if connected else 500
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+@app.route('/audio/route/reconcile', methods=['POST','GET'])
+def audio_route_reconcile():
+    return jsonify(_reconcile_audio_route(verbose=True))
 
+@app.route('/audio/diag')
+def audio_diag():
+    try:
+        sinks = _list_sinks()
+        default = _get_default_sink()
+        inputs = _list_inputs()
+        return jsonify({"default": default, "sinks": sinks, "inputs": inputs})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
@@ -2144,4 +2183,5 @@ if __name__ == '__main__':
     print("🚀 Starting (stabilized, faster fetch, fixed leaderboard).")
     Thread(target=background_event_emailer, daemon=True).start()
     startup_scrape()
+    start_audio_router_monitor()
     app.run(host='0.0.0.0', port=5000, debug=True)

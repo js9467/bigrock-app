@@ -1462,14 +1462,14 @@ def scrape_tournament_dates():
 @app.route('/bluetooth/status')
 def bluetooth_status():
     try:
-        out = subprocess.check_output(['bluetoothctl', 'show'], text=True)
 
+        out = subprocess.check_output(['bluetoothctl', 'show'], text=True, errors='ignore')
         enabled = 'Powered: yes' in out
-
         connected_devices = []
         try:
             devices_out = subprocess.check_output(
-                ['bluetoothctl', 'devices', 'Connected'], text=True
+                ['bluetoothctl', 'devices', 'Connected'], text=True, errors='ignore'
+
             )
             for line in devices_out.splitlines():
                 if line.startswith('Device '):
@@ -1494,14 +1494,17 @@ def bluetooth_status():
 def bluetooth_scan():
     try:
 
-        print("\ud83d\udd0d Starting Bluetooth scan...")
+        print("🔍 Starting Bluetooth scan...")
+
         scan_out = subprocess.check_output(
             ['bluetoothctl', '--timeout', '5', 'scan', 'on'],
             text=True,
             stderr=subprocess.STDOUT,
+
+            errors='ignore',
         )
         print(scan_out)
-        devices_out = subprocess.check_output(['bluetoothctl', 'devices'], text=True)
+        devices_out = subprocess.check_output(['bluetoothctl', 'devices'], text=True, errors='ignore')
         devices = []
         for line in devices_out.splitlines():
 
@@ -1511,7 +1514,8 @@ def bluetooth_scan():
                     mac, name = parts[1], parts[2]
 
                     try:
-                        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
+                        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='ignore')
+
                         paired = 'Paired: yes' in info
                         connected = 'Connected: yes' in info
                     except Exception as e_info:
@@ -1547,6 +1551,7 @@ def bluetooth_connect():
                 ['bluetoothctl', 'connect', mac],
                 text=True,
                 stderr=subprocess.STDOUT,
+
             )
         except subprocess.CalledProcessError:
             try:
@@ -1554,17 +1559,24 @@ def bluetooth_connect():
                     ['bluetoothctl', 'pair', mac],
                     text=True,
                     stderr=subprocess.STDOUT,
+
+                    errors='ignore',
+
                 )
                 subprocess.check_output(
                     ['bluetoothctl', 'connect', mac],
                     text=True,
                     stderr=subprocess.STDOUT,
+
+                    errors='ignore',
+
                 )
             except subprocess.CalledProcessError as e:
                 return jsonify({"status": "error", "message": e.output.strip()}), 500
 
 
-        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True)
+        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='ignore')
+
         connected = 'Connected: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
         name = name_line.split('Name:', 1)[1].strip() if name_line else None

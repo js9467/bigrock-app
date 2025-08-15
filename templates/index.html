@@ -34,7 +34,6 @@
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-x-hidden">
-<div id="nav-placeholder"></div>
 <div id="app" class="h-full flex flex-col">
 
   <!-- Header (non-scrolling) -->
@@ -74,7 +73,13 @@
           </div>
         </div>
 
-        <!-- Navigation now loaded via nav component -->
+        <!-- Navigation Buttons -->
+        <div class="grid grid-cols-2 sm:flex gap-2 sm:gap-4 w-full sm:w-auto text-center">
+          <a href="/participants" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Participants</a>
+          <a href="/leaderboard" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Leaderboard</a>
+          <a href="/release-summary" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Releases</a>
+          <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">⚙</a>
+        </div>
       </div>
     </div>
 
@@ -400,8 +405,6 @@ const vm = createApp({
 
 window.vm = vm;
 </script>
-
-<script src="/static/js/nav.js"></script>
 
 </body>
 </html>

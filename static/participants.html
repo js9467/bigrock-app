@@ -11,7 +11,6 @@
   <style>[v-cloak]{display:none}</style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
-  <div id="nav-placeholder"></div>
   <div id="app" v-cloak>
     <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
@@ -28,6 +27,7 @@
             <span data-vhf-volume-display class="w-8 text-right text-xs"></span>
           </div>
         </div>
+        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
       </div>
     </header>
 
@@ -259,7 +259,5 @@
   });
   app.mount('#app');
   </script>
-
-  <script src="/static/js/nav.js"></script>
 </body>
 </html>

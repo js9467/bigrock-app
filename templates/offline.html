@@ -4,358 +4,193 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Join a Wi-Fi Network for Tournament Updates</title>
-  <!-- Local stylesheet from your app; safe offline -->
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
-    /* ====== Minimal, offline-safe styles (no Tailwind/CDNs) ====== */
     :root{
-      --brand-blue: #0a2146;   /* matches .bg-brand-blue in your app */
-      --brand-gold: #d4af37;   /* matches .text-brand-gold if you have it */
+      --brand-blue: #0a2146;
+      --brand-gold: #d4af37;
       --bg: #0b1220;
       --card: #101a2e;
       --card-border: #1e2b4a;
       --text: #e8eefc;
       --muted: #a9b7d9;
       --success: #35b36a;
-      --danger: #e25555;
       --focus: #4c86ff;
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
+    html, body { height: 100%; margin:0; font-family: Barlow, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+
+    /* Banner with Palmer Lou */
+    .banner {
+      position: relative;
+      width: 100%;
+      height: 180px;
+      overflow: hidden;
+    }
+    .banner picture, .banner img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .banner::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+    }
+    .banner-text {
+      position: absolute;
+      bottom: 12px;
+      left: 16px;
+      color: white;
+      z-index: 1;
+    }
+    .banner-text h1 {
+      font-size: 1.5rem;
       margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Barlow, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-      display: flex;
-      flex-direction: column;
+      font-weight: 700;
+    }
+    .banner-text p {
+      font-size: 0.95rem;
+      margin: 4px 0 0;
+      color: #ddd;
     }
 
-    /* Header */
-    .header{
-      background: var(--brand-blue);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .header-title{
-      display: flex; align-items: center; gap: 10px;
-      font-weight: 700; letter-spacing: 0.2px;
-    }
-    .header-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-gold); box-shadow: 0 0 10px var(--brand-gold); }
-    .subtext{ color: #d7def2; font-size: 0.92rem; margin-top: 2px; }
-
-    /* Content wrapper */
-    .wrap{
-      width: 100%; max-width: 840px; margin: 0 auto; padding: 18px 16px 28px;
-      display: flex; flex-direction: column; gap: 14px;
-    }
-
-    .notice{
-      background: linear-gradient(180deg, rgba(212,175,55,0.10), rgba(212,175,55,0.04));
-      border: 1px solid rgba(212,175,55,0.35);
-      color: #ffe7a6;
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-weight: 600;
-      text-align: center;
-    }
-
-    .controls{
-      display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap;
-    }
-    .btn{
-      background: var(--brand-blue); color: #fff; border: 1px solid rgba(255,255,255,0.12);
-      padding: 10px 14px; border-radius: 12px; font-weight: 600; cursor: pointer;
-    }
-    .btn:focus{ outline: 2px solid var(--focus); outline-offset: 2px; }
-    .btn.secondary{ background: #152342; }
-    .btn.ghost{ background: transparent; border-color: var(--card-border); color: var(--muted); }
-    .hint{ color: var(--muted); font-size: 0.9rem; }
+    /* Content */
+    .wrap { width: 100%; max-width: 840px; margin: 0 auto; padding: 18px 16px 28px; display: flex; flex-direction: column; gap: 14px; }
+    .notice { background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.3); color: #ffe7a6; border-radius: 12px; padding: 10px 12px; font-weight: 600; text-align: center; }
 
     /* Network list */
-    .list{
-      display: grid; gap: 10px;
-    }
-    .card{
-      background: var(--card); border: 1px solid var(--card-border);
-      border-radius: 14px; padding: 12px; display: grid; gap: 10px;
-    }
-    .row{
-      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-    }
-    .ssid{
-      display: flex; align-items: center; gap: 10px; min-width: 200px; font-weight: 700;
-    }
-    .badges{ display: flex; gap: 8px; align-items: center; }
-    .badge{
-      font-size: 0.78rem; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--card-border); color: var(--muted); background:#121c31;
-    }
-    .badge.connected{ color: #c9f7dc; border-color: rgba(53,179,106,0.35); background: rgba(53,179,106,0.1); }
-    .badge.secured{ color: #e0defd; border-color: rgba(125,102,240,0.35); background: rgba(125,102,240,0.10); }
+    .list { display: grid; gap: 10px; }
+    .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; display: grid; gap: 10px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .ssid { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .badge { font-size: 0.78rem; padding: 4px 8px; border-radius: 999px; background:#121c31; border: 1px solid var(--card-border); color: var(--muted); }
+    .badge.connected { color: #c9f7dc; border-color: rgba(53,179,106,0.35); background: rgba(53,179,106,0.1); }
+    .btn { background: var(--brand-blue); color: #fff; border: none; padding: 8px 14px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+    .text { width: 100%; padding: 8px 12px; border-radius: 10px; background: #0c152a; border:1px solid var(--card-border); color: var(--text); }
+    .toggle-eye { margin-left: 6px; padding: 6px 10px; background: #12203f; border:1px solid var(--card-border); border-radius: 8px; color: #cdd9f6; cursor:pointer; }
+    .show-pass { display:flex; align-items:center; gap:8px; color: var(--muted); font-size:0.9rem; }
 
-    /* Signal bars */
-    .bars{ display: inline-flex; align-items: flex-end; gap: 3px; margin-right: 6px; }
-    .bar{ width: 4px; height: 6px; background: #415378; border-radius: 2px; opacity: 0.6; }
-    .bar.on{ background: #a6c3ff; opacity: 1; }
-    .bar.b2{ height: 9px; }
-    .bar.b3{ height: 12px; }
-    .bar.b4{ height: 15px; }
-    .bar.b5{ height: 18px; }
-
-    /* Password form */
-    .form{
-      display: grid; gap: 8px;
-    }
-    .input{
-      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
-    }
-    .text{
-      width: 100%; padding: 10px 12px; border-radius: 10px; background: #0c152a; border:1px solid var(--card-border); color: var(--text);
-    }
-    .toggle-eye{
-      width: 42px; height: 42px; border-radius: 10px; border:1px solid var(--card-border);
-      background:#12203f; color:#cdd9f6; cursor:pointer; display:grid; place-items:center; font-size: 18px; user-select: none;
-    }
-    .show-pass{
-      display:flex; align-items:center; gap:8px; color: var(--muted); font-size:0.92rem;
-    }
     .status{ color: var(--muted); text-align: center; margin-top: 6px; min-height: 1.2em; }
-
-    /* Spinner */
-    .spinner{ width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius: 50%; animation: spin 1s linear infinite; display:inline-block; vertical-align: -3px; }
+    .spinner{ width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius: 50%; animation: spin 1s linear infinite; display:inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Small devices */
-    @media (max-width: 420px){
-      .header { padding: 12px; }
-      .wrap { padding: 14px 12px 24px; }
-      .ssid { min-width: unset; }
-    }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-title">
-      <span class="dot" aria-hidden="true"></span>
-      <div>
-        <div>Join a Wi-Fi Network for Live Tournament Updates</div>
-        <div class="subtext">You’re currently offline. Connect below to resume real-time feeds.</div>
-      </div>
+
+  <!-- Banner with Palmer Lou image -->
+  <div class="banner">
+    <picture>
+      <source srcset="/static/images/palmer_lou.webp" type="image/webp">
+      <img src="/static/images/palmer_lou.jpg" alt="Palmer Lou">
+    </picture>
+    <div class="banner-text">
+      <h1>Join a Wi-Fi Network</h1>
+      <p>Stay connected for live tournament updates</p>
     </div>
-    <button class="btn ghost" id="btn-refresh" type="button" title="Rescan">Rescan</button>
-  </header>
+  </div>
 
   <!-- Content -->
   <main class="wrap">
-    <div class="notice">Tip: Saved networks won’t ask for a password again. You can also <strong>show the password</strong> while typing.</div>
-
-    <div class="controls">
-      <div class="hint" id="scan-hint"><span class="spinner"></span> Scanning for nearby networks…</div>
-      <div>
-        <button class="btn secondary" id="btn-scan" type="button">Scan Again</button>
-      </div>
-    </div>
-
-    <div class="list" id="networks" role="list"></div>
-
-    <div class="status" id="status" aria-live="polite"></div>
+    <div class="notice">Tip: Saved networks won’t ask for a password again. You can also show the password while typing.</div>
+    <div class="list" id="networks">Scanning...</div>
+    <div class="status" id="status"></div>
   </main>
 
   <script>
-    // ---------- Utilities ----------
-    function el(tag, props = {}, children = []) {
-      const n = document.createElement(tag);
-      Object.assign(n, props);
-      (children || []).forEach(c => n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
-      return n;
-    }
-    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
-
-    function barsFor(signal){
-      // signal is 0-100; convert to 1-5 bars
-      const lvl = signal === null || signal === undefined ? 0 :
-                  signal >= 80 ? 5 : signal >= 60 ? 4 : signal >= 40 ? 3 : signal >= 20 ? 2 : signal > 0 ? 1 : 0;
-      const wrap = el('span', { className:'bars', title: (signal ?? 0) + '%' });
-      for(let i=1;i<=5;i++){
-        const b = el('span', { className: `bar b${i} ${i<=lvl?'on':''}` });
-        wrap.appendChild(b);
-      }
-      return wrap;
-    }
-
-    function dedupeSortNetworks(networks){
-      const map = new Map();
-      (networks || []).forEach(n => {
-        const key = (n.ssid || '').trim();
-        if(!key) return; // skip blanks
-        const prev = map.get(key);
-        if(!prev || (n.signal || 0) > (prev.signal || 0) || (n.connected && !prev.connected)){
-          map.set(key, n);
-        }
-      });
-      return Array.from(map.values()).sort((a,b) => {
-        if(!!b.connected - !!a.connected) return 1 * (!!b.connected - !!a.connected);
-        return (b.signal||0) - (a.signal||0);
-      });
-    }
-
     function indicateKeyboard(input){
-      input.addEventListener('focus', () => { fetch('/launch_keyboard', { method:'POST' }).catch(()=>{}); });
-      input.addEventListener('blur',  () => { fetch('/hide_keyboard',   { method:'POST' }).catch(()=>{}); });
+      input.addEventListener('focus', () => fetch('/launch_keyboard',{method:'POST'}).catch(()=>{}));
+      input.addEventListener('blur', () => fetch('/hide_keyboard',{method:'POST'}).catch(()=>{}));
     }
+    function showConnectForm(row, ssid){
+      row.innerHTML = '';
+      const label = document.createElement('span');
+      label.textContent = ssid;
+      row.appendChild(label);
 
-    // ---------- UI Render ----------
-    const networksEl = document.getElementById('networks');
-    const statusEl   = document.getElementById('status');
-    const scanHintEl = document.getElementById('scan-hint');
+      const input = document.createElement('input');
+      input.type = 'password';
+      input.placeholder = 'Password (leave blank if open)';
+      input.className = 'text';
+      indicateKeyboard(input);
+      row.appendChild(input);
 
-    function renderNetworks(list){
-      networksEl.innerHTML = '';
-      if(!list || list.length === 0){
-        networksEl.appendChild(el('div', { className:'hint' }, ['No networks found.']));
-        return;
-      }
-      list.forEach(net => {
-        const card = el('div', { className:'card', role:'listitem' });
+      const eye = document.createElement('button');
+      eye.textContent = '👁';
+      eye.type = 'button';
+      eye.className = 'toggle-eye';
+      eye.onclick = () => { input.type = input.type === 'password' ? 'text' : 'password'; };
+      row.appendChild(eye);
 
-        const left = el('div', { className:'ssid' }, [
-          barsFor(clamp(net.signal ?? 0, 0, 100)),
-          el('span', { textContent: net.ssid })
-        ]);
-        const badges = el('div', { className:'badges' }, [
-          net.connected ? el('span', { className:'badge connected', textContent:'Connected' }) : null,
-          net.secured   ? el('span', { className:'badge secured',   textContent:'Secured'   }) : el('span', { className:'badge', textContent:'Open' })
-        ].filter(Boolean));
+      const showWrap = document.createElement('label');
+      showWrap.className = 'show-pass';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.onchange = () => { input.type = cb.checked ? 'text' : 'password'; };
+      showWrap.appendChild(cb);
+      showWrap.appendChild(document.createTextNode('Show password while typing'));
+      row.appendChild(showWrap);
 
-        const actions = el('div', {}, []);
-        if(net.connected){
-          const b = el('button', { className:'btn', textContent:'Disconnect' });
-          b.onclick = () => disconnect(net.ssid);
-          actions.appendChild(b);
-        }else{
-          const b = el('button', { className:'btn', textContent:'Connect' });
-          b.onclick = () => showConnectForm(card, net);
-          actions.appendChild(b);
-        }
+      const btn = document.createElement('button');
+      btn.textContent = 'Join';
+      btn.className = 'btn';
+      btn.onclick = () => connect(ssid, input.value);
+      row.appendChild(btn);
 
-        const row = el('div', { className:'row' }, [ el('div', { className:'row' }, [left, badges]), actions ]);
-        card.appendChild(row);
-        networksEl.appendChild(card);
-      });
+      input.focus();
     }
-
-    function showConnectForm(card, net){
-      // Replace card content with a password form (for secured) or instant join (open)
-      card.innerHTML = '';
-      const title = el('div', { className:'row' }, [
-        el('div', { className:'ssid' }, [ barsFor(clamp(net.signal ?? 0,0,100)), el('span', { textContent: net.ssid }) ]),
-        el('span', { className:'badge ' + (net.secured ? 'secured' : ''), textContent: net.secured ? 'Secured' : 'Open' })
-      ]);
-      card.appendChild(title);
-
-      const form = el('div', { className:'form' });
-
-      let pwInput = el('input', { className:'text', type: net.secured ? 'password' : 'text', placeholder: net.secured ? 'Network password' : 'No password required', value:'' });
-      if(!net.secured) pwInput.disabled = true;
-      indicateKeyboard(pwInput);
-
-      const eyeBtn = el('button', { className:'toggle-eye', type:'button', title:'Show/Hide password' }, ['👁']);
-      eyeBtn.onclick = () => {
-        if(pwInput.type === 'password'){ pwInput.type = 'text'; }
-        else { pwInput.type = 'password'; }
-        pwInput.focus();
-      };
-
-      const inputRow = el('div', { className:'input' }, [ pwInput, eyeBtn ]);
-      form.appendChild(inputRow);
-
-      // Secondary show password checkbox for touch screens
-      const showWrap = el('label', { className:'show-pass' });
-      const showCb   = el('input', { type:'checkbox' });
-      const showTxt  = el('span', { textContent:'Show password while typing' });
-      showCb.addEventListener('change', () => {
-        pwInput.type = showCb.checked ? 'text' : 'password';
-        pwInput.focus();
-      });
-      showWrap.appendChild(showCb);
-      showWrap.appendChild(showTxt);
-      form.appendChild(showWrap);
-
-      const actions = el('div', { className:'row' }, [
-        el('button', { className:'btn secondary', textContent:'Back' }),
-        el('button', { className:'btn', textContent: net.secured ? 'Join' : 'Join (Open)' })
-      ]);
-      actions.children[0].onclick = () => scan(); // re-render list
-      actions.children[1].onclick = () => connect(net.ssid, net.secured ? pwInput.value : '');
-      form.appendChild(actions);
-
-      card.appendChild(form);
-      if(net.secured) pwInput.focus();
-    }
-
-    // ---------- API ----------
     async function scan(){
-      try{
-        scanHintEl.innerHTML = '<span class="spinner"></span> Scanning for nearby networks…';
+      try {
         const res = await fetch('/wifi/scan');
         const data = await res.json();
-        const cleaned = dedupeSortNetworks(data.networks || []);
-        renderNetworks(cleaned);
-        scanHintEl.textContent = `Found ${cleaned.length} network${cleaned.length===1?'':'s'}.`;
-      }catch(e){
-        networksEl.innerHTML = '';
-        networksEl.appendChild(el('div', { className:'hint' }, ['Scan failed.']));
-        scanHintEl.textContent = 'Scan failed.';
-      }
-    }
-
-    async function connect(ssid, password){
-      try{
-        statusEl.innerHTML = '<span class="spinner"></span> Connecting…';
-        const res = await fetch('/wifi/connect', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ ssid, password: password || '' })
-        });
-        const data = await res.json();
-        statusEl.textContent = data.message || data.status || '';
-        if(data.status === 'ok'){
-          // Give NetworkManager a moment, then go home
-          setTimeout(() => window.location.replace('/'), 1500);
+        const container = document.getElementById('networks');
+        container.innerHTML = '';
+        if (!data.networks || !data.networks.length){
+          container.textContent = 'No networks found.';
+          return;
         }
-      }catch(e){
-        statusEl.textContent = 'Connection failed.';
-      }
-    }
-
-    async function disconnect(ssid){
-      try{
-        statusEl.innerHTML = '<span class="spinner"></span> Disconnecting…';
-        const res = await fetch('/wifi/disconnect', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ ssid })
+        data.networks.forEach(net => {
+          const row = document.createElement('div');
+          row.className = 'card row';
+          const label = document.createElement('span');
+          label.className = 'ssid';
+          label.textContent = `${net.ssid} (${net.signal}%)`;
+          row.appendChild(label);
+          if (net.connected){
+            const tag = document.createElement('span');
+            tag.className = 'badge connected';
+            tag.textContent = 'Connected';
+            row.appendChild(tag);
+          } else {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.textContent = 'Connect';
+            btn.onclick = () => showConnectForm(row, net.ssid);
+            row.appendChild(btn);
+          }
+          container.appendChild(row);
         });
-        const data = await res.json();
-        statusEl.textContent = data.message || data.status || '';
-        scan();
-      }catch(e){
-        statusEl.textContent = 'Disconnect failed.';
+      } catch {
+        document.getElementById('networks').textContent = 'Scan failed.';
       }
     }
-
-    // If network comes up, return to main app
+    async function connect(ssid, password){
+      const res = await fetch('/wifi/connect',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ ssid, password: password || '' })
+      });
+      const data = await res.json();
+      document.getElementById('status').textContent = data.message || data.status;
+      if(data.status === 'ok'){
+        setTimeout(() => window.location.replace('/'), 2000);
+      }
+    }
     window.addEventListener('online', () => window.location.replace('/'));
-
-    // Buttons / timers
-    document.getElementById('btn-scan').onclick = scan;
-    document.getElementById('btn-refresh').onclick = scan;
-    scan(); // initial
+    scan();
     setInterval(scan, 15000);
   </script>
 </body>

@@ -16,7 +16,7 @@ jobs:
 
       - name: Generate dynamic version based on commit count
         run: |
-          VERSION="3.$(git rev-list --count HEAD)"
+          VERSION="4.$(git rev-list --count HEAD)"
           echo "$VERSION" > version.txt
           echo "Generated version: $VERSION"
 

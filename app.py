@@ -1612,7 +1612,11 @@ def hide_keyboard():
 def list_sounds():
     sound_dir = os.path.join('static', 'sounds')
     try:
-        files = [f for f in os.listdir(sound_dir) if f.lower().endswith('.mp3')]
+        files = [
+            f
+            for f in os.listdir(sound_dir)
+            if f.lower().endswith(('.mp3', '.wav'))
+        ]
         return jsonify({'files': files})
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500

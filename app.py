@@ -1352,6 +1352,7 @@ def scrape_events_route():
 @app.route("/api/events")
 def api_events():
     tournament = get_current_tournament()
+
     if get_data_source() == "demo":
         data = load_demo_data(tournament)
         all_events = data.get("events", [])
@@ -1373,6 +1374,7 @@ def api_events():
 
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
         return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
+
 
     events_file = get_cache_path(tournament, "events.json")
     events = safe_json_load(events_file, [])
@@ -1551,7 +1553,9 @@ def get_all_followed_boats():
     if isinstance(boats, list):
         tournament = get_current_tournament()
         return {tournament: boats}
+
     return {t: b for t, b in boats.items() if b}
+
 
 def _build_pactl_env(user: str) -> dict | None:
     """Return env vars so pactl talks to user's Pulse/PipeWire session."""
@@ -2327,10 +2331,12 @@ def toggle_followed_boat():
     else:
         boats.append(boat)
         action = "followed"
+
     if boats:
         followed[tournament] = boats
     else:
         followed.pop(tournament, None)
+
     settings["followed_boats"] = followed
     safe_json_dump(SETTINGS_FILE, settings)
     return jsonify({"status": "ok", "action": action, "followed_boats": {t: b for t, b in followed.items() if b}})

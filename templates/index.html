@@ -267,6 +267,7 @@ const vm = createApp({
         });
     },
 
+
     async loadFollowed(){
       try{
         const r=await fetch('/followed-boats');
@@ -276,6 +277,7 @@ const vm = createApp({
           : { [this.settings.tournament]: data || [] };
       }catch{this.followed={};}
     },
+
     async toggleFollow(boat,tournament=this.settings.tournament){
       try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
         const data=await r.json(); if(data.status==='ok') this.followed=data.followed_boats;

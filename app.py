@@ -1182,9 +1182,11 @@ def save_emailed_events():
 
 def get_followed_boats():
     settings = load_settings()
-    return [normalize_boat_name(b) for b in settings.get("followed_boots", [])]  # typo preserved? fix:
-    # NOTE: If you had a historical typo in settings, handle both:
-    # return [normalize_boat_name(b) for b in settings.get("followed_boats", []) or settings.get("followed_boots", [])]
+    # Older configs stored "followed boats" under a misspelled key. Prefer the
+    # correct key but fall back to the legacy one so users don't lose their
+    # selections.
+    boats = settings.get("followed_boats") or settings.get("followed_boots", [])
+    return [normalize_boat_name(b) for b in boats]
 
 def _find_bt_sink_name(mac: str) -> str | None:
     """Return Pulse/PipeWire sink name for a BT device MAC (underscored)."""

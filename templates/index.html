@@ -84,12 +84,17 @@
     </div>
 
     <!-- Followed Boats Chips -->
-    <div v-if="followed.length" class="mt-2 overflow-x-auto">
-      <div class="flex gap-2">
-        <div v-for="boat in followed" :key="boat"
-             class="flex items-center bg-yellow-200 text-blue-900 px-3 py-1 rounded-full text-sm font-semibold flex-shrink-0">
-          {{ boat }}
-          <button @click="toggleFollow(boat)" class="ml-1 text-red-600 hover:text-red-800">✕</button>
+    <div v-if="Object.keys(followed).length" class="mt-2 overflow-x-auto">
+      <div class="flex flex-col gap-2">
+        <div v-for="(boats, tourney) in followed" :key="tourney">
+          <div class="text-xs font-bold text-yellow-200">{{ tourney }}</div>
+          <div class="flex gap-2 mt-1">
+            <div v-for="boat in boats" :key="tourney + boat"
+                 class="flex items-center bg-yellow-200 text-blue-900 px-3 py-1 rounded-full text-sm font-semibold flex-shrink-0">
+              {{ boat }}
+              <button @click="toggleFollow(boat, tourney)" class="ml-1 text-red-600 hover:text-red-800">✕</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -193,7 +198,7 @@ const vm = createApp({
     return {
       events: [], hooked: [], boatImages: {},
       tournamentLogo: '', tournamentDate: '', version: '', loading: false,
-      followed: [], lastEventTimestamps: new Set(),
+      followed: {}, lastEventTimestamps: new Set(), tournamentStart: new Date(),
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
       radioPlaying:false, hls:null, error:null,
       messageQueue:[], currentMessage:'', messageTimer:null
@@ -262,9 +267,9 @@ const vm = createApp({
         });
     },
 
-    async loadFollowed(){ try{ const r=await fetch('/followed-boats'); this.followed=await r.json(); }catch{this.followed=[];} },
-    async toggleFollow(boat){
-      try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat})});
+    async loadFollowed(){ try{ const r=await fetch('/followed-boats'); this.followed=await r.json(); }catch{this.followed={};} },
+    async toggleFollow(boat,tournament=this.settings.tournament){
+      try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
         const data=await r.json(); if(data.status==='ok') this.followed=data.followed_boats;
       }catch(e){console.error('toggleFollow failed',e);}
     },
@@ -275,7 +280,8 @@ const vm = createApp({
         .replace(/[\u0300-\u036f]/g,'')
         .replace(/[^a-z0-9]+/g,'_')
         .replace(/^_+|_+$/g,'');
-      return this.followed.some(b=>norm(b)===norm(uid));
+      const list=this.followed[this.settings.tournament]||[];
+      return list.some(b=>norm(b)===norm(uid));
     },
     playSound(f){
       if(!f||!this.settings.sounds_enabled)return;
@@ -295,7 +301,9 @@ const vm = createApp({
             const k=e.timestamp+e.uid;
             const isNew=!this.lastEventTimestamps.has(k);
             this.lastEventTimestamps.add(k);
-            if(isNew && this.settings.sounds_enabled){
+            const eventTime=this.parseTs(e.timestamp);
+            const afterStart=!this.tournamentStart|| (eventTime&&eventTime>=this.tournamentStart);
+            if(isNew && afterStart && this.settings.sounds_enabled){
               const et=(e.event||'').toLowerCase();
               if(et.includes('boated')) this.playSound(this.settings.boated_sound);
               else if(et.includes('hooked up')) this.playSound(this.settings.hooked_sound);
@@ -306,7 +314,18 @@ const vm = createApp({
         }).catch(()=>{this.loading=false;});
     },
 
-    fetchSettings(){return fetch('/api/settings').then(r=>r.json()).then(d=>{this.settings={...this.settings,...d};});},
+    fetchSettings(){
+      return fetch('/api/settings')
+        .then(r=>r.json())
+        .then(d=>{
+          const prev=this.settings.tournament;
+          this.settings={...this.settings,...d};
+          if(prev!==this.settings.tournament){
+            this.tournamentStart=new Date();
+            this.lastEventTimestamps=new Set();
+          }
+        });
+    },
     fetchVersion(){fetch('/api/version').then(r=>r.json()).then(d=>{this.version=d.version;});},
     loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;});},
     getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.webp';},

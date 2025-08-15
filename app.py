@@ -21,6 +21,7 @@ import io
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode, quote
 from collections import defaultdict
 import sys
+import pwd
 
 def safe_str(s: str) -> str:
     # Ensure no surrogate code points sneak into responses/logs
@@ -1188,12 +1189,24 @@ def get_followed_boats():
     boats = settings.get("followed_boats") or settings.get("followed_boots", [])
     return [normalize_boat_name(b) for b in boats]
 
-def _find_bt_sink_name(mac: str) -> str | None:
+def _build_pactl_env(user: str) -> dict | None:
+    """Return env vars so pactl talks to user's Pulse/PipeWire session."""
+    try:
+        uid = pwd.getpwnam(user).pw_uid
+        env = os.environ.copy()
+        env["XDG_RUNTIME_DIR"] = f"/run/user/{uid}"
+        return env
+    except Exception as e:
+        safe_print(f"pactl env setup failed for {user}: {e}")
+        return None
+
+
+def _find_bt_sink_name(mac: str, env: dict | None = None) -> str | None:
     """Return Pulse/PipeWire sink name for a BT device MAC (underscored)."""
     try:
         sinks = subprocess.check_output(
             ['pactl', 'list', 'short', 'sinks'],
-            text=True, encoding='utf-8', errors='replace'
+            text=True, encoding='utf-8', errors='replace', env=env
         )
         mac_id = mac.replace(':', '_').lower()
         for line in sinks.splitlines():
@@ -1207,18 +1220,19 @@ def _find_bt_sink_name(mac: str) -> str | None:
         safe_print(f"find_bt_sink error: {e}")
     return None
 
-def _route_all_audio_to_sink(sink_name: str):
+
+def _route_all_audio_to_sink(sink_name: str, env: dict | None = None):
     """Move every current sink-input to the target sink, then set it default."""
     try:
         # Make it default
         subprocess.check_output(
             ['pactl', 'set-default-sink', sink_name],
-            text=True, encoding='utf-8', errors='replace'
+            text=True, encoding='utf-8', errors='replace', env=env
         )
         # Move existing streams (Chromium, system sounds, etc.)
         inputs = subprocess.check_output(
             ['pactl', 'list', 'short', 'sink-inputs'],
-            text=True, encoding='utf-8', errors='replace'
+            text=True, encoding='utf-8', errors='replace', env=env
         )
         for line in inputs.splitlines():
             cols = line.split()
@@ -1228,7 +1242,7 @@ def _route_all_audio_to_sink(sink_name: str):
             try:
                 subprocess.check_output(
                     ['pactl', 'move-sink-input', input_id, sink_name],
-                    text=True, encoding='utf-8', errors='replace'
+                    text=True, encoding='utf-8', errors='replace', env=env
                 )
             except Exception as e:
                 safe_print(f"move-sink-input {input_id} -> {sink_name} failed: {e}")
@@ -1708,9 +1722,11 @@ def bluetooth_connect():
         active_sink = None
         if connected:
             try:
-                sink_name = _find_bt_sink_name(mac)
+                chromium_user = os.getenv('CHROMIUM_USER', 'pi')
+                pactl_env = _build_pactl_env(chromium_user)
+                sink_name = _find_bt_sink_name(mac, env=pactl_env)
                 if sink_name:
-                    _route_all_audio_to_sink(sink_name)
+                    _route_all_audio_to_sink(sink_name, env=pactl_env)
                     active_sink = sink_name
                 else:
                     safe_print("No bluez sink found yet; will rely on default.")

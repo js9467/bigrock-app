@@ -943,8 +943,19 @@ def _audio_env():
     return env
 
 def _sudo_prefix():
-    # If Flask runs as root (systemd service), run pactl as AUDIO_USER.
-    return ["sudo", "-u", AUDIO_USER] if os.geteuid() == 0 else []
+    # If running as root (e.g. systemd), execute audio tools as the desktop
+    # user and ensure the Pulse/PipeWire env vars are preserved.  ``sudo``
+    # resets most environment variables, so we explicitly inject them via the
+    # ``env`` command to guarantee pactl/wpctl can talk to the user's daemon.
+    if os.geteuid() == 0:
+        env = _audio_env()
+        return [
+            "sudo", "-u", AUDIO_USER,
+            "env",
+            f"XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}",
+            f"PULSE_RUNTIME_PATH={env['PULSE_RUNTIME_PATH']}"
+        ]
+    return []
 
 def _run_raw(cmd, check=True, timeout=None):
     cp = subprocess.run(cmd, text=True, capture_output=True, env=_audio_env(), timeout=timeout)

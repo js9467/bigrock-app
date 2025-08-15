@@ -81,7 +81,9 @@
         <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
         <select v-model="settings.followed_sound" @change="onFollowedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
           <option disabled value="">-- Select Sound --</option>
-          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
+
+          <option v-for="s in availableSounds" :key="s.file" :value="s.file">{{ s.name }}</option>
+
         </select>
       </div>
 
@@ -89,7 +91,9 @@
         <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
         <select v-model="settings.boated_sound" @change="onBoatedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
           <option disabled value="">-- Select Sound --</option>
-          <option v-for="file in availableSounds" :key="file" :value="file">{{ file }}</option>
+
+          <option v-for="s in availableSounds" :key="s.file" :value="s.file">{{ s.name }}</option>
+
         </select>
       </div>
 
@@ -393,9 +397,11 @@
 
       // Load available sounds
       axios.get('/sounds').then(res => {
-        this.availableSounds = res.data.files || [];
+        const files = res.data.files || [];
+        this.availableSounds = files.map(f => ({ name: f.replace(/\.[^.]+$/, ''), file: f }));
       }).catch(() => {
-        this.availableSounds = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+        const fallback = ['airhorn.mp3', 'bell.mp3', 'cheer.mp3'];
+        this.availableSounds = fallback.map(f => ({ name: f.replace(/\.[^.]+$/, ''), file: f }));
       });
 
       this.fetchWifi();

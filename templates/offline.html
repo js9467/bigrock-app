@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Connect to Wi-Fi</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; background: #f7f7f7; }
+    h1 { color: #333; }
+    #networks > div { margin: 0.5rem 0; }
+    button { padding: 0.4rem 0.8rem; margin-left: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Offline</h1>
+  <p>No network connection detected. Select a Wi-Fi network to connect.</p>
+  <div id="networks">Scanning...</div>
+  <div id="status"></div>
+  <script>
+    async function scan() {
+      try {
+        const res = await fetch('/wifi/scan');
+        const data = await res.json();
+        const container = document.getElementById('networks');
+        container.innerHTML = '';
+        if (!data.networks || data.networks.length === 0) {
+          container.textContent = 'No networks found.';
+          return;
+        }
+        data.networks.forEach(net => {
+          const row = document.createElement('div');
+          row.textContent = `${net.ssid} (${net.signal}%)`;
+          const btn = document.createElement('button');
+          if (net.connected) {
+            btn.textContent = 'Connected';
+            btn.disabled = true;
+          } else {
+            btn.textContent = 'Connect';
+            btn.onclick = () => connect(net.ssid);
+          }
+          row.appendChild(btn);
+          container.appendChild(row);
+        });
+      } catch (e) {
+        document.getElementById('networks').textContent = 'Scan failed.';
+      }
+    }
+    async function connect(ssid) {
+      const password = prompt('Password for ' + ssid + ' (leave blank if open):', '');
+      const res = await fetch('/wifi/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid, password: password || '' })
+      });
+      const data = await res.json();
+      document.getElementById('status').textContent = data.message || data.status;
+      if (data.status === 'ok') {
+        setTimeout(() => window.location.replace('/'), 2000);
+      }
+    }
+    window.addEventListener('online', () => window.location.replace('/'));
+    scan();
+  </script>
+</body>
+</html>

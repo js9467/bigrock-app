@@ -1532,52 +1532,45 @@ def bluetooth_status():
 @app.route('/bluetooth/scan')
 def bluetooth_scan():
     try:
-        safe_print("🔍 Starting Bluetooth scan (5s)…")
+        safe_print("🔍 Starting Bluetooth scan (12s)…")
 
-        # Start a short scan; --timeout stops it automatically
-        scan_out = subprocess.check_output(
-            ['bluetoothctl', '--timeout', '5', 'scan', 'on'],
+        # Start scan for 12 seconds
+        subprocess.check_output(
+            ['bluetoothctl', '--timeout', '12', 'scan', 'on'],
             text=True, encoding='utf-8', errors='replace',
             stderr=subprocess.STDOUT,
         )
-        # Just in case ensure scanning is off now
+        # Stop scan
         try:
             subprocess.check_output(['bluetoothctl', 'scan', 'off'],
                                     text=True, encoding='utf-8', errors='replace')
         except Exception:
             pass
 
-        # Parse "Device XX:XX:… Name"
-        discovered = {}
-        for line in scan_out.splitlines():
-            ls = line.strip()
-            if ls.startswith('Device '):
-                parts = ls.split(' ', 2)
-                if len(parts) >= 3:
-                    mac, name = parts[1], safe_str(parts[2])
-                    discovered[mac] = name
+        # Get list of devices discovered
+        devices_out = subprocess.check_output(
+            ['bluetoothctl', 'devices'],
+            text=True, encoding='utf-8', errors='replace'
+        )
 
-        # Only keep devices that look like audio targets
-        AUDIO_KEYWORDS = ('Audio Sink', 'Headset', 'Handsfree', 'AVRCP', 'A2DP')
         results = []
-        for mac, name in discovered.items():
-            try:
-                info = subprocess.check_output(
-                    ['bluetoothctl', 'info', mac],
-                    text=True, encoding='utf-8', errors='replace'
-                )
-                paired = 'Paired: yes' in info
-                connected = 'Connected: yes' in info
-
-                # Filter to audio-ish devices by UUID lines
-                # Examples contain lines like: "UUID: Audio Sink (0000110b-0000-1000-8000-00805f9b34fb)"
-                is_audio = any(k.lower() in info.lower() for k in AUDIO_KEYWORDS)
-
-                if not is_audio:
-                    continue  # hide non-audio devices to reduce noise
-
-                # If you only want *unpaired & not connected* devices, keep this:
-                if (not paired) and (not connected):
+        for line in devices_out.splitlines():
+            if line.startswith('Device '):
+                parts = line.split(' ', 2)
+                if len(parts) >= 3:
+                    mac = parts[1]
+                    name = safe_str(parts[2])
+                    # Get pairing/connection info
+                    try:
+                        info = subprocess.check_output(
+                            ['bluetoothctl', 'info', mac],
+                            text=True, encoding='utf-8', errors='replace'
+                        )
+                        paired = 'Paired: yes' in info
+                        connected = 'Connected: yes' in info
+                    except Exception:
+                        paired = None
+                        connected = None
                     results.append({
                         "name": name,
                         "mac": mac,
@@ -1585,18 +1578,12 @@ def bluetooth_scan():
                         "connected": connected,
                     })
 
-                # If you also want to *show* paired but not connected devices, add:
-                # elif paired and not connected:
-                #     results.append({...})
-
-            except Exception as e_info:
-                safe_print(f"Failed to get info for {mac}: {e_info}")
-
-        safe_print(f"Bluetooth scan found {len(results)} candidate device(s).")
+        safe_print(f"Bluetooth scan found {len(results)} device(s).")
         return jsonify({"devices": results})
     except Exception as e:
         safe_print(f"Bluetooth scan failed: {e}")
         return jsonify({"devices": [], "error": safe_str(str(e))}), 500
+
 
 
 @app.route('/bluetooth/connect', methods=['POST'])

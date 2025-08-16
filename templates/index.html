@@ -268,30 +268,21 @@ const vm = createApp({
     },
 
 
-    normalizeFollowed(data){
-      const obj=(data && typeof data==="object" && !Array.isArray(data))
-        ? data
-        : { [this.settings.tournament]: data || [] };
-<<<<<<
-      const cleaned={};
-      for(const k in obj){
-        const v=obj[k];
-        if(Array.isArray(v) && v.length) cleaned[k]=v;
-      }
-      return cleaned;
-    },
     async loadFollowed(){
       try{
         const r=await fetch('/followed-boats');
         const data=await r.json();
-        this.followed=this.normalizeFollowed(data);
+
+        const obj=(data && typeof data==="object" && !Array.isArray(data))
+          ? data
+          : { [this.settings.tournament]: data || [] };
+        this.followed=Object.fromEntries(Object.entries(obj).filter(([k,v])=>Array.isArray(v)&&v.length));
       }catch{this.followed={};}
     },
     async toggleFollow(boat,tournament=this.settings.tournament){
-      try{
-        const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
-        const data=await r.json();
-        if(data.status==='ok') this.followed=this.normalizeFollowed(data.followed_boats);
+      try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
+        const data=await r.json(); if(data.status==='ok') this.followed=Object.fromEntries(Object.entries(data.followed_boats||{}).filter(([k,v])=>Array.isArray(v)&&v.length));
+
       }catch(e){console.error('toggleFollow failed',e);}
     },
     isFollowed(uid){

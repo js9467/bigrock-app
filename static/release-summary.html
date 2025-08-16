@@ -6,6 +6,7 @@
   <title>Release Summary</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
@@ -22,6 +23,14 @@
       <span v-else class="text-white text-base">Loading Logo...</span>
     </div>
     <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
+        <button data-vhf-toggle class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">VHF ON</button>
+        <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
+          <span class="text-lg">🔊</span>
+          <input type="range" min="0" max="100" data-vhf-volume class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
+          <span data-vhf-volume-display class="w-8 text-right text-xs"></span>
+        </div>
+      </div>
       <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
     </div>
   </header>
@@ -321,6 +330,9 @@ createApp({
   }
 }).mount('#app');
 </script>
+
+<audio id="radio-player" hidden></audio>
+<script src="/static/js/vhf.js"></script>
 
 </body>
 </html>

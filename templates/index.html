@@ -239,7 +239,10 @@ const vm = createApp({
 
   methods:{
     setBrandColor(t, cfg){
-      const color = cfg?.[t]?.color || '#002855';
+      let color = '#002855';
+      if (cfg && cfg[t] && cfg[t].color) {
+        color = cfg[t].color;
+      }
       document.documentElement.style.setProperty('--brand-color', color);
     },
 
@@ -252,14 +255,23 @@ const vm = createApp({
           fetch('https://js9467.github.io/Brtourney/settings.json')
             .then(r=>r.json())
             .then(all=>{
-              this.tournamentLogo = all[t]?.logo || '';
-              this.tournamentDate = all[t]?.dates || '';
+              if (all && all[t]) {
+                this.tournamentLogo = all[t].logo || '';
+                this.tournamentDate = all[t].dates || '';
+              } else {
+                this.tournamentLogo = '';
+                this.tournamentDate = '';
+              }
               this.setBrandColor(t, all);
               if(!this.tournamentDate){
                 fetch('/api/tournaments')
                   .then(r=>r.json())
                   .then(tt=>{
-                    this.tournamentDate = tt?.tournaments?.[t]?.label || '';
+                    if (tt && tt.tournaments && tt.tournaments[t]) {
+                      this.tournamentDate = tt.tournaments[t].label || '';
+                    } else {
+                      this.tournamentDate = '';
+                    }
                   })
                   .catch(()=>{});
               }

@@ -239,7 +239,10 @@ const vm = createApp({
 
   methods:{
     setBrandColor(t, cfg){
-      const color = cfg?.[t]?.color || '#002855';
+      let color = '#002855';
+      if (cfg && cfg[t] && cfg[t].color) {
+        color = cfg[t].color;
+      }
       document.documentElement.style.setProperty('--brand-color', color);
     },
 
@@ -252,14 +255,23 @@ const vm = createApp({
           fetch('https://js9467.github.io/Brtourney/settings.json')
             .then(r=>r.json())
             .then(all=>{
-              this.tournamentLogo = all[t]?.logo || '';
-              this.tournamentDate = all[t]?.dates || '';
+              if (all && all[t]) {
+                this.tournamentLogo = all[t].logo || '';
+                this.tournamentDate = all[t].dates || '';
+              } else {
+                this.tournamentLogo = '';
+                this.tournamentDate = '';
+              }
               this.setBrandColor(t, all);
               if(!this.tournamentDate){
                 fetch('/api/tournaments')
                   .then(r=>r.json())
                   .then(tt=>{
-                    this.tournamentDate = tt?.tournaments?.[t]?.label || '';
+                    if (tt && tt.tournaments && tt.tournaments[t]) {
+                      this.tournamentDate = tt.tournaments[t].label || '';
+                    } else {
+                      this.tournamentDate = '';
+                    }
                   })
                   .catch(()=>{});
               }
@@ -276,12 +288,25 @@ const vm = createApp({
         const obj=(data && typeof data==="object" && !Array.isArray(data))
           ? data
           : { [this.settings.tournament]: data || [] };
-        this.followed=Object.fromEntries(Object.entries(obj).filter(([k,v])=>Array.isArray(v)&&v.length));
+
+        const filtered={};
+        for(const [k,v] of Object.entries(obj)){
+          if(Array.isArray(v) && v.length) filtered[k]=v;
+        }
+        this.followed=filtered;
       }catch{this.followed={};}
     },
     async toggleFollow(boat,tournament=this.settings.tournament){
-      try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
-        const data=await r.json(); if(data.status==='ok') this.followed=Object.fromEntries(Object.entries(data.followed_boats||{}).filter(([k,v])=>Array.isArray(v)&&v.length));
+      try{
+        const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat,tournament})});
+        const data=await r.json();
+        if(data.status==='ok'){
+          const filtered={};
+          for(const [k,v] of Object.entries(data.followed_boats||{})){
+            if(Array.isArray(v) && v.length) filtered[k]=v;
+          }
+          this.followed=filtered;
+        }
 
       }catch(e){console.error('toggleFollow failed',e);}
     },

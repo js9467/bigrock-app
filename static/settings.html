@@ -7,7 +7,6 @@
   <script src="https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
     body { touch-action: manipulation; }
@@ -27,14 +26,6 @@
         <span v-else class="text-white text-base">Loading Logo...</span>
       </div>
       <div class="flex items-center gap-3">
-        <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
-          <button data-vhf-toggle class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">VHF ON</button>
-          <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
-            <span class="text-lg">🔊</span>
-            <input type="range" min="0" max="100" data-vhf-volume class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
-            <span data-vhf-volume-display class="w-8 text-right text-xs"></span>
-          </div>
-        </div>
         <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Home</a>
       </div>
     </header>
@@ -77,7 +68,7 @@
       <div>
         <label class="block font-semibold mb-1">Sound for Followed Boat Activity</label>
         <select v-model="settings.followed_sound" @change="onFollowedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option value="">None</option>
+          <option disabled value="">-- Select Sound --</option>
           <option v-for="s in availableSounds" :key="s.file" :value="s.file">{{ s.name }}</option>
         </select>
       </div>
@@ -85,7 +76,7 @@
       <div>
         <label class="block font-semibold mb-1">Sound for Any "Boated" Event</label>
         <select v-model="settings.boated_sound" @change="onBoatedSoundChange" class="w-full p-2 rounded border border-gray-400 bg-white text-black">
-          <option value="">None</option>
+          <option disabled value="">-- Select Sound --</option>
           <option v-for="s in availableSounds" :key="s.file" :value="s.file">{{ s.name }}</option>
         </select>
       </div>
@@ -103,7 +94,8 @@
           <input type="email" v-model="recipient.email" placeholder="name@example.com"
                  class="border px-2 py-1 rounded w-full mb-2"
                  @focus="launchKeyboard" @blur="hideKeyboard" />
-          <button @click="removeRecipient(index)"
+          <button v-if="recipients.length > 1"
+                  @click="removeRecipient(index)"
                   class="text-red-600 mt-1 text-sm hover:underline">
             Remove
           </button>
@@ -231,10 +223,6 @@
     </div>
   </div>
 
-  <audio id="radio-player" hidden></audio>
-
-  <script src="/static/js/vhf.js"></script>
-
   <script>
   const { createApp } = Vue;
 
@@ -326,8 +314,8 @@
           this.showToast(`✅ Test alert sent to ${res.data.success_count} recipients.`, 'success');
         }).catch(() => this.showToast('❌ Failed to send test alert.', 'error'));
       },
-      onFollowedSoundChange() { const f = this.settings.followed_sound; if (f) this.previewSound(f); this.saveSettings(); },
-      onBoatedSoundChange()   { const f = this.settings.boated_sound;   if (f) this.previewSound(f); this.saveSettings(); },
+      onFollowedSoundChange() { const f = this.settings.followed_sound; if (f) { this.previewSound(f); this.saveSettings(); } },
+      onBoatedSoundChange()   { const f = this.settings.boated_sound;   if (f) { this.previewSound(f); this.saveSettings(); } },
       onTournamentChange() { this.saveSettings(); this.updateTournamentLogo(); },
       setBrandColor(t){ const color = this.tournaments[t]?.color || '#002855'; document.documentElement.style.setProperty('--brand-color', color); },
       updateTournamentLogo() { const t = this.settings.tournament; this.tournamentLogo = this.tournaments[t]?.logo || ''; this.setBrandColor(t); },

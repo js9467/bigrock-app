@@ -6,7 +6,6 @@
   <title>Release Summary</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
@@ -23,14 +22,6 @@
       <span v-else class="text-white text-base">Loading Logo...</span>
     </div>
     <div class="flex items-center gap-3">
-      <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
-        <button data-vhf-toggle class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">VHF ON</button>
-        <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
-          <span class="text-lg">🔊</span>
-          <input type="range" min="0" max="100" data-vhf-volume class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
-          <span data-vhf-volume-display class="w-8 text-right text-xs"></span>
-        </div>
-      </div>
       <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
     </div>
   </header>
@@ -44,13 +35,7 @@
   <div class="p-6 max-w-6xl mx-auto w-full">
     <h1 class="text-2xl font-bold text-brand-blue mb-4">Release Summary</h1>
 
-    <div v-if="loading" class="text-gray-500 italic flex items-center">
-      <svg class="animate-spin h-5 w-5 mr-2 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-      </svg>
-      Loading release summary...
-    </div>
+    <div v-if="loading" class="text-gray-500 italic">Loading release summary...</div>
     <div v-else>
       <!-- Table -->
       <table class="w-full border border-gray-300 bg-white rounded shadow-md overflow-hidden mb-8">
@@ -77,38 +62,20 @@
       <!-- Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Stacked Bar Chart -->
-        <div class="bg-white rounded shadow-md p-4 relative">
+        <div class="bg-white rounded shadow-md p-4">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Daily Releases by Species</h2>
-          <div v-if="chartLoading.release" class="absolute inset-0 flex items-center justify-center bg-white/75">
-            <svg class="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-            </svg>
-          </div>
           <canvas id="releaseChart" height="200"></canvas>
         </div>
 
         <!-- Line Chart -->
-        <div class="bg-white rounded shadow-md p-4 relative">
+        <div class="bg-white rounded shadow-md p-4">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Total Releases Trend</h2>
-          <div v-if="chartLoading.trend" class="absolute inset-0 flex items-center justify-center bg-white/75">
-            <svg class="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-            </svg>
-          </div>
           <canvas id="trendChart" height="200"></canvas>
         </div>
 
         <!-- Smaller Doughnut Chart -->
-        <div class="bg-white rounded shadow-md p-4 lg:col-span-2 relative">
+        <div class="bg-white rounded shadow-md p-4 lg:col-span-2">
           <h2 class="text-lg font-bold text-brand-blue mb-4">Cumulative Species Distribution</h2>
-          <div v-if="chartLoading.species" class="absolute inset-0 flex items-center justify-center bg-white/75">
-            <svg class="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-            </svg>
-          </div>
           <div class="flex justify-center">
             <canvas id="speciesChart" class="max-w-[200px]" height="120" width="120"></canvas>
           </div>
@@ -124,13 +91,7 @@
         <h2 class="text-xl font-bold text-brand-blue">Releases for {{ formatDate(selectedDate) }}</h2>
         <button @click="closeModal" class="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
       </div>
-      <div v-if="drilldownLoading" class="text-gray-500 italic flex items-center">
-        <svg class="animate-spin h-4 w-4 mr-2 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-        </svg>
-        Loading boat details...
-      </div>
+      <div v-if="drilldownLoading" class="text-gray-500 italic">Loading boat details...</div>
       <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
           <img :src="boat.image || tournamentLogo" class="w-24 h-24 object-cover rounded mb-2" @error="e => e.target.src = tournamentLogo"/>
@@ -156,7 +117,6 @@ createApp({
       tournamentLogo: '',
       demoMode: false,
       charts: {},
-      chartLoading: { release: true, trend: true, species: true },
       showModal: false,
       selectedDate: '',
       drilldownBoats: [],
@@ -279,47 +239,39 @@ createApp({
     },
     renderCharts() {
       if (!this.summary.length) return;
-      this.chartLoading.release = true;
-      this.chartLoading.trend = true;
-      this.chartLoading.species = true;
       for (const key in this.charts) { this.charts[key].destroy(); }
 
-      this.$nextTick(() => {
-        const labels = this.summary.map(day => this.formatDate(day.date));
-        const blue = this.summary.map(day => day.blue_marlins);
-        const white = this.summary.map(day => day.white_marlins);
-        const sail = this.summary.map(day => day.sailfish);
-        const totals = this.summary.map(day => day.total_releases);
+      const labels = this.summary.map(day => this.formatDate(day.date));
+      const blue = this.summary.map(day => day.blue_marlins);
+      const white = this.summary.map(day => day.white_marlins);
+      const sail = this.summary.map(day => day.sailfish);
+      const totals = this.summary.map(day => day.total_releases);
 
-        const anim = { duration: 800, easing: 'easeOutQuart' };
+      const anim = { duration: 800, easing: 'easeOutQuart' };
 
-        this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
-          type: 'bar',
-          data: { labels, datasets: [
-            { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
-            { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
-            { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
-          ] },
-          options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
-        });
-        this.chartLoading.release = false;
+      this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
+        type: 'bar',
+        data: { labels, datasets: [
+          { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
+          { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
+          { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
+        ] },
+        options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+      });
 
-        this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
-          options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
-        });
-        this.chartLoading.trend = false;
+      this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
+        options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
+      });
 
-        const totalBlue = blue.reduce((a,b)=>a+b,0);
-        const totalWhite = white.reduce((a,b)=>a+b,0);
-        const totalSail = sail.reduce((a,b)=>a+b,0);
-        this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
-          type: 'doughnut',
-          data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
-          options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
-        });
-        this.chartLoading.species = false;
+      const totalBlue = blue.reduce((a,b)=>a+b,0);
+      const totalWhite = white.reduce((a,b)=>a+b,0);
+      const totalSail = sail.reduce((a,b)=>a+b,0);
+      this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
+        type: 'doughnut',
+        data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
+        options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
       });
     },
     openDrilldown(date) {
@@ -369,9 +321,6 @@ createApp({
   }
 }).mount('#app');
 </script>
-
-<audio id="radio-player" hidden></audio>
-<script src="/static/js/vhf.js"></script>
 
 </body>
 </html>

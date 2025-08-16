@@ -61,11 +61,11 @@
       <div class="flex flex-col sm:flex-row sm:flex-wrap items-center gap-6 w-full sm:w-auto sm:ml-auto">
         <!-- VHF Controls -->
         <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
-          <button @click="toggleRadio"
-                  class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">
-            {{ radioPlaying ? 'VHF OFF' : 'VHF ON' }}
+          <button @click="toggleRadio" :disabled="radioDisabled"
+                  class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ radioDisabled ? 'NO VHF' : (radioPlaying ? 'VHF OFF' : 'VHF ON') }}
           </button>
-          <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
+          <div v-if="!radioDisabled" class="flex items-center gap-2 text-sm text-white flex-nowrap">
             <span class="text-lg">🔊</span>
             <input type="range" min="0" max="100" v-model="settings.radio_volume"
                    @input="applyRadioVolume" class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
@@ -195,7 +195,7 @@ const vm = createApp({
       tournamentLogo: '', tournamentDate: '', version: '', loading: false,
       followed: [], lastEventTimestamps: new Set(),
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
-      radioPlaying:false, hls:null, error:null,
+      radioPlaying:false, hls:null, error:null, radioDisabled:false, streamUrl:'',
       messageQueue:[], currentMessage:'', messageTimer:null
     };
   },
@@ -203,13 +203,27 @@ const vm = createApp({
   mounted() {
     this.fetchSettings()
         .then(()=>this.loadFollowed())
+        .then(()=>this.checkStreamAvailability())
         .then(()=>{ this.setupMessages(); this.startMessageRotation(); this.fetchVersion();
           this.loadTournamentLogo(); this.loadParticipants(); this.fetchAll();
           setInterval(this.fetchAll, 30000); setInterval(this.loadParticipants, 10000);
-        });
 
-    const player=document.getElementById('radio-player');
-    if(player) player.volume=this.settings.radio_volume/100;
+          const player=document.getElementById('radio-player');
+          if(player) player.volume=this.settings.radio_volume/100;
+          const savedVol=localStorage.getItem('vhfVolume');
+          if(savedVol!==null){
+            this.settings.radio_volume=Number(savedVol);
+            this.applyRadioVolume();
+          }
+          if(localStorage.getItem('vhfPlaying')==='true' && !this.radioDisabled){
+            this.toggleRadio();
+            const resume=()=>{
+              if(player && player.paused){ player.play().catch(()=>{}); }
+            };
+            document.addEventListener('click',resume,{once:true});
+            document.addEventListener('touchstart',resume,{once:true});
+          }
+        });
 
     // Console sound test helpers
     window.playFollowed = () => this.playSound(this.settings.followed_sound);
@@ -311,28 +325,45 @@ const vm = createApp({
     },
     formatTime(ts){const dt=this.parseTs(ts);return dt?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';},
     formatDate(ts){const dt=this.parseTs(ts);return dt?dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}):'';},
-    applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;},
+    applyRadioVolume(){const p=document.getElementById('radio-player');if(p)p.volume=this.settings.radio_volume/100;localStorage.setItem('vhfVolume',this.settings.radio_volume);},
+    async checkStreamAvailability(){
+      try{
+        const all = await fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json());
+        const t = this.settings.tournament;
+        this.streamUrl = all[t]?.stream || all[t]?.fallback_stream || '';
+        if(!this.streamUrl){
+          this.radioDisabled = true;
+          localStorage.setItem('vhfPlaying','false');
+        }
+      }catch(e){
+        this.radioDisabled = true;
+        localStorage.setItem('vhfPlaying','false');
+      }
+    },
     toggleRadio(){
       const p=document.getElementById('radio-player');if(!p)return;
-      if(this.radioPlaying){p.pause();this.radioPlaying=false;}
+      if(this.radioPlaying){p.pause();this.radioPlaying=false;localStorage.setItem('vhfPlaying','false');}
       else{
-        fetch('/api/settings').then(r=>r.json()).then(s=>{
-          const t=s.tournament;
-          fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json()).then(all=>{
-            const stream=all[t]?.stream||all[t]?.fallback_stream;
-            if(stream){
-              if(Hls.isSupported()){
-                if(!this.hls)this.hls=new Hls();
-                this.hls.loadSource(stream);
-                this.hls.attachMedia(p);
-                this.hls.on(Hls.Events.MANIFEST_PARSED,()=>{p.play();});
-              }else{
-                p.src=stream;p.play();
-              }
-              this.radioPlaying=true;
-            }else alert('No VHF stream available.');
-          });
-        });
+        if(this.radioDisabled){alert('No VHF stream available.');return;}
+        if(!this.streamUrl){
+          this.checkStreamAvailability().then(()=>this.toggleRadio());
+          return;
+        }
+        const stream=this.streamUrl;
+        if(stream){
+          if(Hls.isSupported()){
+            if(!this.hls)this.hls=new Hls();
+            this.hls.loadSource(stream);
+            this.hls.attachMedia(p);
+            this.hls.on(Hls.Events.MANIFEST_PARSED,()=>{p.play();});
+          }else{
+            p.src=stream;p.play();
+          }
+          this.radioPlaying=true;localStorage.setItem('vhfPlaying','true');
+        }else{
+          alert('No VHF stream available.');
+          this.radioDisabled=true;localStorage.setItem('vhfPlaying','false');
+        }
       }
     },
     setupMessages(){this.messageQueue=[];if(!navigator.onLine)this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);this.updateDemoMessage();},

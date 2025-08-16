@@ -272,6 +272,7 @@ const vm = createApp({
       const obj=(data && typeof data==="object" && !Array.isArray(data))
         ? data
         : { [this.settings.tournament]: data || [] };
+<<<<<<
       const cleaned={};
       for(const k in obj){
         const v=obj[k];

@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory, send_file, abort, redirect
 from dateutil import parser as date_parser
 from datetime import datetime, timedelta, time as dt_time
+from zoneinfo import ZoneInfo
 import json
 import os
 from bs4 import BeautifulSoup
@@ -1321,14 +1322,19 @@ def scrape_events_route():
 
         all_events = data.get("events", [])
 
-        now = datetime.now()
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
         today = now.date()
 
         filtered = []
         for e in all_events:
             try:
                 original_ts = date_parser.parse(e["timestamp"])
-                ts = datetime.combine(today, original_ts.time())
+                if original_ts.tzinfo is None:
+                    original_ts = original_ts.replace(tzinfo=eastern)
+                else:
+                    original_ts = original_ts.astimezone(eastern)
+                ts = datetime.combine(today, original_ts.timetz())
             except Exception:
                 continue
 
@@ -1788,11 +1794,27 @@ def get_hooked_up_events():
     settings = load_settings()
     tournament = get_current_tournament()
     data_source = settings.get("data_source", "live").lower()
-    now_time = datetime.now().time()
+    eastern = ZoneInfo("America/New_York")
+    now = datetime.now(eastern)
 
     if data_source == "demo":
         data = load_demo_data(tournament)
-        events = [e for e in data.get("events", []) if date_parser.parse(e["timestamp"]).time() <= now_time]
+        events = []
+        for e in data.get("events", []):
+            try:
+                original_ts = date_parser.parse(e["timestamp"])
+                if original_ts.tzinfo is None:
+                    original_ts = original_ts.replace(tzinfo=eastern)
+                else:
+                    original_ts = original_ts.astimezone(eastern)
+                event_dt = datetime.combine(now.date(), original_ts.timetz())
+            except Exception:
+                continue
+            if event_dt <= now:
+                adjusted = dict(e)
+                adjusted["timestamp"] = event_dt.isoformat()
+                events.append(adjusted)
+
         # unresolved only (use hookup_id resolution pairing)
         resolved_ids = set()
         for e in events:
@@ -2216,8 +2238,21 @@ def release_summary_data():
         if demo_mode:
             data = load_demo_data(tournament)
             all_events = data.get("events", [])
-            now = datetime.now()
-            events = [e for e in all_events if date_parser.parse(e["timestamp"]).time() <= now.time()]
+            eastern = ZoneInfo("America/New_York")
+            now = datetime.now(eastern)
+            events = []
+            for e in all_events:
+                try:
+                    ts = date_parser.parse(e["timestamp"])
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=eastern)
+                    else:
+                        ts = ts.astimezone(eastern)
+                    event_today = datetime.combine(now.date(), ts.timetz())
+                except Exception:
+                    continue
+                if event_today <= now:
+                    events.append(e)
         else:
             events_file = get_cache_path(tournament, "events.json")
             events = safe_json_load(events_file, [])

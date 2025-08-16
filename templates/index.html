@@ -272,9 +272,13 @@ const vm = createApp({
       const obj=(data && typeof data==="object" && !Array.isArray(data))
         ? data
         : { [this.settings.tournament]: data || [] };
-      return Object.fromEntries(
-        Object.entries(obj).filter(([k,v])=>Array.isArray(v)&&v.length)
-      );
+<<<<<<
+      const cleaned={};
+      for(const k in obj){
+        const v=obj[k];
+        if(Array.isArray(v) && v.length) cleaned[k]=v;
+      }
+      return cleaned;
     },
     async loadFollowed(){
       try{

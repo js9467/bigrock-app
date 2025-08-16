@@ -475,6 +475,9 @@ def inject_hooked_up_events(events, tournament=None):
                 "details": "Hooked up!",
                 "hookup_id": key
             })
+            # Attach the same hookup_id to the resolution event so we can
+            # pair them later when filtering unresolved hooks
+            event["hookup_id"] = key
             inserted_keys.add(key)
         except Exception as e:
             print(f"⚠️ Demo injection failed for {boat}: {e}")
@@ -1821,8 +1824,9 @@ def get_hooked_up_events():
             if e["event"] in ["Released", "Boated"] or \
                "pulled hook" in e.get("details", "").lower() or \
                "wrong species" in e.get("details", "").lower():
-                key = f"{e['uid']}_{date_parser.parse(e['timestamp']).replace(microsecond=0).isoformat()}"
-                resolved_ids.add(key)
+                key = e.get("hookup_id")
+                if key:
+                    resolved_ids.add(key)
         hooked_feed = []
         for e in events:
             if e["event"] != "Hooked Up":

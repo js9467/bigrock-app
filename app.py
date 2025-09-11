@@ -2288,6 +2288,27 @@ def release_summary_data():
         return jsonify({"status": "error", "message": str(e)})
 
 # ------------------------
+# Parlay picks
+# ------------------------
+@app.route('/picks/parlay', methods=['POST'])
+def create_parlay():
+    """
+    Accepts a parlay bet submission.
+    Expects a JSON body with a "picks" field and a "code" query parameter.
+    Returns the submitted data for now so the client receives a successful response.
+    """
+    data = request.get_json(silent=True) or {}
+    code = request.args.get('code')
+    picks = data.get('picks')
+
+    if not code:
+        return jsonify({"status": "error", "message": "Missing 'code'"}), 400
+    if not picks:
+        return jsonify({"status": "error", "message": "Missing 'picks'"}), 400
+
+    return jsonify({"status": "ok", "code": code, "picks": picks})
+
+# ------------------------
 # Followed boats
 # ------------------------
 @app.route('/followed-boats', methods=['GET'])

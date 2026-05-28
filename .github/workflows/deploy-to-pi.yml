@@ -6,62 +6,46 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Generate dynamic version based on commit count
+      - name: Ensure passwordless sudo for service management
         run: |
+          RULE="pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigrock.service, /usr/bin/systemctl status bigrock.service"
+          if ! sudo grep -qF "bigrock.service" /etc/sudoers.d/bigrock-runner 2>/dev/null; then
+            echo "$RULE" | sudo tee /etc/sudoers.d/bigrock-runner
+            sudo chmod 440 /etc/sudoers.d/bigrock-runner
+          fi
+
+      - name: Pull latest code
+        run: |
+          cd /home/pi/bigrock-app
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Generate version file
+        run: |
+          cd /home/pi/bigrock-app
           VERSION="4.$(git rev-list --count HEAD)"
           echo "$VERSION" > version.txt
           echo "Generated version: $VERSION"
 
-      - name: Get list of changed files
+      - name: Detect changed files
         id: changed
         run: |
-          git fetch origin main --depth=2
-          FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
-          echo "$FILES" > files.txt
-          echo "files=$(paste -sd "," files.txt)" >> $GITHUB_OUTPUT
-          if grep -Ei '\.py$' files.txt; then
+          cd /home/pi/bigrock-app
+          FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          if echo "$FILES" | grep -qE '\.py$'; then
             echo "py_changed=true" >> $GITHUB_ENV
           else
             echo "py_changed=false" >> $GITHUB_ENV
           fi
-
-      - name: Clean up rogue app.py in home
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          script: |
-            echo "🧹 Removing rogue /home/pi/app.py if it exists..."
-            rm -f /home/pi/app.py
-
-      - name: Upload all source files to Raspberry Pi
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          source: "./*,./static/**,./templates/**,version.txt"
-          target: /home/pi/bigrock-app
-          overwrite: true
+          echo "Changed files: $FILES"
 
       - name: Restart bigrock.service if Python files changed
         if: env.py_changed == 'true'
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 64.99.148.73
-          username: pi
-          key: ${{ secrets.PI_SSH_KEY }}
-          script: |
-            echo "🔁 Restarting bigrock.service..."
-            sudo systemctl restart bigrock.service
-            sleep 2
-            sudo systemctl status bigrock.service
+        run: |
+          echo "🔁 Restarting bigrock.service..."
+          sudo systemctl restart bigrock.service
+          sleep 2
+          sudo systemctl status bigrock.service --no-pager

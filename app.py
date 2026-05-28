@@ -790,78 +790,113 @@ def scrape_events(force: bool = False, tournament: str | None = None):
 
         all_events, seen = [], set()
 
-        # Regex: "Boat Name · 5d" or "Boat Name · 2h" (ReelTime 2025+ feed structure)
-        _FEED_RE = re.compile(r'^(.{2,60}?)\s*[·•]\s*(\d+\s*[smhdw])\s*$', re.UNICODE)
-        # Labels to skip when extracting description lines
+        # Labels/patterns to skip when extracting description lines
         _SKIP_LABELS = {
             'score alert', 'photo', 'video', 'message', 'stats', 'all',
             'scores', 'photos', 'videos', 'messages', 'posts', 'feed',
         }
-        # Reaction emoji line pattern
         _REACT_RE = re.compile(r'^[\U0001F44D\U00002764\U0001F3C6\U0001F41F'
-                               r'\U0001F4AA\U0001F389\U0001F4B0\s]+$')
+                               r'\U0001F4AA\U0001F389\U0001F4B0\U0001F600-\U0001F64F'
+                               r'\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\s]+$')
+        # Header pattern: "Boat · Xd" — the · may be on its own line due to HTML structure
+        _HEADER_RE = re.compile(r'^(.{2,60}?)\s*[·•]\s*(\d+\s*[smhdw])\s*$', re.UNICODE)
+        _DESC_RE   = re.compile(r'released|boated|hooked|pulled hook|wrong species', re.I)
 
         def parse_events_from_soup(soup):
             found = 0
-            checked = set()
 
-            # Strategy 1: "Boat · Xd" pattern (new ReelTime structure)
-            for el in soup.find_all(True):
-                eid = id(el)
-                if eid in checked:
-                    continue
-                checked.add(eid)
+            # Strategy 1: full-page text-line scan (structure-independent)
+            # Gets all rendered text, handles any HTML nesting
+            raw_lines = [l.strip() for l in soup.get_text('\n').splitlines() if l.strip()]
 
-                el_text = el.get_text(' ', strip=True)
-                m = _FEED_RE.match(el_text)
-                if not m:
-                    continue
+            # Reassemble split headers: if line[i+1] == '·' and line[i+2] is a time, join them
+            lines = []
+            i = 0
+            while i < len(raw_lines):
+                rl = raw_lines[i]
+                if (i + 2 < len(raw_lines)
+                        and raw_lines[i + 1].strip() in ('·', '•', '\u00b7')
+                        and re.match(r'^\d+\s*[smhdw]$', raw_lines[i + 2])):
+                    lines.append(f"{rl} · {raw_lines[i + 2]}")
+                    i += 3
+                else:
+                    lines.append(rl)
+                    i += 1
 
-                boat = m.group(1).strip()
-                time_str = m.group(2).strip()
-                if not _is_valid_boat_name(boat):
-                    continue
+            i = 0
+            while i < len(lines):
+                m = _HEADER_RE.match(lines[i])
+                if m:
+                    boat     = m.group(1).strip()
+                    time_str = m.group(2).strip()
+                    if _is_valid_boat_name(boat):
+                        ts_dt = _parse_relative_time(time_str)
+                        if ts_dt:
+                            desc = ''
+                            for j in range(i + 1, min(i + 10, len(lines))):
+                                jl = lines[j]
+                                if _HEADER_RE.match(jl):
+                                    break
+                                if jl.lower() in _SKIP_LABELS or _REACT_RE.match(jl):
+                                    continue
+                                if _DESC_RE.search(jl):
+                                    desc = jl
+                                    break
+                            if desc:
+                                uid = normalize_boat_name(boat)
+                                if uid in participants:
+                                    boat = participants[uid]['boat']
+                                event_type = _classify_event(desc)
+                                dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                                if dkey not in seen:
+                                    seen.add(dkey)
+                                    all_events.append({
+                                        'timestamp': ts_dt.isoformat(),
+                                        'event':     event_type,
+                                        'boat':      boat,
+                                        'uid':       uid,
+                                        'details':   desc,
+                                    })
+                                    found += 1
+                i += 1
 
-                ts_dt = _parse_relative_time(time_str)
-                if not ts_dt:
-                    continue
-
-                # Extract description from child text lines
-                lines = [l.strip() for l in el.get_text('\n').splitlines() if l.strip()]
-                desc = ''
-                for line in lines:
-                    if _FEED_RE.match(line):
+            # Strategy 2: regex search on space-joined page text
+            # Catches cases where · is not on its own line but adjacent to name/time
+            if found == 0:
+                flat = re.sub(r'\s+', ' ', soup.get_text(' '))
+                for m in re.finditer(
+                    r'(\b\S[^·•\n]{1,59}?)\s*[·•]\s*(\d+\s*[smhdw])\b',
+                    flat
+                ):
+                    boat     = m.group(1).strip()
+                    time_str = m.group(2).strip()
+                    if not _is_valid_boat_name(boat):
                         continue
-                    if line.lower() in _SKIP_LABELS or _REACT_RE.match(line):
+                    ts_dt = _parse_relative_time(time_str)
+                    if not ts_dt:
                         continue
-                    if re.search(r'released|boated|hooked|pulled hook|wrong species', line, re.I):
-                        desc = line
-                        break
+                    after = flat[m.end():m.end() + 600]
+                    dm = re.search(
+                        r'([A-Z][^.!?]{3,150}?(?:released|boated|hooked up|pulled hook|wrong species)[^.!?]{0,100}[.!?]?)',
+                        after, re.I
+                    )
+                    if not dm:
+                        continue
+                    desc = dm.group(1).strip()
+                    uid  = normalize_boat_name(boat)
+                    if uid in participants:
+                        boat = participants[uid]['boat']
+                    event_type = _classify_event(desc)
+                    dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                    if dkey not in seen:
+                        seen.add(dkey)
+                        all_events.append({
+                            'timestamp': ts_dt.isoformat(), 'event': event_type,
+                            'boat': boat, 'uid': uid, 'details': desc,
+                        })
+                        found += 1
 
-                if not desc:
-                    continue
-
-                uid = normalize_boat_name(boat)
-                if uid in participants:
-                    boat = participants[uid]['boat']
-
-                event_type = _classify_event(desc)
-                # Deduplicate by boat + type + calendar day
-                dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
-                if dkey in seen:
-                    continue
-                seen.add(dkey)
-
-                all_events.append({
-                    'timestamp': ts_dt.isoformat(),
-                    'event': event_type,
-                    'boat': boat,
-                    'uid': uid,
-                    'details': desc,
-                })
-                found += 1
-
-            # Strategy 2: article/element selectors (old site fallback)
+            # Strategy 3: old element/attribute selectors (legacy sites)
             if found == 0:
                 for article in soup.select(
                     'article.m-b-20, article.entry, div.activity, li.event, div.feed-item'
@@ -880,19 +915,18 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                             continue
                     boat = name_tag.get_text(strip=True)
                     desc = desc_tag.get_text(strip=True)
-                    uid = normalize_boat_name(boat)
+                    uid  = normalize_boat_name(boat)
                     if uid in participants:
                         boat = participants[uid]['boat']
                     event_type = _classify_event(desc)
                     dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
-                    if dkey in seen:
-                        continue
-                    seen.add(dkey)
-                    all_events.append({
-                        'timestamp': ts_dt.isoformat(), 'event': event_type,
-                        'boat': boat, 'uid': uid, 'details': desc,
-                    })
-                    found += 1
+                    if dkey not in seen:
+                        seen.add(dkey)
+                        all_events.append({
+                            'timestamp': ts_dt.isoformat(), 'event': event_type,
+                            'boat': boat, 'uid': uid, 'details': desc,
+                        })
+                        found += 1
 
             return found
 
@@ -1030,67 +1064,85 @@ def scrape_leaderboard(tournament=None, force: bool = False):
                 continue
             h3_cats.append((txt, h3))
 
+        def _add_lb_entry(cat_name, boat_name, score, sib_text, rank, angler=None):
+            """Append one leaderboard entry and return new rank."""
+            if not boat_name or not _is_valid_boat_name(boat_name):
+                return rank
+            uid = normalize_boat_name(boat_name or angler or f'rank_{rank}')
+            img_src = img_map.get((boat_name or '').lower())
+            if img_src and boat_name:
+                IMAGE_SOURCES[uid] = (boat_name, img_src, leaderboard_url)
+            leaderboard.append({
+                'rank_raw': str(rank),
+                'category': cat_name,
+                'angler':   angler,
+                'boat':     boat_name,
+                'type':     None,
+                'points':   score,
+                'points_num': parse_points_number(score),
+                'uid':      uid,
+                'image_path': f'/boat-image/{uid}',
+            })
+            return rank + 1
+
+        def _extract_entry(el_text, el, cat_name):
+            """Return (boat_name, score, angler) from element text, or None."""
+            tl = el_text.lower()
+            if not el_text or any(tl.startswith(s) for s in _LB_SKIP):
+                return None
+            pm = _PTS_RE.search(el_text)
+            tm = _TIME_RE.search(el_text)
+            wm = _WGHT_RE.search(el_text)
+            score_m = pm or tm or wm
+            if not score_m:
+                return None
+            score = score_m.group(0)
+            img_tag = el.find('img') if hasattr(el, 'find') else None
+            boat_name = (img_tag.get('alt') or '').strip() if img_tag else ''
+            if not boat_name:
+                boat_name = re.sub(re.escape(score) + r'.*$', '', el_text).strip().split('\n')[0].strip()
+            angler = None
+            if wm and not pm and not any(b in el_text.lower() for b in KNOWN_BUILDERS):
+                angler, boat_name = boat_name, None
+            return boat_name, score, angler
+
         if h3_cats:
             for cat_name, h3_el in h3_cats:
                 rank = 1
+                seen_lb = set()
                 for sib in h3_el.next_siblings:
                     if getattr(sib, 'name', None) == 'h3':
                         break
-                    sib_text = sib.get_text(' ', strip=True) if hasattr(sib, 'get_text') else ''
+                    if not hasattr(sib, 'get_text'):
+                        continue
+                    sib_text = sib.get_text(' ', strip=True)
                     if not sib_text:
                         continue
-                    tl = sib_text.lower()
-                    if any(tl.startswith(s) for s in _LB_SKIP):
-                        continue
 
-                    # Score extraction — prefer pts, then time, then weight
-                    pm = _PTS_RE.search(sib_text)
-                    tm = _TIME_RE.search(sib_text)
-                    wm = _WGHT_RE.search(sib_text)
-                    if pm:
-                        score = pm.group(0)
-                    elif tm:
-                        score = tm.group(0)
-                    elif wm:
-                        score = wm.group(0)
+                    # If this sibling has multiple score entries, recurse into children
+                    all_scores = list(_PTS_RE.finditer(sib_text)) + \
+                                 list(_TIME_RE.finditer(sib_text)) + \
+                                 list(_WGHT_RE.finditer(sib_text))
+                    if len(all_scores) > 1:
+                        for child in sib.find_all(True):
+                            ct = child.get_text(' ', strip=True)
+                            if not ct or len(ct) > 300:
+                                continue
+                            result = _extract_entry(ct, child, cat_name)
+                            if result:
+                                bname, score, angler = result
+                                key = (bname or angler or '').lower()
+                                if key and key not in seen_lb:
+                                    seen_lb.add(key)
+                                    rank = _add_lb_entry(cat_name, bname, score, ct, rank, angler)
                     else:
-                        continue
-
-                    # Boat name: prefer img alt, else text before the score
-                    img_tag = sib.find('img') if hasattr(sib, 'find') else None
-                    boat_name = (img_tag.get('alt') or '').strip() if img_tag else ''
-                    if not boat_name:
-                        boat_name = re.sub(
-                            re.escape(score) + r'.*$', '', sib_text
-                        ).strip().split('\n')[0].strip()
-
-                    if not boat_name or not _is_valid_boat_name(boat_name):
-                        continue
-
-                    angler = None
-                    # Treat as angler-category if the score is a weight
-                    if wm and not pm and not any(
-                        b in sib_text.lower() for b in KNOWN_BUILDERS
-                    ):
-                        angler, boat_name = boat_name, None
-
-                    uid = normalize_boat_name(boat_name or angler or f'rank_{rank}')
-                    img_src = img_map.get((boat_name or '').lower())
-                    if img_src and boat_name:
-                        IMAGE_SOURCES[uid] = (boat_name, img_src, leaderboard_url)
-
-                    leaderboard.append({
-                        'rank_raw': str(rank),
-                        'category': cat_name,
-                        'angler': angler,
-                        'boat': boat_name,
-                        'type': None,
-                        'points': score,
-                        'points_num': parse_points_number(score),
-                        'uid': uid,
-                        'image_path': f'/boat-image/{uid}',
-                    })
-                    rank += 1
+                        result = _extract_entry(sib_text, sib, cat_name)
+                        if result:
+                            bname, score, angler = result
+                            key = (bname or angler or '').lower()
+                            if key and key not in seen_lb:
+                                seen_lb.add(key)
+                                rank = _add_lb_entry(cat_name, bname, score, sib_text, rank, angler)
 
         # Strategy 2: tab/table structure (old sites fallback)
         if not leaderboard:

@@ -103,7 +103,7 @@ if (-not $outPath.EndsWith('.gz')) { $outPath += '.gz' }
 # ---------------------------------------------------------------------------
 $diskPath   = "\\.\PhysicalDrive$($disk.Number)"
 $totalBytes = $disk.Size
-$blockSize  = 4 * 1024 * 1024  # 4 MB chunks
+$blockSize  = [long](4 * 1024 * 1024)  # 4 MB chunks
 
 Write-Host ""
 Write-Host "Reading Disk $($disk.Number) -> $outPath" -ForegroundColor Cyan
@@ -146,7 +146,7 @@ try {
 } catch {
     Write-Host ""
     Write-Host "ERROR: $_" -ForegroundColor Red
-    if (Test-Path $outPath) { Remove-Item $outPath -Force }
+    try { if (Test-Path $outPath) { Remove-Item $outPath -Force } } catch { }
     Read-Host "Press Enter to exit"
     exit 1
 }

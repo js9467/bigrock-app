@@ -41,7 +41,7 @@ $SUDO apt-get update -y
 $SUDO apt-get install -y \
     python3-pip python3-venv python3-dev \
     git curl unclutter \
-    chromium-browser \
+    chromium \
     build-essential libssl-dev libffi-dev \
     network-manager \
     labwc wlr-randr
@@ -139,7 +139,7 @@ cat << 'EOF' > /home/pi/.config/labwc/autostart
 # Hide mouse cursor after 5s of inactivity
 unclutter -idle 5 -root &
 # Launch app in kiosk mode
-chromium-browser \
+chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \

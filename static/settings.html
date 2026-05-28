@@ -254,7 +254,6 @@
         },
         tournaments: {},
         apiTournamentLabels: {},
-        fallbackStream: '',
         wifiNetworks: [],
         wifiStatus: { connected: null },   // NEW: mirrors Bluetooth-style status
         bluetoothDevices: [],
@@ -421,42 +420,30 @@
         const storedVol = localStorage.getItem('event_volume');
         if (storedVol) this.settings.event_volume = parseInt(storedVol, 10);
 
-        axios.get('https://js9467.github.io/Brtourney/settings.json').then(res2 => {
-          this.fallbackStream = res2.data?.fallback_stream || '';
-          const manualEntries = Object.fromEntries(
-            Object.entries(res2.data || {}).filter(([name, val]) =>
-              name !== 'fallback_stream' && val && typeof val === 'object' && !Array.isArray(val)
-            )
-          );
-          // Merge ReelTime live tournaments into dropdown
-          axios.get('/api/reeltime-live').then(resLive => {
-            const liveEntries = resLive.data?.tournaments || {};
-            // Live entries first, manual config overrides (for stream URLs, custom logos)
-            this.tournaments = { ...liveEntries, ...manualEntries };
+        // Load tournaments: live scraper only (no external JSON dependency)
+        axios.get('/api/reeltime-live').then(resLive => {
+          this.tournaments = resLive.data?.tournaments || {};
+        }).catch(() => {
+          this.tournaments = {};
+        }).finally(() => {
+          axios.get('/api/tournaments').then(res3 => {
+            this.apiTournamentLabels = res3.data?.tournaments || {};
+            // Backfill labels, logos, and stream URLs from the index
+            for (const [name, info] of Object.entries(this.apiTournamentLabels)) {
+              if (!this.tournaments[name]) this.tournaments[name] = {};
+              if (!this.tournaments[name].label && info.label) this.tournaments[name].label = info.label;
+              if (!this.tournaments[name].logo && info.logo) this.tournaments[name].logo = info.logo;
+              if (!this.tournaments[name].stream && info.stream) this.tournaments[name].stream = info.stream;
+            }
+            if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+              this.settings.tournament = '';
+            }
+            this.updateTournamentLogo();
           }).catch(() => {
-            this.tournaments = manualEntries;
-          }).finally(() => {
-            axios.get('/api/tournaments').then(res3 => {
-              this.apiTournamentLabels = res3.data?.tournaments || {};
-              // Backfill logos/URLs from the index into any entry that's missing them
-              for (const [name, info] of Object.entries(this.apiTournamentLabels)) {
-                if (!this.tournaments[name]) {
-                  this.tournaments[name] = {};
-                }
-                if (!this.tournaments[name].logo && info.logo) {
-                  this.tournaments[name].logo = info.logo;
-                }
-              }
-              if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-                this.settings.tournament = '';
-              }
-              this.updateTournamentLogo();
-            }).catch(() => {
-              if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-                this.settings.tournament = '';
-              }
-              this.updateTournamentLogo();
-            });
+            if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+              this.settings.tournament = '';
+            }
+            this.updateTournamentLogo();
           });
         });
       });

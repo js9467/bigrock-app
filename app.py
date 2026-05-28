@@ -79,6 +79,18 @@ TOURNAMENTS_CACHE = "cache/tournaments.json"
 REELTIME_LIVE_CACHE = "cache/reeltime_live.json"
 REELTIME_LIVE_URL = "https://www.reeltime.app/tournaments?filter=live"
 
+# VHF radio streams — keyed by slug substrings.
+# Any tournament whose slug contains one of these keys gets the stream URL.
+# Only the Big Rock series (Big Rock, KWLA, Kids Tournament) uses VHF radio.
+_BIGROCK_STREAM = "https://cs.ebmcdn.net/eastbay-live-hs-1/event/mp4:bigrockradio/playlist.m3u8"
+VHF_STREAMS = {
+    "the-big-rock":    _BIGROCK_STREAM,
+    "big-rock-triple": _BIGROCK_STREAM,
+    "kwla":            _BIGROCK_STREAM,
+    "big-rock-kids":   _BIGROCK_STREAM,
+    "bigrockradio":    _BIGROCK_STREAM,
+}
+
 # HTTP session (faster + connection reuse) & suppress SSL warnings for verify=False
 SESS = requests.Session()
 try:
@@ -443,6 +455,8 @@ def scrape_reeltime_live_tournaments(force: bool = False) -> dict:
             logo = img.get('src') or img.get('data-src') or ''
 
         base = f"https://www.reeltime.app/tournaments/{slug}/{year}"
+        # Assign VHF stream URL if this is a Big Rock series tournament
+        stream_url = next((url for key, url in VHF_STREAMS.items() if key in slug), '')
         results[name] = {
             'uid':          f"{slug}_{year}",
             'participants': f"{base}/participants",
@@ -450,6 +464,7 @@ def scrape_reeltime_live_tournaments(force: bool = False) -> dict:
             'leaderboard':  f"{base}/leaderboards",
             'logo':         logo,
             'dates':        dates_str,
+            'stream':       stream_url,
         }
 
     if results:
@@ -501,8 +516,8 @@ def build_tournaments_index(force: bool = False):
         # Try cache first to avoid re-scraping
         if not force and name in cached and cached[name].get('start') and cached[name].get('end'):
             entry = dict(cached[name])
-            # Carry forward URL fields from merged so they're in the response
-            for k in ('participants', 'events', 'leaderboard', 'logo', 'uid'):
+            # Carry forward URL/stream fields from merged so they're in the response
+            for k in ('participants', 'events', 'leaderboard', 'logo', 'uid', 'stream'):
                 if k in vals:
                     entry[k] = vals[k]
             out[name] = entry
@@ -514,7 +529,7 @@ def build_tournaments_index(force: bool = False):
             if s_dt and e_dt:
                 label = _nice_range_label(s_dt, e_dt)
                 entry = {'start': s_dt.strftime('%Y-%m-%d'), 'end': e_dt.strftime('%Y-%m-%d'), 'label': label}
-                for k in ('participants', 'events', 'leaderboard', 'logo', 'uid'):
+                for k in ('participants', 'events', 'leaderboard', 'logo', 'uid', 'stream'):
                     if k in vals:
                         entry[k] = vals[k]
                 out[name] = entry
@@ -539,7 +554,7 @@ def build_tournaments_index(force: bool = False):
             entry = {'start': s_dt.strftime('%Y-%m-%d'), 'end': e_dt.strftime('%Y-%m-%d'), 'label': label}
         else:
             entry = {'start': None, 'end': None, 'label': ''}
-        for k in ('participants', 'events', 'leaderboard', 'logo', 'uid'):
+        for k in ('participants', 'events', 'leaderboard', 'logo', 'uid', 'stream'):
             if k in vals:
                 entry[k] = vals[k]
         out[name] = entry

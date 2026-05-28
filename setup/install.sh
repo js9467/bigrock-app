@@ -2,9 +2,12 @@
 # =============================================================================
 # BigRock App — Fresh Raspberry Pi Setup Script
 # =============================================================================
-# Run once on a brand-new Pi (Raspberry Pi OS Bookworm 64-bit recommended):
+# Can be run two ways:
 #
-#   curl -sSL https://raw.githubusercontent.com/js9467/bigrock-app/main/setup/install.sh | bash
+#   A) Manually via SSH as the pi user:
+#      curl -sSL https://raw.githubusercontent.com/js9467/bigrock-app/main/setup/install.sh | bash
+#
+#   B) Automatically on first boot via firstrun.sh (runs as pi, firstrun runs as root)
 #
 # This script:
 #   1. Installs system dependencies
@@ -16,6 +19,10 @@
 #   7. Sets up auto-login on tty1
 # =============================================================================
 set -euo pipefail
+
+# Works whether run as pi (manual) or as pi via su from root (firstrun.sh)
+SUDO="sudo"
+if [ "$(id -u)" = "0" ]; then SUDO=""; fi
 
 APP_DIR="/home/pi/bigrock-app"
 REPO_URL="https://github.com/js9467/bigrock-app.git"
@@ -30,8 +37,8 @@ echo "Running as: $(whoami)"
 # ---------------------------------------------------------------------------
 echo ""
 echo ">>> Installing system packages..."
-sudo apt-get update -y
-sudo apt-get install -y \
+$SUDO apt-get update -y
+$SUDO apt-get install -y \
     python3-pip python3-venv python3-dev \
     git curl unclutter \
     chromium-browser \
@@ -84,10 +91,13 @@ SUDOERS_CONTENT="pi ALL=(ALL) NOPASSWD: \
 /usr/bin/systemctl status bigrock.service, \
 /usr/bin/systemctl restart bigrock-update.service, \
 /usr/bin/systemctl disable bigrock-wifi-setup.service, \
+/usr/bin/systemctl daemon-reload, \
+/usr/bin/apt-get, \
 /usr/bin/nmcli, \
-/sbin/reboot"
-echo "$SUDOERS_CONTENT" | sudo tee /etc/sudoers.d/bigrock > /dev/null
-sudo chmod 440 /etc/sudoers.d/bigrock
+/sbin/reboot, \
+/usr/bin/bash $APP_DIR/setup/services/bigrock-upgrade.sh"
+echo "$SUDOERS_CONTENT" | $SUDO tee /etc/sudoers.d/bigrock > /dev/null
+$SUDO chmod 440 /etc/sudoers.d/bigrock
 echo "Sudoers rule written to /etc/sudoers.d/bigrock"
 
 # ---------------------------------------------------------------------------
@@ -95,14 +105,14 @@ echo "Sudoers rule written to /etc/sudoers.d/bigrock"
 # ---------------------------------------------------------------------------
 echo ""
 echo ">>> Installing systemd services..."
-sudo cp "$APP_DIR/setup/services/"*.service /etc/systemd/system/
+$SUDO cp "$APP_DIR/setup/services/"*.service /etc/systemd/system/
 if ls "$APP_DIR/setup/services/"*.timer 1>/dev/null 2>&1; then
-    sudo cp "$APP_DIR/setup/services/"*.timer /etc/systemd/system/
+    $SUDO cp "$APP_DIR/setup/services/"*.timer /etc/systemd/system/
 fi
-sudo systemctl daemon-reload
-sudo systemctl enable bigrock.service
-sudo systemctl enable bigrock-update.timer
-sudo systemctl enable bigrock-wifi-setup.service
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable bigrock.service
+$SUDO systemctl enable bigrock-update.timer
+$SUDO systemctl enable bigrock-wifi-setup.service
 echo "Services enabled."
 
 # ---------------------------------------------------------------------------
@@ -110,8 +120,8 @@ echo "Services enabled."
 # ---------------------------------------------------------------------------
 echo ""
 echo ">>> Configuring auto-login..."
-sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat << 'EOF' | sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf > /dev/null
+$SUDO mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat << 'EOF' | $SUDO tee /etc/systemd/system/getty@tty1.service.d/autologin.conf > /dev/null
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM
@@ -164,8 +174,11 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
-# Done
+# Done — stamp the deployed version so update script knows what's installed
 # ---------------------------------------------------------------------------
+REPO_VERSION=$(cat "$APP_DIR/setup/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "1")
+echo "$REPO_VERSION" > /home/pi/.bigrock-version
+echo "Deployed version stamped: $REPO_VERSION"
 echo ""
 echo "===== BigRock Setup Complete ====="
 echo ""

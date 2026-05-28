@@ -37,9 +37,10 @@ systemctl stop bigrock.service            2>/dev/null || true
 systemctl stop bigrock-update.timer       2>/dev/null || true
 systemctl stop bigrock-update.service     2>/dev/null || true
 systemctl stop bigrock-wifi-setup.service 2>/dev/null || true
-# Stop GitHub Actions runner if present (not needed on kiosk clones)
-systemctl stop  actions.runner.* 2>/dev/null || true
+# Stop and remove GitHub Actions runner (not needed on kiosk clones)
+systemctl stop actions.runner.* 2>/dev/null || true
 systemctl disable actions.runner.* 2>/dev/null || true
+rm -rf /home/pi/actions-runner
 
 # ---------------------------------------------------------------------------
 # Clear unique machine identifiers (regenerated on each clone's first boot)

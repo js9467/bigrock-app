@@ -1,0 +1,17 @@
+[Unit]
+Description=BigRock First-Boot Individualizer
+# Run early - before SSH and before the app
+After=local-fs.target
+Before=ssh.service network.target
+# Only run while the script file exists (self-removes after first run)
+ConditionPathExists=/usr/local/bin/bigrock-firstboot.sh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/bin/bigrock-firstboot.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

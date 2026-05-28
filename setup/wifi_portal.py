@@ -4,8 +4,9 @@ BigRock First-Boot WiFi Setup Portal
 =====================================
 On first boot (when no WiFi is configured), this script:
   1. Scans for available WiFi networks
-  2. Creates a hotspot named "BigRock-Setup" (password: bigrock1234) using NetworkManager
-  3. Runs a web portal at http://10.42.0.1 where the user enters their WiFi credentials
+  2. Creates an open hotspot named "BigRock-Setup" (no password) using NetworkManager
+  3. Configures DNS spoofing so phones auto-pop the captive portal browser
+  4. Runs a web portal at http://10.42.0.1 where the user enters their WiFi credentials
   4. Connects the Pi to the selected network, disables the hotspot, and reboots
 
 Run as root (required for nmcli connection management and binding to port 80).
@@ -14,16 +15,16 @@ import subprocess
 import sys
 import time
 import os
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, redirect as flask_redirect
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 HOTSPOT_SSID = "BigRock-Setup"
-HOTSPOT_PASS = "bigrock1234"
 HOTSPOT_IP   = "10.42.0.1"
 PORTAL_PORT  = 80
 FLAG_FILE    = "/home/pi/.bigrock-wifi-configured"
+DNSMASQ_CONF = "/etc/NetworkManager/dnsmasq-shared.d/bigrock-portal.conf"
 
 app = Flask(__name__)
 _scanned_networks: list[dict] = []
@@ -159,8 +160,16 @@ def scan_networks() -> list[dict]:
     return nets[:25]
 
 
+def setup_captive_portal_dns() -> None:
+    """Tell NM's built-in dnsmasq to answer ALL DNS queries with our IP.
+    This causes phones/laptops to auto-pop the captive portal browser."""
+    os.makedirs(os.path.dirname(DNSMASQ_CONF), exist_ok=True)
+    with open(DNSMASQ_CONF, 'w') as f:
+        f.write(f'address=/#/{HOTSPOT_IP}\n')
+
+
 def create_hotspot() -> None:
-    """Create a NetworkManager WiFi hotspot."""
+    """Create an open (no password) NetworkManager WiFi hotspot."""
     # Remove any existing connection with the same name
     _run(['nmcli', 'connection', 'delete', HOTSPOT_SSID])
 
@@ -175,8 +184,6 @@ def create_hotspot() -> None:
         '802-11-wireless.band', 'bg',
         'ipv4.method', 'shared',
         'ipv4.addresses', f'{HOTSPOT_IP}/24',
-        'wifi-sec.key-mgmt', 'wpa-psk',
-        'wifi-sec.psk', HOTSPOT_PASS,
     ], check=True)
     subprocess.run(['nmcli', 'connection', 'up', HOTSPOT_SSID], check=True)
     time.sleep(3)  # let DHCP settle
@@ -195,6 +202,20 @@ def connect_wifi(ssid: str, password: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 # Flask routes
 # ---------------------------------------------------------------------------
+
+# Captive portal detection — iOS, Android, Windows all probe these URLs.
+# Returning a redirect (instead of the expected "Success"/204/etc.) tells
+# the OS to open its captive portal browser automatically.
+@app.route('/hotspot-detect.html')        # iOS / macOS
+@app.route('/library/test/success.html')  # older iOS
+@app.route('/generate_204')               # Android
+@app.route('/connecttest.txt')            # Windows
+@app.route('/ncsi.txt')                   # Windows NCSI
+@app.route('/success.txt')
+def captive_check():
+    return flask_redirect(f'http://{HOTSPOT_IP}/', 302)
+
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def index(path=''):
@@ -242,7 +263,10 @@ def main():
     _scanned_networks = scan_networks()
     print(f"Found {len(_scanned_networks)} network(s).")
 
-    print(f"Creating hotspot '{HOTSPOT_SSID}'...")
+    print(f"Setting up captive portal DNS...")
+    setup_captive_portal_dns()
+
+    print(f"Creating hotspot '{HOTSPOT_SSID}' (open, no password)...")
     try:
         create_hotspot()
     except subprocess.CalledProcessError as e:
@@ -250,7 +274,7 @@ def main():
         print("Portal will still run — user must manually navigate to the Pi's IP.")
 
     print(f"Portal running at http://{HOTSPOT_IP}:{PORTAL_PORT}")
-    print(f"Connect your phone/laptop to WiFi '{HOTSPOT_SSID}' (password: {HOTSPOT_PASS})")
+    print(f"Connect your phone/laptop to open WiFi '{HOTSPOT_SSID}' — portal will pop up automatically")
     app.run(host='0.0.0.0', port=PORTAL_PORT, debug=False)
 
 

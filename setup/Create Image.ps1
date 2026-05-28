@@ -113,7 +113,7 @@ Write-Host ""
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
-    $diskStream = [System.IO.File]::Open($diskPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+    $diskStream = [System.IO.File]::Open($diskPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
     $fileStream = [System.IO.File]::Create($outPath)
     $gzipStream = [System.IO.Compression.GZipStream]::new($fileStream, [System.IO.Compression.CompressionLevel]::Optimal)
 

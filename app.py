@@ -508,6 +508,67 @@ def build_demo_cache(tournament: str) -> int:
 # ------------------------
 # Scrapers
 # ------------------------
+
+# ---- Shared scraper helpers ----
+
+def _parse_relative_time(text: str):
+    """Convert relative strings like '5d', '2h', '1w', '30m' to absolute datetime."""
+    text = (text or "").strip().lower()
+    m = re.match(r'^(\d+)\s*([smhdw])\b', text)
+    if m:
+        n, unit = int(m.group(1)), m.group(2)
+        delta = {
+            's': timedelta(seconds=n), 'm': timedelta(minutes=n),
+            'h': timedelta(hours=n),   'd': timedelta(days=n),
+            'w': timedelta(weeks=n),
+        }.get(unit)
+        if delta:
+            return datetime.now() - delta
+    try:
+        return date_parser.parse(text)
+    except Exception:
+        return None
+
+
+def _build_img_map(soup, base_url: str) -> dict:
+    """Build alt_text.lower() -> absolute URL map from all imgs on page."""
+    m = {}
+    for img in soup.find_all('img'):
+        alt = (img.get('alt') or '').strip()
+        src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or ''
+        if alt and src and alt.lower() not in m:
+            m[alt.lower()] = urljoin(base_url, src)
+    return m
+
+
+def _classify_event(text: str) -> str:
+    low = (text or '').lower()
+    if 'released' in low:     return 'Released'
+    if 'boated' in low:       return 'Boated'
+    if 'pulled hook' in low:  return 'Pulled Hook'
+    if 'wrong species' in low: return 'Wrong Species'
+    if 'hooked up' in low:    return 'Hooked Up'
+    return 'Other'
+
+
+_SCRAPER_SKIP_NAMES = {
+    'tournament participants', 'feed', 'leaderboard', 'register now',
+    'no results', 'login', 'disclaimer', 'additional links', 'reeltime apps',
+    'secure your spot', 'official results', 'contact tournament',
+    'data may be delayed', 'all results displayed',
+}
+
+
+def _is_valid_boat_name(name: str) -> bool:
+    if not name or len(name) < 2 or len(name) > 70:
+        return False
+    nl = name.lower().strip()
+    if any(nl == s or nl.startswith(s) for s in _SCRAPER_SKIP_NAMES):
+        return False
+    # Must start with letter or digit
+    return bool(re.match(r'^[A-Za-z0-9]', name))
+
+
 def run_in_thread(target, name):
     def wrapper():
         try:
@@ -549,35 +610,71 @@ def scrape_participants(force: bool = False):
         download_tasks = []
         seen_boats = set()
 
-        for article in soup.select("article.post.format-image, article"):
-            name_tag = article.select_one("h2.post-title, h2, h3")
-            type_tag = article.select_one("ul.post-meta li")  # best-effort
-            img_tag  = article.select_one("img")
-            if not name_tag:
-                continue
+        # Build image map: alt-text -> absolute URL (works for any site structure)
+        img_map = _build_img_map(soup, participants_url)
 
-            boat_name = name_tag.get_text(strip=True)
-            if not boat_name or boat_name.lower() in seen_boats or ',' in boat_name:
+        # Strategy 1: h3 tags as boat names (ReelTime 2025+ structure)
+        for h3 in soup.find_all('h3'):
+            boat_name = h3.get_text(strip=True)
+            if not _is_valid_boat_name(boat_name) or boat_name.lower() in seen_boats:
                 continue
             seen_boats.add(boat_name.lower())
-
             uid = normalize_boat_name(boat_name)
-            boat_type = type_tag.get_text(strip=True) if type_tag else ""
 
-            img_src = _get_best_img_src(img_tag) if img_tag else None
-            if img_src:
-                img_src = urljoin(participants_url, img_src)
-                IMAGE_SOURCES[uid] = (boat_name, img_src, participants_url)
+            # Find boat type in next siblings — pattern like "55' Viking"
+            boat_type = ''
+            for sib in h3.next_siblings:
+                if getattr(sib, 'name', None) in ('h2', 'h3', 'h4'):
+                    break
+                t = sib.get_text(strip=True) if hasattr(sib, 'get_text') else str(sib).strip()
+                if t and re.match(r"\d+[''`]?\s*\w", t) and len(t) < 60 \
+                        and 'No Fish' not in t and 'Released' not in t:
+                    boat_type = t
+                    break
+
+            img_src = img_map.get(boat_name.lower())
+            if not img_src:
+                # Search inside parent container
+                parent = h3.parent
+                if parent:
+                    img_tag = parent.find('img')
+                    if img_tag:
+                        raw = img_tag.get('src') or img_tag.get('data-src') or ''
+                        if raw:
+                            img_src = urljoin(participants_url, raw)
 
             updated_participants[uid] = {
-                "uid": uid,
-                "boat": boat_name,
-                "type": boat_type,
-                "image_path": f"/boat-image/{uid}",
+                'uid': uid, 'boat': boat_name, 'type': boat_type,
+                'image_path': f'/boat-image/{uid}',
             }
-
             if img_src:
+                IMAGE_SOURCES[uid] = (boat_name, img_src, participants_url)
                 download_tasks.append((uid, boat_name, img_src, participants_url))
+
+        # Strategy 2: article/li fallback (old WordPress / custom sites)
+        if not updated_participants:
+            for article in soup.select('article.post.format-image, article, li.boat-entry'):
+                name_tag = article.select_one('h2.post-title, h2, h3, h4')
+                type_tag = article.select_one('ul.post-meta li')
+                img_tag  = article.select_one('img')
+                if not name_tag:
+                    continue
+                boat_name = name_tag.get_text(strip=True)
+                if not _is_valid_boat_name(boat_name) or boat_name.lower() in seen_boats:
+                    continue
+                seen_boats.add(boat_name.lower())
+                uid = normalize_boat_name(boat_name)
+                boat_type = type_tag.get_text(strip=True) if type_tag else ''
+                img_src = _get_best_img_src(img_tag) if img_tag else None
+                if img_src:
+                    img_src = urljoin(participants_url, img_src)
+                updated_participants[uid] = {
+                    'uid': uid, 'boat': boat_name, 'type': boat_type,
+                    'image_path': f'/boat-image/{uid}',
+                }
+                if img_src:
+                    IMAGE_SOURCES[uid] = (boat_name, img_src, participants_url)
+                    download_tasks.append((uid, boat_name, img_src, participants_url))
 
         safe_json_dump(participants_file, list(updated_participants.values()))
         print(f"💾 participants.json written with {len(updated_participants)} entries")
@@ -693,53 +790,110 @@ def scrape_events(force: bool = False, tournament: str | None = None):
 
         all_events, seen = [], set()
 
+        # Regex: "Boat Name · 5d" or "Boat Name · 2h" (ReelTime 2025+ feed structure)
+        _FEED_RE = re.compile(r'^(.{2,60}?)\s*[·•]\s*(\d+\s*[smhdw])\s*$', re.UNICODE)
+        # Labels to skip when extracting description lines
+        _SKIP_LABELS = {
+            'score alert', 'photo', 'video', 'message', 'stats', 'all',
+            'scores', 'photos', 'videos', 'messages', 'posts', 'feed',
+        }
+        # Reaction emoji line pattern
+        _REACT_RE = re.compile(r'^[\U0001F44D\U00002764\U0001F3C6\U0001F41F'
+                               r'\U0001F4AA\U0001F389\U0001F4B0\s]+$')
+
         def parse_events_from_soup(soup):
             found = 0
-            for article in soup.select("article.m-b-20, article.entry, div.activity, li.event, div.feed-item"):
-                time_tag = article.select_one("p.pull-right, time, .time")
-                name_tag = article.select_one("h4.montserrat, h4, h3")
-                desc_tag = article.select_one("p > strong, strong, .desc, .details")
-                if not time_tag or not name_tag or not desc_tag:
+            checked = set()
+
+            # Strategy 1: "Boat · Xd" pattern (new ReelTime structure)
+            for el in soup.find_all(True):
+                eid = id(el)
+                if eid in checked:
                     continue
-                raw = time_tag.get_text(strip=True).replace("@", "").strip()
-                try:
-                    ts = date_parser.parse(raw).replace(year=datetime.now().year).isoformat()
-                except:
+                checked.add(eid)
+
+                el_text = el.get_text(' ', strip=True)
+                m = _FEED_RE.match(el_text)
+                if not m:
                     continue
-                boat = name_tag.get_text(strip=True)
-                desc = desc_tag.get_text(strip=True)
+
+                boat = m.group(1).strip()
+                time_str = m.group(2).strip()
+                if not _is_valid_boat_name(boat):
+                    continue
+
+                ts_dt = _parse_relative_time(time_str)
+                if not ts_dt:
+                    continue
+
+                # Extract description from child text lines
+                lines = [l.strip() for l in el.get_text('\n').splitlines() if l.strip()]
+                desc = ''
+                for line in lines:
+                    if _FEED_RE.match(line):
+                        continue
+                    if line.lower() in _SKIP_LABELS or _REACT_RE.match(line):
+                        continue
+                    if re.search(r'released|boated|hooked|pulled hook|wrong species', line, re.I):
+                        desc = line
+                        break
+
+                if not desc:
+                    continue
+
                 uid = normalize_boat_name(boat)
-
                 if uid in participants:
-                    boat = participants[uid]["boat"]
+                    boat = participants[uid]['boat']
 
-                low = desc.lower()
-                if "released" in low:
-                    event_type = "Released"
-                elif "boated" in low:
-                    event_type = "Boated"
-                elif "pulled hook" in low:
-                    event_type = "Pulled Hook"
-                elif "wrong species" in low:
-                    event_type = "Wrong Species"
-                elif "hooked up" in low:
-                    event_type = "Hooked Up"
-                else:
-                    event_type = "Other"
-
-                dkey = f"{uid}_{event_type}_{ts}"
+                event_type = _classify_event(desc)
+                # Deduplicate by boat + type + calendar day
+                dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
                 if dkey in seen:
                     continue
                 seen.add(dkey)
 
                 all_events.append({
-                    "timestamp": ts,
-                    "event": event_type,
-                    "boat": boat,
-                    "uid": uid,
-                    "details": desc
+                    'timestamp': ts_dt.isoformat(),
+                    'event': event_type,
+                    'boat': boat,
+                    'uid': uid,
+                    'details': desc,
                 })
                 found += 1
+
+            # Strategy 2: article/element selectors (old site fallback)
+            if found == 0:
+                for article in soup.select(
+                    'article.m-b-20, article.entry, div.activity, li.event, div.feed-item'
+                ):
+                    time_tag = article.select_one('p.pull-right, time, .time')
+                    name_tag = article.select_one('h4.montserrat, h4, h3')
+                    desc_tag = article.select_one('p > strong, strong, .desc, .details')
+                    if not time_tag or not name_tag or not desc_tag:
+                        continue
+                    raw = time_tag.get_text(strip=True).replace('@', '').strip()
+                    ts_dt = _parse_relative_time(raw)
+                    if not ts_dt:
+                        try:
+                            ts_dt = date_parser.parse(raw).replace(year=datetime.now().year)
+                        except Exception:
+                            continue
+                    boat = name_tag.get_text(strip=True)
+                    desc = desc_tag.get_text(strip=True)
+                    uid = normalize_boat_name(boat)
+                    if uid in participants:
+                        boat = participants[uid]['boat']
+                    event_type = _classify_event(desc)
+                    dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                    if dkey in seen:
+                        continue
+                    seen.add(dkey)
+                    all_events.append({
+                        'timestamp': ts_dt.isoformat(), 'event': event_type,
+                        'boat': boat, 'uid': uid, 'details': desc,
+                    })
+                    found += 1
+
             return found
 
         # parse first page
@@ -855,55 +1009,131 @@ def scrape_leaderboard(tournament=None, force: bool = False):
         soup = BeautifulSoup(html, "html.parser")
         leaderboard = []
 
-        categories = [a.get_text(strip=True) for a in soup.select("ul.dropdown-menu li a.leaderboard-nav, a[data-toggle='tab']")]
-        categories = [c for c in categories if c]
-        categories = list(dict.fromkeys(categories))  # dedupe, keep order
-        if not categories:
-            print("⚠️ No categories found; attempting single-table scrape")
+        img_map = _build_img_map(soup, leaderboard_url)
+        _LB_SKIP = {
+            'no results', 'register now', 'login', 'disclaimer', 'additional links',
+            'reeltime apps', 'secure your spot', 'all results displayed',
+            'data may be delayed', 'prize pool', 'morehead city',
+        }
+        _PTS_RE   = re.compile(r'([\d,]+)\s*pts?', re.I)
+        _TIME_RE  = re.compile(r'(\d{1,2}:\d{2}\s*[AP]M)', re.I)
+        _WGHT_RE  = re.compile(r'([\d.]+)\s*lbs?', re.I)
 
-        def collect_rows_from_container(container, category_label):
-            for row in container.select("tr.montserrat, tr"):
-                cols = row.find_all("td")
-                if len(cols) < 2:
-                    continue
-                rank = cols[0].get_text(strip=True)
-                boat_block = cols[1]
-                points = cols[-1].get_text(strip=True)
-                h4 = boat_block.find("h4") or boat_block.find("strong") or boat_block.find("b")
-                name = h4.get_text(strip=True) if h4 else boat_block.get_text(" ", strip=True)
-                text_after = boat_block.get_text(" ", strip=True).replace(name, "").strip()
+        # Strategy 1: h3 tags as category headers (new ReelTime structure)
+        h3_cats = []
+        for h3 in soup.find_all('h3'):
+            txt = h3.get_text(strip=True)
+            tl = txt.lower()
+            if not txt or any(tl.startswith(s) for s in _LB_SKIP) \
+                    or any(w in tl for w in ('annual', 'tournament', 'register', 'login',
+                                             'secure your', 'morehead')):
+                continue
+            h3_cats.append((txt, h3))
 
-                angler, boat, btype = None, name, None
-                # If points looks like weight and block doesn't look like a boat, treat as angler category
-                if "lb" in points.lower() and not any(b in text_after.lower() for b in KNOWN_BUILDERS):
-                    angler, boat, btype = name, None, None
-                else:
-                    boat, btype = split_boat_and_type(name, text_after)
+        if h3_cats:
+            for cat_name, h3_el in h3_cats:
+                rank = 1
+                for sib in h3_el.next_siblings:
+                    if getattr(sib, 'name', None) == 'h3':
+                        break
+                    sib_text = sib.get_text(' ', strip=True) if hasattr(sib, 'get_text') else ''
+                    if not sib_text:
+                        continue
+                    tl = sib_text.lower()
+                    if any(tl.startswith(s) for s in _LB_SKIP):
+                        continue
 
-                uid = normalize_boat_name(boat or angler or f"rank_{rank}")
-                leaderboard.append({
-                    "rank_raw": rank,
-                    "category": category_label or "Overall",
-                    "angler": angler,
-                    "boat": boat,
-                    "type": btype,
-                    "points": points,
-                    "points_num": parse_points_number(points),
-                    "uid": uid,
-                    "image_path": f"/boat-image/{uid}",
-                })
+                    # Score extraction — prefer pts, then time, then weight
+                    pm = _PTS_RE.search(sib_text)
+                    tm = _TIME_RE.search(sib_text)
+                    wm = _WGHT_RE.search(sib_text)
+                    if pm:
+                        score = pm.group(0)
+                    elif tm:
+                        score = tm.group(0)
+                    elif wm:
+                        score = wm.group(0)
+                    else:
+                        continue
 
-        if categories:
-            for category in categories:
-                tab_link = soup.find("a", string=lambda x: x and x.strip() == category)
-                tab_id = tab_link.get("href") if tab_link else None
-                tab = soup.select_one(tab_id) if tab_id else None
-                if tab:
-                    collect_rows_from_container(tab, category)
-        else:
-            table = soup.find("table")
-            if table:
-                collect_rows_from_container(table, "Overall")
+                    # Boat name: prefer img alt, else text before the score
+                    img_tag = sib.find('img') if hasattr(sib, 'find') else None
+                    boat_name = (img_tag.get('alt') or '').strip() if img_tag else ''
+                    if not boat_name:
+                        boat_name = re.sub(
+                            re.escape(score) + r'.*$', '', sib_text
+                        ).strip().split('\n')[0].strip()
+
+                    if not boat_name or not _is_valid_boat_name(boat_name):
+                        continue
+
+                    angler = None
+                    # Treat as angler-category if the score is a weight
+                    if wm and not pm and not any(
+                        b in sib_text.lower() for b in KNOWN_BUILDERS
+                    ):
+                        angler, boat_name = boat_name, None
+
+                    uid = normalize_boat_name(boat_name or angler or f'rank_{rank}')
+                    img_src = img_map.get((boat_name or '').lower())
+                    if img_src and boat_name:
+                        IMAGE_SOURCES[uid] = (boat_name, img_src, leaderboard_url)
+
+                    leaderboard.append({
+                        'rank_raw': str(rank),
+                        'category': cat_name,
+                        'angler': angler,
+                        'boat': boat_name,
+                        'type': None,
+                        'points': score,
+                        'points_num': parse_points_number(score),
+                        'uid': uid,
+                        'image_path': f'/boat-image/{uid}',
+                    })
+                    rank += 1
+
+        # Strategy 2: tab/table structure (old sites fallback)
+        if not leaderboard:
+            categories = [a.get_text(strip=True) for a in soup.select(
+                "ul.dropdown-menu li a.leaderboard-nav, a[data-toggle='tab']"
+            )]
+            categories = list(dict.fromkeys(c for c in categories if c))
+
+            def collect_rows_from_container(container, category_label):
+                for row in container.select('tr.montserrat, tr'):
+                    cols = row.find_all('td')
+                    if len(cols) < 2:
+                        continue
+                    rank = cols[0].get_text(strip=True)
+                    boat_block = cols[1]
+                    points = cols[-1].get_text(strip=True)
+                    h4 = boat_block.find('h4') or boat_block.find('strong') or boat_block.find('b')
+                    name = h4.get_text(strip=True) if h4 else boat_block.get_text(' ', strip=True)
+                    text_after = boat_block.get_text(' ', strip=True).replace(name, '').strip()
+                    angler, boat, btype = None, name, None
+                    if 'lb' in points.lower() and not any(b in text_after.lower() for b in KNOWN_BUILDERS):
+                        angler, boat, btype = name, None, None
+                    else:
+                        boat, btype = split_boat_and_type(name, text_after)
+                    uid = normalize_boat_name(boat or angler or f'rank_{rank}')
+                    leaderboard.append({
+                        'rank_raw': rank, 'category': category_label or 'Overall',
+                        'angler': angler, 'boat': boat, 'type': btype,
+                        'points': points, 'points_num': parse_points_number(points),
+                        'uid': uid, 'image_path': f'/boat-image/{uid}',
+                    })
+
+            if categories:
+                for category in categories:
+                    tab_link = soup.find('a', string=lambda x: x and x.strip() == category)
+                    tab_id = tab_link.get('href') if tab_link else None
+                    tab = soup.select_one(tab_id) if tab_id else None
+                    if tab:
+                        collect_rows_from_container(tab, category)
+            else:
+                table = soup.find('table')
+                if table:
+                    collect_rows_from_container(table, 'Overall')
 
         # Normalize ranks: same points = same position (per category)
         by_cat = defaultdict(list)

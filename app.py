@@ -1144,7 +1144,48 @@ def scrape_leaderboard(tournament=None, force: bool = False):
                                 seen_lb.add(key)
                                 rank = _add_lb_entry(cat_name, bname, score, sib_text, rank, angler)
 
-        # Strategy 2: tab/table structure (old sites fallback)
+        # Strategy 2: text-line scan guided by known category names (handles any nesting)
+        if not leaderboard and h3_cats:
+            cat_names = [c for c, _ in h3_cats]
+            page_lines = [l.strip() for l in soup.get_text('\n').splitlines() if l.strip()]
+            current_cat = None
+            rank = 1
+            seen_lb2 = set()
+            i = 0
+            while i < len(page_lines):
+                line = page_lines[i]
+                if line in cat_names:
+                    current_cat = line
+                    rank = 1
+                    i += 1
+                    continue
+                if not current_cat or line.lower() == 'no results':
+                    i += 1
+                    continue
+                # Try combining 1-3 consecutive lines to find "Boat Score"
+                for width in range(1, 4):
+                    if i + width > len(page_lines):
+                        break
+                    candidate = ' '.join(page_lines[i:i + width])
+                    pm2 = _PTS_RE.search(candidate)
+                    tm2 = _TIME_RE.search(candidate)
+                    wm2 = _WGHT_RE.search(candidate)
+                    sm = pm2 or tm2 or wm2
+                    if sm:
+                        score = sm.group(0)
+                        bname = re.sub(re.escape(score) + r'.*$', '', candidate).strip()
+                        # Deduplicate repeated words (img alt + span text both present)
+                        bname = ' '.join(dict.fromkeys(bname.split()))
+                        bname = bname.strip()
+                        if bname and _is_valid_boat_name(bname):
+                            key = f"{bname.lower()}_{current_cat}"
+                            if key not in seen_lb2:
+                                seen_lb2.add(key)
+                                rank = _add_lb_entry(current_cat, bname, score, candidate, rank)
+                        break
+                i += 1
+
+        # Strategy 4: tab/table structure (old sites fallback)
         if not leaderboard:
             categories = [a.get_text(strip=True) for a in soup.select(
                 "ul.dropdown-menu li a.leaderboard-nav, a[data-toggle='tab']"

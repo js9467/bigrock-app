@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Events Feed</title>
   <script src="/static/js/offline.js"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -12,86 +12,82 @@
 
   <style>
     @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-    .message-strip-wrapper { position: relative; overflow: hidden; height: 2.25rem; background-color: #002855; }
+    .message-strip-wrapper { position: relative; overflow: hidden; height: 2rem; background-color: #002855; }
     .message-strip {
-      display: inline-block; white-space: nowrap; font-size: 1.2rem; font-weight: 600; color: white;
+      display: inline-block; white-space: nowrap; font-size: 0.85rem; font-weight: 600; color: white;
       animation: marquee 40s linear infinite; will-change: transform; padding-left: 100%;
     }
     .message-strip a { color: #facc15; text-decoration: underline; font-weight: bold; padding: 0 0.5rem; }
     .message-strip-wrapper:hover .message-strip { animation-play-state: paused; cursor: pointer; }
     @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+    /* Compact header for 1024×600 kiosk */
+    .kiosk-header { min-height: 0; }
+    .demo-badge {
+      position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+      background: #f59e0b; color: #1e3a5f; font-size: 0.6rem; font-weight: 700;
+      padding: 1px 6px; border-radius: 999px; letter-spacing: 0.05em;
+      text-transform: uppercase; z-index: 10; white-space: nowrap;
+    }
   </style>
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-x-hidden">
 <div id="app" class="h-full flex flex-col">
 
-  <!-- Header (non-scrolling) -->
-  <header class="relative bg-brand-blue text-white px-4 py-3 shadow-lg shrink-0">
-    <div class="flex flex-col sm:flex-row items-center justify-between gap-6 w-full">
+  <!-- Header (non-scrolling) — compact for 1024×600 kiosk -->
+  <header class="relative kiosk-header bg-brand-blue text-white px-3 py-1.5 shadow-lg shrink-0">
+    <!-- Demo badge -->
+    <span v-if="settings.data_source === 'demo'" class="demo-badge">⚠ DEMO</span>
 
-      <!-- Left: Date + Logo + VHF Playing -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4">
-        <!-- Tournament Date -->
-        <span v-if="tournamentDate" class="text-xs sm:text-sm text-white/80 font-semibold leading-tight">
-          {{ tournamentDate }}
-        </span>
+    <div class="flex items-center justify-between gap-2 w-full">
 
-        <!-- Logo -->
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow-lg animate-pulse-slow">
-        <span v-else class="text-white text-base animate-pulse">Loading Logo...</span>
-
-        <!-- VHF Active Indicator -->
-        <span v-if="radioPlaying" class="text-sm font-semibold text-green-300 animate-pulse whitespace-nowrap flex items-center gap-1">
-          🎧 <span class="hidden sm:inline">VHF Playing</span>
-        </span>
+      <!-- Left: Logo + Date -->
+      <div class="flex items-center gap-2 min-w-0">
+        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-10 drop-shadow-lg animate-pulse-slow flex-shrink-0">
+        <div v-if="tournamentDate" class="text-xs text-white/80 font-semibold leading-tight whitespace-nowrap">{{ tournamentDate }}</div>
+        <span v-if="radioPlaying" class="text-xs font-semibold text-green-300 animate-pulse whitespace-nowrap">🎧 VHF</span>
       </div>
 
-      <!-- Right: Controls & Nav -->
-      <div class="flex flex-col sm:flex-row sm:flex-wrap items-center gap-6 w-full sm:w-auto sm:ml-auto">
-        <!-- VHF Controls -->
-        <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
-          <button @click="toggleRadio" :disabled="radioDisabled"
-                  class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
-            {{ radioDisabled ? 'NO VHF' : (radioPlaying ? 'VHF OFF' : 'VHF ON') }}
-          </button>
-          <div v-if="!radioDisabled" class="flex items-center gap-2 text-sm text-white flex-nowrap">
-            <span class="text-lg">🔊</span>
-            <input type="range" min="0" max="100" v-model="settings.radio_volume"
-                   @input="applyRadioVolume" class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
-            <span class="w-8 text-right text-xs">{{ settings.radio_volume }}%</span>
-          </div>
-        </div>
+      <!-- Center: VHF Controls -->
+      <div class="flex items-center gap-1.5 bg-blue-900/50 rounded-full px-3 py-1 border border-yellow-400/70 flex-shrink-0">
+        <button @click="toggleRadio" :disabled="radioDisabled"
+                class="px-3 py-1 text-xs font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+          {{ radioDisabled ? 'NO VHF' : (radioPlaying ? 'VHF OFF' : 'VHF ON') }}
+        </button>
+        <span class="text-sm">🔊</span>
+        <input v-if="!radioDisabled" type="range" min="0" max="100" v-model="settings.radio_volume"
+               @input="applyRadioVolume" class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-20 accent-yellow-400">
+        <span v-if="!radioDisabled" class="text-xs w-6 text-right">{{ settings.radio_volume }}%</span>
+      </div>
 
-        <!-- Navigation Buttons -->
-        <div class="grid grid-cols-2 sm:flex gap-2 sm:gap-4 w-full sm:w-auto text-center">
-          <a href="/participants" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Participants</a>
-          <a href="/leaderboard" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Leaderboard</a>
-          <a href="/release-summary" class="px-3 py-2 w-full sm:w-36 text-white font-semibold border border-yellow-400 rounded-lg hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">Releases</a>
-          <a href="/settings-page" class="w-12 h-12 flex items-center justify-center text-white text-xl border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md hover:shadow-yellow-400/50">⚙</a>
-        </div>
+      <!-- Right: Navigation Buttons -->
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        <a href="/participants" class="px-2 py-1 text-xs text-white font-semibold border border-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition whitespace-nowrap">Participants</a>
+        <a href="/leaderboard" class="px-2 py-1 text-xs text-white font-semibold border border-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition whitespace-nowrap">Leaderboard</a>
+        <a href="/release-summary" class="px-2 py-1 text-xs text-white font-semibold border border-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition whitespace-nowrap">Releases</a>
+        <a href="/settings-page" class="w-8 h-8 flex items-center justify-center text-white border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition text-sm">⚙</a>
       </div>
     </div>
 
-    <!-- Followed Boats Chips -->
-    <div v-if="followed.length" class="mt-2 overflow-x-auto">
-      <div class="flex gap-2">
+    <!-- Followed Boats Chips (compact strip) -->
+    <div v-if="followed.length" class="mt-1 overflow-x-auto">
+      <div class="flex gap-1.5">
         <div v-for="boat in followed" :key="boat"
-             class="flex items-center bg-yellow-200 text-blue-900 px-3 py-1 rounded-full text-sm font-semibold flex-shrink-0">
+             class="flex items-center bg-yellow-200 text-blue-900 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0">
           {{ boat }}
-          <button @click="toggleFollow(boat)" class="ml-1 text-red-600 hover:text-red-800">✕</button>
+          <button @click="toggleFollow(boat)" class="ml-1 text-red-600 hover:text-red-800 text-xs">✕</button>
         </div>
       </div>
     </div>
 
     <!-- Live Alert Bar -->
-    <div v-if="messageQueue.length > 0" class="w-full mt-3 message-strip-wrapper">
+    <div v-if="messageQueue.length > 0" class="w-full mt-1 message-strip-wrapper">
       <div class="message-strip" v-html="currentMessage"></div>
     </div>
 
-    <!-- Subtle version tag -->
-    <div class="absolute bottom-1 right-3 text-xs text-white/50 italic" v-if="version">v{{ version }}</div>
+    <!-- Version tag -->
+    <div class="absolute bottom-0.5 right-2 text-xs text-white/40 italic" v-if="version">v{{ version }}</div>
   </header>
 
   <!-- Content area fills remaining height; both columns scroll -->
@@ -102,30 +98,30 @@
       <!-- Hooked Column (scrolls) -->
       <div class="hooked-col" :class="['w-1/4 bg-white border-l border-gray-300 overflow-y-auto order-2',
                     hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '']">
-        <div class="h-16 px-4 border-b text-2xl font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
+        <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Hooked Up <span v-if="hooked.length > 0">({{ hooked.length }})</span>
         </div>
 
-        <div v-if="hooked.length === 0" class="p-4 text-gray-500 italic">No current hookups.</div>
+        <div v-if="hooked.length === 0" class="p-3 text-gray-500 italic text-sm">No current hookups.</div>
 
         <div v-for="event in hooked" :key="event.timestamp + event.uid"
-             :class="['p-4 border-b hover:bg-gray-50 flex items-center gap-4', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+             :class="['p-2 border-b hover:bg-gray-50 flex items-center gap-2', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-          <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
+          <div class="relative w-12 h-12 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
             <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" decoding="async" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
+                 loading="lazy" decoding="async" class="w-12 h-12 object-cover rounded opacity-0 transition-opacity duration-500"
                  @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
           </div>
 
-          <div class="flex-1">
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">Hooked Up on {{ formatDate(event.timestamp) }} at {{ formatTime(event.timestamp) }}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
+            <div class="text-xs text-gray-600">{{ formatDate(event.timestamp) }} {{ formatTime(event.timestamp) }}</div>
           </div>
 
           <button @click="toggleFollow(event.boat)"
                   :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
-                  class="px-2 py-1 text-white rounded text-xs">
-            {{ isFollowed(event.uid) ? 'Unfollow' : 'Follow' }}
+                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
+            {{ isFollowed(event.uid) ? '★' : '☆' }}
           </button>
         </div>
       </div>
@@ -133,33 +129,32 @@
       <!-- Event Feed (scrolls) -->
       <div class="w-3/4 overflow-y-auto event-feed order-1 events-col border-r border-gray-300">
 
-        <div class="h-16 px-4 border-b text-2xl font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
-
+        <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Event Feed
         </div>
 
-        <div v-if="loading" class="p-4 text-gray-500 italic">Loading events...</div>
-        <div v-else-if="events.length === 0" class="p-4 text-gray-500 italic">No events to show.</div>
+        <div v-if="loading" class="p-3 text-gray-500 italic text-sm">Loading events...</div>
+        <div v-else-if="events.length === 0" class="p-3 text-gray-500 italic text-sm">No events to show.</div>
 
         <div v-for="event in events" :key="event.timestamp + event.uid"
-             :class="['p-4 border-b flex items-center gap-4 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+             :class="['p-2 border-b flex items-center gap-3 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
-          <div class="relative w-20 h-20 bg-gray-200 flex items-center justify-center rounded overflow-hidden">
+          <div class="relative w-14 h-14 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
             <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" decoding="async" class="w-20 h-20 object-cover rounded opacity-0 transition-opacity duration-500"
+                 loading="lazy" decoding="async" class="w-14 h-14 object-cover rounded opacity-0 transition-opacity duration-500"
                  @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
           </div>
 
-          <div class="flex-1">
-            <div class="text-lg font-semibold">{{ event.boat }}</div>
-            <div class="text-sm text-gray-600">{{ event.event }} — {{ formatDate(event.timestamp) }} at {{ formatTime(event.timestamp) }}</div>
-            <div class="text-sm">{{ event.details }}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
+            <div class="text-xs text-gray-500">{{ event.event }} — {{ formatDate(event.timestamp) }} {{ formatTime(event.timestamp) }}</div>
+            <div class="text-xs text-gray-700 truncate">{{ event.details }}</div>
           </div>
 
           <button @click="toggleFollow(event.boat)"
                   :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
-                  class="px-2 py-1 text-white rounded text-xs">
-            {{ isFollowed(event.uid) ? 'Unfollow' : 'Follow' }}
+                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
+            {{ isFollowed(event.uid) ? '★' : '☆' }}
           </button>
         </div>
       </div>

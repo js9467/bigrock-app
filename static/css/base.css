@@ -11,6 +11,14 @@ body {
     font-size: 1rem;
   }
 
+/* 1024×600 kiosk — landscape, small height */
+@media (max-height: 650px) {
+  body {
+    font-size: 0.82rem;
+  }
+  h1 { font-size: 1.3rem !important; }
+}
+
 @media (max-width: 767px) and (orientation: landscape) {
   body {
     font-size: 0.75rem;
@@ -19,13 +27,13 @@ body {
 
 @media (min-width: 768px) {
   body {
-    font-size: 1.125rem;
+    font-size: 0.95rem;
   }
 }
 
 @media (min-width: 1280px) {
   body {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
   }
 }
 

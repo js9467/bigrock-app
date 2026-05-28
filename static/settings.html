@@ -423,23 +423,40 @@
 
         axios.get('https://js9467.github.io/Brtourney/settings.json').then(res2 => {
           this.fallbackStream = res2.data?.fallback_stream || '';
-          const entries = Object.entries(res2.data || {});
-          this.tournaments = Object.fromEntries(
-            entries.filter(([name, val]) =>
+          const manualEntries = Object.fromEntries(
+            Object.entries(res2.data || {}).filter(([name, val]) =>
               name !== 'fallback_stream' && val && typeof val === 'object' && !Array.isArray(val)
             )
           );
-          axios.get('/api/tournaments').then(res3 => {
-            this.apiTournamentLabels = res3.data?.tournaments || {};
-            if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-              this.settings.tournament = '';
-            }
-            this.updateTournamentLogo();
+          // Merge ReelTime live tournaments into dropdown
+          axios.get('/api/reeltime-live').then(resLive => {
+            const liveEntries = resLive.data?.tournaments || {};
+            // Live entries first, manual config overrides (for stream URLs, custom logos)
+            this.tournaments = { ...liveEntries, ...manualEntries };
           }).catch(() => {
-            if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-              this.settings.tournament = '';
-            }
-            this.updateTournamentLogo();
+            this.tournaments = manualEntries;
+          }).finally(() => {
+            axios.get('/api/tournaments').then(res3 => {
+              this.apiTournamentLabels = res3.data?.tournaments || {};
+              // Backfill logos/URLs from the index into any entry that's missing them
+              for (const [name, info] of Object.entries(this.apiTournamentLabels)) {
+                if (!this.tournaments[name]) {
+                  this.tournaments[name] = {};
+                }
+                if (!this.tournaments[name].logo && info.logo) {
+                  this.tournaments[name].logo = info.logo;
+                }
+              }
+              if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+                this.settings.tournament = '';
+              }
+              this.updateTournamentLogo();
+            }).catch(() => {
+              if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+                this.settings.tournament = '';
+              }
+              this.updateTournamentLogo();
+            });
           });
         });
       });

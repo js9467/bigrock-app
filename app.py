@@ -76,6 +76,8 @@ IMAGE_SOURCES = {}
 # Shared thread pool for background image downloads
 IMAGE_DL_EXECUTOR = ThreadPoolExecutor(max_workers=6)
 TOURNAMENTS_CACHE = "cache/tournaments.json"
+REELTIME_LIVE_CACHE = "cache/reeltime_live.json"
+REELTIME_LIVE_URL = "https://www.reeltime.app/tournaments?filter=live"
 
 # HTTP session (faster + connection reuse) & suppress SSL warnings for verify=False
 SESS = requests.Session()
@@ -389,38 +391,140 @@ def _scrape_dates_from_html(html: str):
     except:
         return None, None
 
+def scrape_reeltime_live_tournaments(force: bool = False) -> dict:
+    """Scrape all live tournaments from the ReelTime directory page.
+    Returns {name: {participants, events, leaderboard, logo, dates, uid}}
+    Caches result for 1 hour.
+    """
+    os.makedirs("cache", exist_ok=True)
+    if not force and os.path.exists(REELTIME_LIVE_CACHE):
+        age = time.time() - os.path.getmtime(REELTIME_LIVE_CACHE)
+        if age < 3600:
+            return safe_json_load(REELTIME_LIVE_CACHE, {})
+
+    html = fetch_html(REELTIME_LIVE_URL)
+    if not html:
+        print("⚠️ Could not fetch ReelTime live tournaments page")
+        return safe_json_load(REELTIME_LIVE_CACHE, {})
+
+    soup = BeautifulSoup(html, "html.parser")
+    _SLUG_RE = re.compile(r'/tournaments/([^/]+)/(\d{4})/')
+    _DATE_RE = re.compile(
+        r'([A-Z][a-z]+ \d{1,2})\s*[-\u2013]\s*([A-Z][a-z]+ \d{1,2},?\s*\d{4})',
+        re.UNICODE
+    )
+    results = {}
+    seen_slugs = set()
+
+    for h3 in soup.find_all('h3'):
+        name = h3.get_text(strip=True)
+        if not name or len(name) < 3:
+            continue
+
+        container = h3.parent or h3
+        slug, year = None, None
+        for a in container.find_all('a', href=True):
+            m = _SLUG_RE.search(a['href'])
+            if m:
+                slug, year = m.group(1), m.group(2)
+                break
+
+        if not slug or (slug, year) in seen_slugs:
+            continue
+        seen_slugs.add((slug, year))
+
+        parent_text = container.get_text(' ', strip=True)
+        dm = _DATE_RE.search(parent_text)
+        dates_str = dm.group(0) if dm else ''
+
+        img = container.find('img')
+        logo = ''
+        if img:
+            logo = img.get('src') or img.get('data-src') or ''
+
+        base = f"https://www.reeltime.app/tournaments/{slug}/{year}"
+        results[name] = {
+            'uid':          f"{slug}_{year}",
+            'participants': f"{base}/participants",
+            'events':       f"{base}/feed",
+            'leaderboard':  f"{base}/leaderboards",
+            'logo':         logo,
+            'dates':        dates_str,
+        }
+
+    if results:
+        safe_json_dump(REELTIME_LIVE_CACHE, results)
+        print(f"✅ ReelTime live: found {len(results)} tournaments")
+    return results
+
+
 def build_tournaments_index(force: bool = False):
     os.makedirs("cache", exist_ok=True)
     cached = safe_json_load(TOURNAMENTS_CACHE, {}) if not force else {}
+
+    # Base layer: auto-discovered ReelTime live tournaments (have dates inline)
+    live_rt = scrape_reeltime_live_tournaments(force=force)
+
+    # Manual layer: GitHub Pages settings.json (stream URLs, custom logos, overrides)
     try:
         master = SESS.get(MASTER_JSON_URL, timeout=15).json()
     except Exception as e:
         print(f"❌ Failed to fetch MASTER_JSON_URL: {e}")
-        return cached
-    entries = {}
+        master = {}
+    manual_entries = {}
     if isinstance(master, dict):
-        entries = master
+        manual_entries = master
     elif isinstance(master, list):
         for obj in master:
             if isinstance(obj, dict):
-                name = obj.get("name") or obj.get("tournament")
-                if name:
-                    entries[name] = obj
-    else:
-        print(f"⚠️ Unexpected master JSON type: {type(master)}")
-        return cached
-    out = {}
-    for name, vals in entries.items():
+                n = obj.get("name") or obj.get("tournament")
+                if n:
+                    manual_entries[n] = obj
+
+    # Merge: start with live_rt, then overlay manual entries (manual wins on conflict)
+    merged = {}
+    for name, vals in live_rt.items():
+        merged[name] = dict(vals)  # copy
+    for name, vals in manual_entries.items():
         if not isinstance(vals, dict):
-            print(f"⚠️ Skipping '{name}' (not a dict)")
+            continue  # skip null / non-dict entries
+        if name in merged:
+            merged[name].update(vals)  # manual fields override auto-detected
+        else:
+            merged[name] = dict(vals)
+
+    out = {}
+    for name, vals in merged.items():
+        # Use inline dates from ReelTime listing if available
+        inline_dates = vals.get('dates') or live_rt.get(name, {}).get('dates') or ''
+
+        # Try cache first to avoid re-scraping
+        if not force and name in cached and cached[name].get('start') and cached[name].get('end'):
+            entry = dict(cached[name])
+            # Carry forward URL fields from merged so they're in the response
+            for k in ('participants', 'events', 'leaderboard', 'logo', 'uid'):
+                if k in vals:
+                    entry[k] = vals[k]
+            out[name] = entry
             continue
-        if not force and name in cached and cached[name].get("start") and cached[name].get("end"):
-            out[name] = cached[name]
-            continue
-        pages = [vals.get("leaderboard"), vals.get("events"), vals.get("participants"), vals.get("activities")]
+
+        # Parse inline date string if present (avoids an HTTP request per tournament)
+        if inline_dates:
+            s_dt, e_dt = _parse_date_range_any(inline_dates)
+            if s_dt and e_dt:
+                label = _nice_range_label(s_dt, e_dt)
+                entry = {'start': s_dt.strftime('%Y-%m-%d'), 'end': e_dt.strftime('%Y-%m-%d'), 'label': label}
+                for k in ('participants', 'events', 'leaderboard', 'logo', 'uid'):
+                    if k in vals:
+                        entry[k] = vals[k]
+                out[name] = entry
+                continue
+
+        # Fallback: scrape one of the tournament pages for dates
+        pages = [vals.get('leaderboard'), vals.get('events'), vals.get('participants'), vals.get('activities')]
         pages = [p for p in pages if isinstance(p, str) and p.strip()]
         if not pages:
-            out[name] = {"start": None, "end": None, "label": ""}
+            out[name] = {'start': None, 'end': None, 'label': ''}
             continue
         s_dt = e_dt = None
         for url in pages:
@@ -432,11 +536,16 @@ def build_tournaments_index(force: bool = False):
                 break
         if s_dt and e_dt:
             label = _nice_range_label(s_dt, e_dt)
-            out[name] = {"start": s_dt.strftime("%Y-%m-%d"), "end": e_dt.strftime("%Y-%m-%d"), "label": label}
+            entry = {'start': s_dt.strftime('%Y-%m-%d'), 'end': e_dt.strftime('%Y-%m-%d'), 'label': label}
         else:
-            out[name] = {"start": None, "end": None, "label": ""}
+            entry = {'start': None, 'end': None, 'label': ''}
+        for k in ('participants', 'events', 'leaderboard', 'logo', 'uid'):
+            if k in vals:
+                entry[k] = vals[k]
+        out[name] = entry
+
     safe_json_dump(TOURNAMENTS_CACHE, out)
-    print(f"✅ Tournaments index saved: {len(out)} entries")
+    print(f"✅ Tournaments index saved: {len(out)} entries ({len(live_rt)} from ReelTime live, {len(manual_entries)} from manual config)")
     return out
 
 # ------------------------
@@ -2179,6 +2288,13 @@ def get_hooked_up_events():
     hooked_feed.sort(key=lambda e: date_parser.parse(e["timestamp"]), reverse=True)
     return jsonify({"status": "ok", "count": len(hooked_feed), "events": hooked_feed[:50]})
 
+@app.route("/api/reeltime-live", methods=["GET"])
+def get_reeltime_live():
+    force = request.args.get('force', '').lower() in ('1', 'true')
+    data = scrape_reeltime_live_tournaments(force=force)
+    return jsonify({"status": "ok", "count": len(data), "tournaments": data})
+
+
 @app.route("/api/tournaments", methods=["GET"])
 def api_tournaments():
     try:
@@ -2516,17 +2632,25 @@ def wifi_disconnect():
 def launch_keyboard():
     try:
         env = os.environ.copy()
-        env['DISPLAY'] = ':0'
-        env['XAUTHORITY'] = '/home/pi/.Xauthority'
-        subprocess.Popen(['onboard'], env=env)
-        return jsonify({"status": "launched"})
+        env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
+        env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
+        # Try squeekboard (Wayland), then wvkbd, then onboard (X11 fallback)
+        for kbd in [['squeekboard'], ['wvkbd-mobintl', '--landscape', '-L', '220'],
+                    ['onboard']]:
+            if subprocess.call(['which', kbd[0]], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL) == 0:
+                subprocess.Popen(kbd, env=env)
+                return jsonify({"status": "launched", "keyboard": kbd[0]})
+        return jsonify({"status": "no_keyboard_available"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
     try:
-        subprocess.call(['pkill', '-f', 'onboard'])
+        for kbd in ['squeekboard', 'wvkbd-mobintl', 'onboard']:
+            subprocess.call(['pkill', '-f', kbd],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

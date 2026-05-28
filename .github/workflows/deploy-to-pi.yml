@@ -2,7 +2,7 @@ name: Auto Deploy to Raspberry Pi
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
 
 jobs:
   deploy:
@@ -12,8 +12,8 @@ jobs:
       - name: Pull latest code
         run: |
           cd /home/pi/bigrock-app
-          git fetch origin main
-          git reset --hard origin/main
+          git fetch origin dev
+          git reset --hard origin/dev
 
       - name: Generate version file
         run: |

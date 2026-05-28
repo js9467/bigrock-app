@@ -9,14 +9,6 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Ensure passwordless sudo for service management
-        run: |
-          RULE="pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigrock.service, /usr/bin/systemctl status bigrock.service"
-          if ! sudo grep -qF "bigrock.service" /etc/sudoers.d/bigrock-runner 2>/dev/null; then
-            echo "$RULE" | sudo tee /etc/sudoers.d/bigrock-runner
-            sudo chmod 440 /etc/sudoers.d/bigrock-runner
-          fi
-
       - name: Pull latest code
         run: |
           cd /home/pi/bigrock-app

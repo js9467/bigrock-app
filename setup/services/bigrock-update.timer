@@ -1,0 +1,14 @@
+[Unit]
+Description=BigRock App Periodic Update Timer
+Requires=network-online.target
+
+[Timer]
+# Run 2 minutes after boot (gives network time to come up)
+OnBootSec=2min
+# Then every hour
+OnUnitActiveSec=1h
+# Don't pile up missed runs
+AccuracySec=5min
+
+[Install]
+WantedBy=timers.target

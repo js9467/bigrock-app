@@ -1,0 +1,19 @@
+[Unit]
+Description=BigRock First-Boot WiFi Setup Portal
+# Run before the main app, after NetworkManager is up
+After=NetworkManager.service
+Before=bigrock.service
+# Only run when the "configured" flag does NOT exist
+ConditionPathExists=!/home/pi/.bigrock-wifi-configured
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /home/pi/bigrock-app/setup/wifi_portal.py
+Restart=on-failure
+RestartSec=10
+# Give NetworkManager time to settle on reboot
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=BigRock App Auto-Update (pull from GitHub)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/bigrock-app
+ExecStart=/home/pi/bigrock-app/setup/services/bigrock-update.sh
+StandardOutput=journal
+StandardError=journal

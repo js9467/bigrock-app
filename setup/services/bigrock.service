@@ -1,0 +1,17 @@
+[Unit]
+Description=BigRock Tournament App (Flask)
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/bigrock-app
+# Use the venv's Python so all pip deps are available
+ExecStart=/home/pi/bigrock-app/venv/bin/python3 /home/pi/bigrock-app/app.py
+Restart=always
+RestartSec=5
+# Flask should not run in debug mode in production
+Environment=FLASK_ENV=production
+
+[Install]
+WantedBy=multi-user.target

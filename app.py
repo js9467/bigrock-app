@@ -43,7 +43,6 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 # ------------------------
 ALERTS_FILE = 'alerts.json'
 NOTIFIED_FILE = 'notified.json'
-MASTER_JSON_URL = "https://js9467.github.io/Brtourney/settings.json"
 
 SMTP_USER = "bigrockapp@gmail.com"
 SMTP_PASS = "coslxivgfqohjvto"  # Gmail App Password
@@ -215,14 +214,22 @@ def get_current_tournament():
 def get_tournament_logo() -> str | None:
     """Return the logo URL/path for the current tournament."""
     tournament = get_current_tournament()
-    try:
-        settings = SESS.get(MASTER_JSON_URL, timeout=12).json()
-        key = next((k for k in settings if k.lower() == tournament.lower()), None)
-        if key:
-            return settings[key].get("logo")
-    except Exception as e:
-        print(f"⚠️ Failed to fetch tournament logo: {e}")
-    return None
+    info = _get_tournament_urls(tournament)
+    return info.get('logo') or None
+
+def _get_tournament_urls(tournament: str) -> dict:
+    """Look up participants/events/leaderboard/logo/stream URLs for a tournament.
+    Uses the local tournament index (cache/tournaments.json); refreshes automatically
+    if the tournament is not cached or URLs are missing.
+    """
+    index = safe_json_load(TOURNAMENTS_CACHE, {})
+    key = next((k for k in index if k.lower() == tournament.lower()), None)
+    if key and index[key].get('participants'):
+        return index[key]
+    # Cache miss or stale — rebuild from ReelTime live scraper
+    index = build_tournaments_index(force=False)
+    key = next((k for k in index if k.lower() == tournament.lower()), None)
+    return index.get(key, {}) if key else {}
 
 def normalize_boat_name(name):
     """Normalize boat names for comparison/storage.
@@ -477,46 +484,19 @@ def build_tournaments_index(force: bool = False):
     os.makedirs("cache", exist_ok=True)
     cached = safe_json_load(TOURNAMENTS_CACHE, {}) if not force else {}
 
-    # Base layer: auto-discovered ReelTime live tournaments (have dates inline)
+    # Sole source: ReelTime live tournaments page (VHF streams injected by VHF_STREAMS map)
     live_rt = scrape_reeltime_live_tournaments(force=force)
 
-    # Manual layer: GitHub Pages settings.json (stream URLs, custom logos, overrides)
-    try:
-        master = SESS.get(MASTER_JSON_URL, timeout=15).json()
-    except Exception as e:
-        print(f"❌ Failed to fetch MASTER_JSON_URL: {e}")
-        master = {}
-    manual_entries = {}
-    if isinstance(master, dict):
-        manual_entries = master
-    elif isinstance(master, list):
-        for obj in master:
-            if isinstance(obj, dict):
-                n = obj.get("name") or obj.get("tournament")
-                if n:
-                    manual_entries[n] = obj
-
-    # Merge: start with live_rt, then overlay manual entries (manual wins on conflict)
-    merged = {}
-    for name, vals in live_rt.items():
-        merged[name] = dict(vals)  # copy
-    for name, vals in manual_entries.items():
-        if not isinstance(vals, dict):
-            continue  # skip null / non-dict entries
-        if name in merged:
-            merged[name].update(vals)  # manual fields override auto-detected
-        else:
-            merged[name] = dict(vals)
-
+    # Work directly with live data — no external JSON override needed
     out = {}
-    for name, vals in merged.items():
+    for name, vals in live_rt.items():
         # Use inline dates from ReelTime listing if available
-        inline_dates = vals.get('dates') or live_rt.get(name, {}).get('dates') or ''
+        inline_dates = vals.get('dates', '')
 
         # Try cache first to avoid re-scraping
         if not force and name in cached and cached[name].get('start') and cached[name].get('end'):
             entry = dict(cached[name])
-            # Carry forward URL/stream fields from merged so they're in the response
+            # Carry forward URL/stream fields so they're in the response
             for k in ('participants', 'events', 'leaderboard', 'logo', 'uid', 'stream'):
                 if k in vals:
                     entry[k] = vals[k]
@@ -560,7 +540,7 @@ def build_tournaments_index(force: bool = False):
         out[name] = entry
 
     safe_json_dump(TOURNAMENTS_CACHE, out)
-    print(f"✅ Tournaments index saved: {len(out)} entries ({len(live_rt)} from ReelTime live, {len(manual_entries)} from manual config)")
+    print(f"✅ Tournaments index saved: {len(out)} entries from ReelTime live")
     return out
 
 # ------------------------
@@ -713,13 +693,10 @@ def scrape_participants(force: bool = False):
         return safe_json_load(participants_file, [])
 
     try:
-        settings = SESS.get(MASTER_JSON_URL, timeout=12).json()
-        matching_key = next((k for k in settings if k.lower() == tournament.lower()), None)
-        if not matching_key:
-            raise Exception(f"Tournament '{tournament}' not found in settings.json")
-        participants_url = settings[matching_key].get("participants")
+        info = _get_tournament_urls(tournament)
+        participants_url = info.get('participants')
         if not participants_url:
-            raise Exception(f"No participants URL found for {matching_key}")
+            raise Exception(f"No participants URL found for '{tournament}'")
 
         print(f"📡 Scraping participants from: {participants_url}")
         html = fetch_html(participants_url)
@@ -889,13 +866,10 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         return safe_json_load(events_file, [])
 
     try:
-        remote = SESS.get(MASTER_JSON_URL, timeout=12).json()
-        key = next((k for k in remote if normalize_boat_name(k) == normalize_boat_name(tournament)), None)
-        if not key:
-            raise Exception(f"Tournament '{tournament}' not found in remote settings.json")
-        events_url = remote[key].get("events")
+        info = _get_tournament_urls(tournament)
+        events_url = info.get('events')
         if not events_url:
-            raise Exception(f"No events URL found for {tournament}")
+            raise Exception(f"No events URL found for '{tournament}'")
 
         print(f"📡 Scraping events (with pagination) from: {events_url}")
         first_html = fetch_html(events_url)
@@ -1145,13 +1119,8 @@ def scrape_leaderboard(tournament=None, force: bool = False):
         return safe_json_load(lb_file, [])
 
     try:
-        remote = SESS.get(MASTER_JSON_URL, timeout=15).json()
-        key = next((k for k in remote if k.lower() == tournament.lower()), None)
-        if not key:
-            print(f"❌ Tournament '{tournament}' not found in master JSON.")
-            safe_json_dump(lb_file, [])
-            return []
-        leaderboard_url = remote[key].get("leaderboard")
+        info = _get_tournament_urls(tournament)
+        leaderboard_url = info.get('leaderboard')
         if not leaderboard_url:
             print(f"❌ No leaderboard URL for '{tournament}'.")
             safe_json_dump(lb_file, [])

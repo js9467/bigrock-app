@@ -73,6 +73,38 @@ for V in $(seq $((DEPLOYED + 1)) "$REPO"); do
         ensure_js "tailwind.cdn.js"    "https://cdn.tailwindcss.com"
         ;;
 
+    4)
+        # Disable Chromium HTTP disk cache to prevent stale CSS/JS on boot.
+        # Root cause of the "white screen / no Tailwind" bug: Chromium's disk cache
+        # was serving a stale tailwind.cdn.js or index.html from a previous session.
+        # --disk-cache-size=1 limits the cache to 1 byte (effectively disables it).
+        # The service worker handles offline caching for static assets instead.
+        log "v4: Rewriting labwc autostart with --disk-cache-size=1 flag..."
+        AUTOSTART="/home/pi/.config/labwc/autostart"
+        mkdir -p /home/pi/.config/labwc
+        cat > "$AUTOSTART" << 'AUTOSTART_EOF'
+# Hide mouse cursor after 5s of inactivity
+unclutter -idle 5 -root &
+# Pre-start on-screen keyboard hidden so it holds its Wayland connection before
+# Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
+wvkbd-mobintl -L 220 --hidden &
+sleep 1
+# Launch app maximized. --disk-cache-size=1 disables the HTTP disk cache so
+# Chromium never serves stale CSS/JS from a previous session.
+chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --no-restore-last-session --disk-cache-size=1 --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
+AUTOSTART_EOF
+        chmod +x "$AUTOSTART"
+        # Also clear any existing Chromium disk cache right now
+        rm -rf /home/pi/.cache/chromium \
+               /home/pi/.config/chromium/Default/Cache \
+               "/home/pi/.config/chromium/Default/Code Cache" \
+               2>/dev/null || true
+        log "v4: autostart rewritten and Chromium cache cleared."
+        # Schedule a reboot so new Chromium flags take effect (1 minute from now)
+        log "v4: Scheduling reboot in 1 minute to apply new Chromium flags..."
+        shutdown -r +1 "BigRock v4 upgrade: rebooting to apply --disk-cache-size=1" || true
+        ;;
+
     # ---------------------------------------------------------------------------
     # TEMPLATE for future upgrades — copy this block and increment the number:
     #

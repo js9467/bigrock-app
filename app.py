@@ -139,12 +139,12 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
     except Exception as e:
         print(f"⚠️ Direct fetch error for {url}: {e}")
 
-    # Optional ScraperAPI
+    # Optional ScraperAPI (render=true enables JS execution for JS-heavy SPAs)
     if use_scraperapi:
         api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
-        api = f"https://api.scraperapi.com?api_key={api_key}&keep_headers=true&url={quote(url, safe='')}"
+        api = f"https://api.scraperapi.com?api_key={api_key}&render=true&keep_headers=true&url={quote(url, safe='')}"
         try:
-            r = SESS.get(api, headers=headers, timeout=18)
+            r = SESS.get(api, headers=headers, timeout=30)
             if r.status_code == 200 and r.text.strip():
                 return r.text
             print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
@@ -421,8 +421,8 @@ def scrape_reeltime_live_tournaments(force: bool = False) -> dict:
         if age < 3600:
             return safe_json_load(REELTIME_LIVE_CACHE, {})
 
-    html = fetch_html(REELTIME_LIVE_URL)
-    if not html:
+    html = fetch_html(REELTIME_LIVE_URL, use_scraperapi=True)
+    if not html or 'Vercel Security Checkpoint' in html:
         print("⚠️ Could not fetch ReelTime live tournaments page")
         return safe_json_load(REELTIME_LIVE_CACHE, {})
 
@@ -2610,7 +2610,7 @@ def wifi_disconnect():
             if len(parts) < 3:
                 continue
             name, ctype, device = parts
-            if ctype == 'wifi':
+            if 'wireless' in ctype or ctype == 'wifi':
                 print(f"🚫 Disconnecting Wi-Fi connection: {name}")
                 subprocess.check_call(['nmcli', 'con', 'down', name])
                 return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})

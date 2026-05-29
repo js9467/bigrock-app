@@ -1,5 +1,5 @@
 // BigRock Tournament — Service Worker
-const CACHE = 'bigrock-pwa-v1';
+const CACHE = 'bigrock-pwa-v2';
 
 const PRECACHE = [
   '/',

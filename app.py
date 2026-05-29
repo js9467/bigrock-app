@@ -1683,8 +1683,11 @@ def start_audio_router_monitor():
             name="audio_router_monitor",
         )
         _audio_monitor_thread.start()
-# Start monitor at import time
-start_audio_router_monitor()
+# Audio router monitor disabled — calling pactl subprocesses (set-default-sink,
+# move-sink-input) while PipeWire has an active audio stream crashes PipeWire
+# and triggers a full Pi system reboot. BT routing can be triggered manually
+# via the /api/audio/route endpoint if needed.
+# start_audio_router_monitor()
 # ========= end auto audio routing =========
 
 

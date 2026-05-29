@@ -184,6 +184,18 @@ fi
 # ---------------------------------------------------------------------------
 # Done — stamp the deployed version so update script knows what's installed
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Download bundled JS assets (offline-safe)
+# ---------------------------------------------------------------------------
+echo ""
+echo ">>> Downloading bundled JS assets..."
+mkdir -p "$APP_DIR/static/js"
+curl -sL https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js -o "$APP_DIR/static/js/vue.global.prod.js"
+curl -sL https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js         -o "$APP_DIR/static/js/axios.min.js"
+curl -sL https://cdn.tailwindcss.com                                         -o "$APP_DIR/static/js/tailwind.cdn.js"
+curl -sL https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js         -o "$APP_DIR/static/js/hls.min.js"
+echo "JS assets downloaded."
+
 REPO_VERSION=$(cat "$APP_DIR/setup/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "1")
 echo "$REPO_VERSION" > /home/pi/.bigrock-version
 echo "Deployed version stamped: $REPO_VERSION"

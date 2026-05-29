@@ -2839,4 +2839,4 @@ if __name__ == '__main__':
     print("🚀 Starting (stabilized, faster fetch, fixed leaderboard).")
     Thread(target=background_event_emailer, daemon=True).start()
     startup_scrape()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)

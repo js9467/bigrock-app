@@ -1,2 +1,11 @@
 node_modules/
 __pycache__/
+
+# Runtime state — should not be overwritten by git deploys
+settings.json
+cache/
+events.json
+alerts.json
+notified_events.json
+cache.json
+followed_boats.json

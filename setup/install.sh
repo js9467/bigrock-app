@@ -149,6 +149,8 @@ chromium \
     --disable-infobars \
     --no-first-run \
     --disable-session-crashed-bubble \
+    --disable-features=WebBluetooth \
+    --disable-notifications \
     --app=http://localhost:5000 &
 EOF
 chmod +x /home/pi/.config/labwc/autostart

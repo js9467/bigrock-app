@@ -1670,8 +1670,18 @@ start_audio_router_monitor()
 # ------------------------
 # Routes: pages & static
 # ------------------------
+def _has_internet():
+    """Quick connectivity check — tries to reach GitHub."""
+    try:
+        r = requests.get('https://github.com', timeout=3)
+        return r.status_code < 500
+    except Exception:
+        return False
+
 @app.route('/')
 def homepage():
+    if not _has_internet():
+        return redirect('/settings-page/?tab=wifi&reason=no-internet')
     return send_from_directory('templates', 'index.html')
 
 @app.route('/offline')
@@ -2581,6 +2591,8 @@ def wifi_connect():
             cmd += ['password', password]
         result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         print(f"✅ Connected: {result}")
+        # Kick off an update check in the background now that we have internet
+        run_in_thread(_background_update_check, "update-check")
         return jsonify({'status': 'ok', 'message': result})
     except subprocess.CalledProcessError as e:
         print(f"❌ nmcli error: {e.output}")
@@ -2659,6 +2671,65 @@ def api_version():
             return jsonify({"version": f.read().strip()})
     except:
         return jsonify({"version": "Unknown"})
+
+@app.route('/api/update/check')
+def api_update_check():
+    """Compare local deployed version against latest on GitHub main branch."""
+    try:
+        deployed = int(open('/home/pi/.bigrock-version').read().strip())
+    except Exception:
+        deployed = 0
+    try:
+        url = 'https://raw.githubusercontent.com/js9467/bigrock-app/main/setup/VERSION'
+        remote = int(requests.get(url, timeout=5).text.strip())
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'Could not reach GitHub', 'update_available': False})
+    return jsonify({'status': 'ok', 'deployed': deployed, 'latest': remote, 'update_available': remote > deployed})
+
+@app.route('/api/update/apply', methods=['POST'])
+def api_update_apply():
+    """Pull latest code and restart the bigrock service."""
+    try:
+        run_in_thread(_do_update, "apply-update")
+        return jsonify({'status': 'ok', 'message': 'Update started — app will restart shortly'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+def _do_update():
+    import shutil
+    app_dir = '/home/pi/bigrock-app'
+    try:
+        subprocess.check_call(['git', '-C', app_dir, 'fetch', 'origin', 'main'])
+        subprocess.check_call(['git', '-C', app_dir, 'reset', '--hard', 'origin/main'])
+        pip = os.path.join(app_dir, 'venv', 'bin', 'pip')
+        if os.path.exists(pip):
+            subprocess.check_call([pip, 'install', '-r', os.path.join(app_dir, 'requirements.txt'), '-q'])
+        # Write new deployed version
+        ver_file = os.path.join(app_dir, 'setup', 'VERSION')
+        if os.path.exists(ver_file):
+            shutil.copy(ver_file, '/home/pi/.bigrock-version')
+        subprocess.check_call(['sudo', 'systemctl', 'restart', 'bigrock.service'])
+    except Exception as e:
+        print(f"❌ Update failed: {e}")
+
+def _background_update_check():
+    """After WiFi connects: silently update if a newer version exists."""
+    import time as _time
+    _time.sleep(5)  # give NM a moment to fully establish the connection
+    try:
+        deployed = int(open('/home/pi/.bigrock-version').read().strip())
+    except Exception:
+        deployed = 0
+    try:
+        url = 'https://raw.githubusercontent.com/js9467/bigrock-app/main/setup/VERSION'
+        remote = int(requests.get(url, timeout=10).text.strip())
+        if remote > deployed:
+            print(f"🔄 Auto-update: {deployed} → {remote}")
+            _do_update()
+        else:
+            print(f"✅ Already on latest version ({deployed})")
+    except Exception as e:
+        print(f"⚠️ Background update check failed: {e}")
 
 @app.route("/release-summary")
 def release_summary_page():

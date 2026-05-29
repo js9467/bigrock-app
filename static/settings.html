@@ -114,8 +114,17 @@
         <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
       </div>
 
+      <!-- App Update Banner -->
+      <div v-if="updateInfo" class="p-4 bg-green-100 border border-green-400 rounded-lg flex items-center justify-between">
+        <span class="text-green-800 font-semibold">🔄 Update available: v{{ updateInfo.latest }} (you have v{{ updateInfo.deployed }})</span>
+        <button @click="applyUpdate" class="ml-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Update Now</button>
+      </div>
+
       <!-- Wi-Fi -->
-      <div class="pt-6">
+      <div class="pt-6" id="wifi-section">
+        <div v-if="noInternetReason" class="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 font-semibold">
+          ⚠️ No internet connection detected. Connect to Wi-Fi to continue.
+        </div>
         <div class="flex items-center justify-between">
           <h2 class="text-xl font-semibold mb-2">Wi-Fi</h2>
           <button @click="refreshWifiStatus" class="px-3 py-1 text-sm bg-gray-100 border rounded hover:bg-gray-200">Refresh Status</button>
@@ -263,7 +272,9 @@
         availableSounds: [],
         tournamentLogo: '',
         recipients: [{ email: '' }],
-        btStatus: { enabled: false, connected: false, devices: [], adapter: null }
+        btStatus: { enabled: false, connected: false, devices: [], adapter: null },
+        noInternetReason: null,
+        updateInfo: null
       };
     },
     computed: {
@@ -332,6 +343,12 @@
       setBrandColor(t){ const color = this.tournaments[t]?.color || '#002855'; document.documentElement.style.setProperty('--brand-color', color); },
       updateTournamentLogo() { const t = this.settings.tournament; this.tournamentLogo = this.tournaments[t]?.logo || ''; this.setBrandColor(t); },
       previewSound(file) { if (!file) return; const a = new Audio(`/static/sounds/${file}`); a.volume = (this.settings.event_volume || 80) / 100; a.play().catch(() => {}); },
+
+      applyUpdate() {
+        this.showToast('⏳ Updating… app will restart in ~15 seconds.', 'info');
+        axios.post('/api/update/apply').catch(() => {});
+        setTimeout(() => location.reload(), 18000);
+      },
 
       /* ===== Wi-Fi (Bluetooth-like UX) ===== */
       refreshWifiStatus() {
@@ -461,12 +478,29 @@
       this.refreshWifiStatus();
       this.refreshBtStatus();
 
+      // Handle redirect from / when offline: scroll to WiFi section
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reason') === 'no-internet') {
+        this.noInternetReason = true;
+        this.$nextTick(() => {
+          document.getElementById('wifi-section')?.scrollIntoView({ behavior: 'smooth' });
+        });
+      }
+
+      // Check for app updates
+      axios.get('/api/update/check').then(res => {
+        if (res.data.update_available) {
+          this.updateInfo = res.data;
+        }
+      }).catch(() => {});
+
       // Poll statuses every 5s (Wi-Fi + Bluetooth)
       setInterval(() => {
         this.refreshWifiStatus();
         this.refreshBtStatus();
       }, 5000);
-    }
+    },
+    methods: {
   }).mount('#app');
   </script>
 </body>

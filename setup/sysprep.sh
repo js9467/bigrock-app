@@ -19,6 +19,58 @@ fi
 
 APP_DIR="/home/pi/bigrock-app"
 
+# =============================================================================
+# PRE-FLIGHT: Abort if master Pi isn't fully healthy
+# =============================================================================
+echo ""
+echo "--- Pre-flight checks ---"
+PREFLIGHT_FAIL=0
+
+# 1. bigrock Flask app must be active
+if ! systemctl is-active --quiet bigrock; then
+    echo "FAIL: 'bigrock' service is not running. Start it and verify the app before imaging."
+    PREFLIGHT_FAIL=1
+else
+    echo "OK:   bigrock service is active"
+fi
+
+# 2. App must respond on HTTP
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:5000 || true)
+if [ "$HTTP_CODE" != "200" ]; then
+    echo "FAIL: Flask app did not return HTTP 200 (got '$HTTP_CODE'). Fix the app before imaging."
+    PREFLIGHT_FAIL=1
+else
+    echo "OK:   Flask app returned HTTP 200"
+fi
+
+# 3. Actions runner must be active
+RUNNER_SVC=$(systemctl list-units --type=service --state=active --no-legend 2>/dev/null | grep -o 'actions\.runner\.[^ ]*' | head -1 || true)
+if [ -z "$RUNNER_SVC" ]; then
+    echo "FAIL: GitHub Actions runner service is not active. Set it up before imaging."
+    PREFLIGHT_FAIL=1
+else
+    echo "OK:   Actions runner is active ($RUNNER_SVC)"
+fi
+
+# 4. Pi must have internet access (confirms WiFi is working)
+if ! curl -s --max-time 5 https://github.com > /dev/null; then
+    echo "FAIL: No internet access — ensure the Pi is connected to WiFi before imaging."
+    PREFLIGHT_FAIL=1
+else
+    echo "OK:   Internet access confirmed"
+fi
+
+if [ "$PREFLIGHT_FAIL" -eq 1 ]; then
+    echo ""
+    echo "==========================================="
+    echo "  SYSPREP ABORTED — fix the issues above"
+    echo "==========================================="
+    exit 1
+fi
+
+echo ""
+echo "All pre-flight checks passed."
+
 echo ""
 echo "==========================================="
 echo "  BigRock Sysprep"
@@ -53,10 +105,23 @@ echo ">>> Clearing SSH host keys..."
 rm -f /etc/ssh/ssh_host_*
 
 # ---------------------------------------------------------------------------
-# Clear per-device state files
+# Clear per-device state files (clones need fresh WiFi setup)
 # ---------------------------------------------------------------------------
-echo ">>> Clearing WiFi configured flag..."
+echo ">>> Clearing WiFi configured flag (clones will run portal on first boot)..."
 rm -f /home/pi/.bigrock-wifi-configured
+
+echo ">>> Removing WiFi credentials (clones must not inherit master's network)..."
+rm -f /etc/NetworkManager/system-connections/*.nmconnection
+
+echo ">>> Re-enabling WiFi portal service for clones..."
+systemctl unmask bigrock-wifi-setup.service 2>/dev/null || true
+systemctl enable bigrock-wifi-setup.service 2>/dev/null || true
+
+echo ">>> Resetting cloud-init instance ID so it re-runs on each clone..."
+CLI=/boot/firmware/cmdline.txt
+sed -i 's|i=[^ ]*|i=bigrock-clone-ready|g' "$CLI"
+# Also clear cloud-init cached state so the new instance ID triggers a fresh run
+rm -rf /var/lib/cloud/instances /var/lib/cloud/instance /var/lib/cloud/data /var/lib/cloud/sem 2>/dev/null || true
 
 # Stamp version so clones don't needlessly re-run install.sh on first update
 REPO_VERSION=$(cat "$APP_DIR/setup/VERSION" 2>/dev/null || echo "1")

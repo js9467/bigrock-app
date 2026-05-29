@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+ssh pi@192.168.4.104 "sudo bash /home/pi/bigrock-app/setup/sysprep.sh"ssh pi@192.168.4.104 "sudo bash /home/pi/bigrock-app/setup/sysprep.sh"#!/usr/bin/env bash
 # =============================================================================
 # BigRock App — Fresh Raspberry Pi Setup Script
 # =============================================================================
@@ -112,7 +112,8 @@ fi
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable bigrock.service
 $SUDO systemctl enable bigrock-update.timer
-$SUDO systemctl enable bigrock-wifi-setup.service
+$SUDO systemctl disable bigrock-wifi-setup.service 2>/dev/null || true
+$SUDO systemctl mask bigrock-wifi-setup.service 2>/dev/null || true
 echo "Services enabled."
 
 # ---------------------------------------------------------------------------

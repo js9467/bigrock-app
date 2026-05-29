@@ -144,6 +144,10 @@ mkdir -p /home/pi/.config/labwc
 cat << 'EOF' > /home/pi/.config/labwc/autostart
 # Hide mouse cursor after 5s of inactivity
 unclutter -idle 5 -root &
+# Pre-start on-screen keyboard hidden so it holds its Wayland connection before
+# Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
+wvkbd-mobintl -L 220 --hidden &
+sleep 1
 # Launch app in kiosk mode
 chromium \
     --kiosk \

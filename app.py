@@ -2635,13 +2635,18 @@ def launch_keyboard():
         env = os.environ.copy()
         env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
         env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
-        # Try squeekboard (Wayland), then wvkbd, then onboard (X11 fallback)
-        for kbd in [['squeekboard'], ['wvkbd-mobintl', '-L', '220'],
-                    ['onboard']]:
-            if subprocess.call(['which', kbd[0]], stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL) == 0:
-                subprocess.Popen(kbd, env=env)
-                return jsonify({"status": "launched", "keyboard": kbd[0]})
+        # wvkbd is pre-started --hidden in the labwc autostart before Chromium,
+        # so it already holds a Wayland connection. Send SIGUSR2 to make it visible.
+        # (Chromium kiosk evicts any wvkbd launched AFTER it starts.)
+        rc = subprocess.call(['pkill', '-USR2', 'wvkbd-mobintl'],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if rc == 0:
+            return jsonify({"status": "shown", "keyboard": "wvkbd-mobintl"})
+        # Fallback: wvkbd not running yet — launch it (works if Chromium not up)
+        if subprocess.call(['which', 'wvkbd-mobintl'], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL) == 0:
+            subprocess.Popen(['wvkbd-mobintl', '-L', '220'], env=env)
+            return jsonify({"status": "launched", "keyboard": "wvkbd-mobintl"})
         return jsonify({"status": "no_keyboard_available"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2649,9 +2654,9 @@ def launch_keyboard():
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
     try:
-        for kbd in ['squeekboard', 'wvkbd-mobintl', 'onboard']:
-            subprocess.call(['pkill', '-f', kbd],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Send SIGUSR1 to hide wvkbd without killing it (keeps Wayland connection)
+        subprocess.call(['pkill', '-USR1', 'wvkbd-mobintl'],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -437,32 +437,50 @@
         const storedVol = localStorage.getItem('event_volume');
         if (storedVol) this.settings.event_volume = parseInt(storedVol, 10);
 
-        // Load tournaments: live scraper only (no external JSON dependency)
-        axios.get('/api/reeltime-live').then(resLive => {
-          this.tournaments = resLive.data?.tournaments || {};
-        }).catch(() => {
-          this.tournaments = {};
-        }).finally(() => {
-          axios.get('/api/tournaments').then(res3 => {
-            this.apiTournamentLabels = res3.data?.tournaments || {};
-            // Backfill labels, logos, and stream URLs from the index
-            for (const [name, info] of Object.entries(this.apiTournamentLabels)) {
-              if (!this.tournaments[name]) this.tournaments[name] = {};
-              if (!this.tournaments[name].label && info.label) this.tournaments[name].label = info.label;
-              if (!this.tournaments[name].logo && info.logo) this.tournaments[name].logo = info.logo;
-              if (!this.tournaments[name].stream && info.stream) this.tournaments[name].stream = info.stream;
-            }
-            if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-              this.settings.tournament = '';
-            }
-            this.updateTournamentLogo();
-          }).catch(() => {
-            if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
-              this.settings.tournament = '';
-            }
-            this.updateTournamentLogo();
-          });
-        });
+        // Load tournaments: fast local cache first so the dropdown appears immediately,
+        // then merge in live data from the external scraper in the background.
+        const mergeTournaments = (index) => {
+          for (const [name, info] of Object.entries(index)) {
+            if (!this.tournaments[name]) this.tournaments[name] = {};
+            if (!this.tournaments[name].label && info.label) this.tournaments[name].label = info.label;
+            if (!this.tournaments[name].logo && info.logo) this.tournaments[name].logo = info.logo;
+            if (!this.tournaments[name].stream && info.stream) this.tournaments[name].stream = info.stream;
+          }
+          if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+            this.settings.tournament = '';
+          }
+          this.updateTournamentLogo();
+        };
+
+        // Step 1: local index — instant
+        axios.get('/api/tournaments').then(res => {
+          const index = res.data?.tournaments || {};
+          this.apiTournamentLabels = index;
+          for (const [name, info] of Object.entries(index)) {
+            if (!this.tournaments[name]) this.tournaments[name] = {};
+            if (!this.tournaments[name].label && info.label) this.tournaments[name].label = info.label;
+            if (!this.tournaments[name].logo && info.logo) this.tournaments[name].logo = info.logo;
+            if (!this.tournaments[name].stream && info.stream) this.tournaments[name].stream = info.stream;
+          }
+          if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+            this.settings.tournament = Object.keys(this.tournaments)[0] || '';
+          }
+          this.updateTournamentLogo();
+        }).catch(() => {});
+
+        // Step 2: live scraper — may be slow, merges in background
+        axios.get('/api/reeltime-live', { timeout: 15000 }).then(resLive => {
+          const live = resLive.data?.tournaments || {};
+          // Merge live data on top of what we already have
+          for (const [name, info] of Object.entries(live)) {
+            if (!this.tournaments[name]) this.tournaments[name] = {};
+            Object.assign(this.tournaments[name], info);
+          }
+          if (!this.settings.tournament || !(this.settings.tournament in this.tournaments)) {
+            this.settings.tournament = Object.keys(this.tournaments)[0] || '';
+          }
+          this.updateTournamentLogo();
+        }).catch(() => {});
       });
 
       // Sounds

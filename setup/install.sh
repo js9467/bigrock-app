@@ -144,30 +144,28 @@ mkdir -p /home/pi/.config/labwc
 cat << 'EOF' > /home/pi/.config/labwc/autostart
 # Hide mouse cursor after 5s of inactivity
 unclutter -idle 5 -root &
-# Launch app in kiosk mode
-chromium \
-    --kiosk \
-    --noerrdialogs \
-    --disable-infobars \
-    --no-first-run \
-    --disable-session-crashed-bubble \
-    --disable-features=WebBluetooth \
-    --disable-notifications \
-    --app=http://localhost:5000 &
+# Pre-start on-screen keyboard hidden so it holds its Wayland connection before
+# Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
+wvkbd-mobintl -L 220 --hidden &
+sleep 1
+# Launch app maximized (not --kiosk) so wvkbd layer-shell renders above it.
+# labwc rc.xml strips the title bar via windowRule below.
+chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
 EOF
 chmod +x /home/pi/.config/labwc/autostart
 
-# labwc rc.xml: minimal config, no window decorations
+# labwc rc.xml: strip title bar from Chromium via windowRule
 mkdir -p /home/pi/.config/labwc
-if [ ! -f /home/pi/.config/labwc/rc.xml ]; then
-    cat << 'EOF' > /home/pi/.config/labwc/rc.xml
+cat << 'EOF' > /home/pi/.config/labwc/rc.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <theme><name>Clearlooks</name></theme>
   <desktops><number>1</number></desktops>
+  <windowRules>
+    <windowRule identifier="*" serverDecoration="no" skipTaskbar="yes" />
+  </windowRules>
 </openbox_config>
 EOF
-fi
 
 # .bashrc: auto-start Wayland session on tty1 login
 if ! grep -q "bigrock-kiosk" /home/pi/.bashrc 2>/dev/null; then

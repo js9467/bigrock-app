@@ -203,10 +203,13 @@
         } catch(e) { console.error('Logo load failed', e); }
       },
       launchKeyboard() {
+        clearTimeout(this._kbdHideTimer);
         fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
       },
       hideKeyboard() {
-        fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+        this._kbdHideTimer = setTimeout(() => {
+          fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+        }, 500);
       },
 
       initLazyLoading() {
@@ -250,6 +253,7 @@
       }
     },
     mounted() {
+      fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
       this.loadLogo();
       this.loadParticipants();
       this.loadFollowed();

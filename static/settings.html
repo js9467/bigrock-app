@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Settingsss</title>
+  <title>Settings</title>
   <script src="/static/js/offline.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
@@ -212,6 +212,28 @@
       </div>
     </div>
 
+    <!-- Wi-Fi Password Modal -->
+    <div v-if="wifiPasswordModal.show" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded shadow w-11/12 md:w-96">
+        <h3 class="text-lg font-bold mb-4">Connect to {{ wifiPasswordModal.ssid }}</h3>
+        <label class="block text-sm text-gray-700 mb-1">Password (leave blank if open):</label>
+        <input
+          id="wifi-pwd-input"
+          type="password"
+          v-model="wifiPasswordModal.password"
+          @focus="$event.target.select(); fetch('/launch_keyboard', {method:'POST'}).catch(()=>{})"
+          @blur="setTimeout(() => fetch('/hide_keyboard', {method:'POST'}).catch(()=>{}), 500)"
+          @keyup.enter="submitWifiPassword"
+          class="w-full border rounded px-3 py-2 mb-4 text-base"
+          placeholder="Leave blank for open networks"
+        />
+        <div class="flex gap-3 justify-end">
+          <button @click="wifiPasswordModal.show = false; fetch('/hide_keyboard', {method:'POST'}).catch(()=>{})" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+          <button @click="submitWifiPassword" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Connect</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Bluetooth Modal -->
     <div v-if="bluetoothPopup" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white p-4 rounded shadow w-11/12 md:w-1/2 max-h-[80vh] overflow-y-auto">
@@ -271,6 +293,7 @@
         wifiStatus: { connected: null },   // NEW: mirrors Bluetooth-style status
         bluetoothDevices: [],
         wifiPopup: false,
+        wifiPasswordModal: { show: false, ssid: '', password: '' },
         bluetoothPopup: false,
         toast: { message: '', type: '' },
         availableSounds: [],
@@ -381,7 +404,15 @@
       },
       connectWifiPrompt(ssid) {
         fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
-        const password = prompt(`Password for ${ssid} (leave blank if open)`, '');
+        this.wifiPasswordModal = { show: true, ssid, password: '' };
+        this.$nextTick(() => {
+          const inp = document.getElementById('wifi-pwd-input');
+          if (inp) inp.focus();
+        });
+      },
+      submitWifiPassword() {
+        const { ssid, password } = this.wifiPasswordModal;
+        this.wifiPasswordModal.show = false;
         fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
         this.connectWifi(ssid, password || '');
       },
@@ -438,6 +469,7 @@
       }
     },
     mounted() {
+      fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
       // Load saved settings
       axios.get('/api/settings').then(res => {
         this.settings = { ...this.settings, ...res.data };

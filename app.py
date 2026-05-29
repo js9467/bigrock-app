@@ -2598,18 +2598,45 @@ def wifi_connect():
         return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
     try:
         print(f"🔌 Attempting connection to: {ssid}")
-        cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
+        # Delete ALL profiles whose ssid field matches — 'nmcli connection delete <name>'
+        # only matches by connection name, which may differ from the SSID, so we must
+        # search by the 802-11-wireless.ssid field to catch all stale/corrupt profiles.
+        try:
+            out = subprocess.check_output(
+                ['sudo', 'nmcli', '-t', '-f', 'NAME,802-11-wireless.ssid', 'connection', 'show'],
+                stderr=subprocess.DEVNULL, text=True
+            )
+            for line in out.splitlines():
+                if ':' in line:
+                    con_name, _, ssid_val = line.partition(':')
+                    if ssid_val.strip() == ssid:
+                        subprocess.call(['sudo', 'nmcli', 'connection', 'delete', con_name.strip()],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        print(f"🗑️ Deleted stale profile: {con_name.strip()}")
+        except Exception as lookup_err:
+            print(f"⚠️ Profile lookup failed (non-fatal): {lookup_err}")
+        # Build a fresh profile with explicit security — avoids missing key-mgmt errors
         if password:
-            cmd += ['password', password]
-        result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            add_cmd = ['sudo', 'nmcli', 'connection', 'add',
+                       'type', 'wifi', 'ifname', 'wlan0',
+                       'con-name', ssid, 'ssid', ssid,
+                       'wifi-sec.key-mgmt', 'wpa-psk',
+                       'wifi-sec.psk', password]
+        else:
+            add_cmd = ['sudo', 'nmcli', 'connection', 'add',
+                       'type', 'wifi', 'ifname', 'wlan0',
+                       'con-name', ssid, 'ssid', ssid]
+        subprocess.check_output(add_cmd, stderr=subprocess.STDOUT, text=True)
+        result = subprocess.check_output(
+            ['sudo', 'nmcli', 'connection', 'up', ssid],
+            stderr=subprocess.STDOUT, text=True
+        )
         print(f"✅ Connected: {result}")
         # Kick off an update check in the background now that we have internet
         run_in_thread(_background_update_check, "update-check")
         return jsonify({'status': 'ok', 'message': result})
     except subprocess.CalledProcessError as e:
         print(f"❌ nmcli error: {e.output}")
-        if "Secrets were required" in e.output:
-            return jsonify({'status': 'error', 'message': 'Password required for new network', 'code': 'password_required'}), 400
         return jsonify({'status': 'error', 'message': e.output.strip()}), 500
 
 @app.route('/wifi/disconnect', methods=['POST'])
@@ -2629,29 +2656,44 @@ def wifi_disconnect():
         print(f"❌ Unexpected error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# wvkbd starts --hidden; track visibility so SIGUSR2 only fires when hidden
+# (SIGUSR2 toggles, so calling it twice would hide the keyboard again)
+_keyboard_visible = False
+_keyboard_lock = Lock()
+
 @app.route('/launch_keyboard', methods=['POST'])
 def launch_keyboard():
+    global _keyboard_visible
     try:
-        env = os.environ.copy()
-        env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
-        env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
-        # Try squeekboard (Wayland), then wvkbd, then onboard (X11 fallback)
-        for kbd in [['squeekboard'], ['wvkbd-mobintl', '-L', '220'],
-                    ['onboard']]:
-            if subprocess.call(['which', kbd[0]], stdout=subprocess.DEVNULL,
+        with _keyboard_lock:
+            if _keyboard_visible:
+                return jsonify({"status": "already_shown", "keyboard": "wvkbd-mobintl"})
+            rc = subprocess.call(['pkill', '-USR2', 'wvkbd-mobintl'],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if rc == 0:
+                _keyboard_visible = True
+                return jsonify({"status": "shown", "keyboard": "wvkbd-mobintl"})
+            # Fallback: wvkbd not running — launch fresh
+            env = os.environ.copy()
+            env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
+            env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
+            if subprocess.call(['which', 'wvkbd-mobintl'], stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL) == 0:
-                subprocess.Popen(kbd, env=env)
-                return jsonify({"status": "launched", "keyboard": kbd[0]})
-        return jsonify({"status": "no_keyboard_available"})
+                subprocess.Popen(['wvkbd-mobintl', '-L', '220'], env=env)
+                _keyboard_visible = True
+                return jsonify({"status": "launched", "keyboard": "wvkbd-mobintl"})
+            return jsonify({"status": "no_keyboard_available"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
+    global _keyboard_visible
     try:
-        for kbd in ['squeekboard', 'wvkbd-mobintl', 'onboard']:
-            subprocess.call(['pkill', '-f', kbd],
+        with _keyboard_lock:
+            subprocess.call(['pkill', '-USR1', 'wvkbd-mobintl'],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _keyboard_visible = False
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

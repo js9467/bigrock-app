@@ -157,8 +157,6 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
             if attempt < 2:
                 time.sleep(5 * (attempt + 1))
     return ""
-        print(f"⚠️ Final retry error for {url}: {e}")
-    return ""
 
 def load_alerts():
     return safe_json_load(ALERTS_FILE, [])

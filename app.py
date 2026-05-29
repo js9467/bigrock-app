@@ -2598,6 +2598,10 @@ def wifi_connect():
         return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
     try:
         print(f"🔌 Attempting connection to: {ssid}")
+        # Delete any stale profile for this SSID — stale profiles missing
+        # key-mgmt cause "802-11-wireless-security.key-mgmt: property is missing"
+        subprocess.call(['sudo', 'nmcli', 'connection', 'delete', ssid],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             cmd += ['password', password]

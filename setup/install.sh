@@ -162,7 +162,7 @@ cat << 'EOF' > /home/pi/.config/labwc/rc.xml
   <theme><name>Clearlooks</name></theme>
   <desktops><number>1</number></desktops>
   <windowRules>
-    <windowRule identifier="chromium" serverDecoration="no" skipTaskbar="yes" />
+    <windowRule identifier="*" serverDecoration="no" skipTaskbar="yes" />
   </windowRules>
 </openbox_config>
 EOF

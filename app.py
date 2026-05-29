@@ -2988,6 +2988,14 @@ def toggle_followed_boat():
     safe_json_dump(SETTINGS_FILE, settings)
     return jsonify({"status": "ok", "action": action, "followed_boats": followed})
 
+
+@app.route('/followed-boats/clear', methods=['POST'])
+def clear_followed_boats():
+    settings = load_settings()
+    settings["followed_boats"] = []
+    safe_json_dump(SETTINGS_FILE, settings)
+    return jsonify({"status": "ok", "followed_boats": []})
+
 # ------------------------
 # Startup
 # ------------------------

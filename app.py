@@ -718,6 +718,9 @@ def scrape_participants(force: bool = False):
         html = fetch_html(participants_url)
         if not html:
             safe_json_dump(participants_file, [])
+            # Record failed attempt so is_cache_fresh backoff prevents hammering
+            cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+            save_cache(cache)
             print("⚠️ Error scraping participants: no HTML — wrote empty participants.json")
             return []
 
@@ -1755,8 +1758,14 @@ def participants_data():
     participants_file = get_cache_path(tournament, "participants.json")
     participants = safe_json_load(participants_file, [])
     if not participants:
-        print(f"⚠️ No participants.json for {tournament} — scraping immediately...")
-        participants = scrape_participants(force=True)
+        # Respect cache backoff — don't force if a recent attempt already failed
+        cache = load_cache()
+        cache_key = f"{tournament}_participants"
+        if not is_cache_fresh(cache, cache_key, 5):
+            print(f"⚠️ No participants for {tournament} and cache stale — scraping...")
+            participants = scrape_participants(force=True)
+        else:
+            print(f"⚠️ No participants for {tournament} but cache recently attempted — skipping rescrape")
     for p in participants:
         p["uid"] = p.get("uid") or normalize_boat_name(p.get("boat","unknown"))
         p["image_path"] = f"/boat-image/{p['uid']}"
@@ -1803,7 +1812,9 @@ def scrape_events_route():
         return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
 
     try:
-        events = scrape_events(force=True, tournament=tournament)
+        # Use cache TTL (2 min) instead of force — prevents each client request from
+        # making a separate upstream HTTP call to reeltime.app
+        events = scrape_events(force=False, tournament=tournament)
         events.sort(key=lambda e: e["timestamp"], reverse=True)
         return jsonify({"status": "ok", "count": len(events), "events": events[:100]})
     except Exception as e:

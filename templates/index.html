@@ -294,13 +294,14 @@ const vm = createApp({
             const k=e.timestamp+e.uid;
             const isNew=!this.lastEventTimestamps.has(k);
             this.lastEventTimestamps.add(k);
-            // Never play sounds on the first fetch — those are pre-existing events
-            if(!this.initialLoad && isNew && this.settings.sounds_enabled){
+            // Never play sounds on the first fetch — those are pre-existing events.
+            // Only play sounds for followed boats.
+            if(!this.initialLoad && isNew && this.settings.sounds_enabled && this.isFollowed(e.uid)){
               const et=(e.event||'').toLowerCase();
               let snd=null;
               if(et.includes('boated')) snd=this.settings.boated_sound;
               else if(et.includes('hooked up')) snd=this.settings.hooked_sound;
-              else if(this.isFollowed(e.uid)) snd=this.settings.followed_sound;
+              else snd=this.settings.followed_sound;
               if(snd && !soundsThisPoll.has(snd)){ soundsThisPoll.add(snd); this.playSound(snd); }
             }
           }

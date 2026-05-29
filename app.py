@@ -419,8 +419,8 @@ def _scrape_dates_from_html(html: str):
         return None, None
 
 def scrape_reeltime_live_tournaments(force: bool = False) -> dict:
-    """Scrape all live tournaments from the ReelTime directory page.
-    Returns {name: {participants, events, leaderboard, logo, dates, uid}}
+    """Fetch live/upcoming tournaments from the ReelTime public JSON API.
+    Returns {name: {participants, events, leaderboard, logo, dates, start_date, end_date, uid, stream}}
     Caches result for 1 hour.
     """
     os.makedirs("cache", exist_ok=True)
@@ -429,56 +429,48 @@ def scrape_reeltime_live_tournaments(force: bool = False) -> dict:
         if age < 3600:
             return safe_json_load(REELTIME_LIVE_CACHE, {})
 
-    html = fetch_html(REELTIME_LIVE_URL, use_scraperapi=True)
-    if not html or 'Vercel Security Checkpoint' in html:
-        print("⚠️ Could not fetch ReelTime live tournaments page")
+    api_url = "https://www.reeltime.app/api/public/tournaments?page=1&limit=50&status=live"
+    try:
+        import urllib.request as _ureq
+        req = _ureq.Request(api_url, headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
+        with _ureq.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception as exc:
+        print(f"⚠️ Could not fetch ReelTime tournaments API: {exc}")
         return safe_json_load(REELTIME_LIVE_CACHE, {})
 
-    soup = BeautifulSoup(html, "html.parser")
-    _SLUG_RE = re.compile(r'/tournaments/([^/]+)/(\d{4})/')
-    _DATE_RE = re.compile(
-        r'([A-Z][a-z]+ \d{1,2})\s*[-\u2013]\s*([A-Z][a-z]+ \d{1,2},?\s*\d{4})',
-        re.UNICODE
-    )
     results = {}
-    seen_slugs = set()
-
-    for h3 in soup.find_all('h3'):
-        name = h3.get_text(strip=True)
-        if not name or len(name) < 3:
+    seen = set()
+    for t in data.get('tournaments', []):
+        name = (t.get('name') or '').strip()
+        if not name:
             continue
-
-        container = h3.parent or h3
-        slug, year = None, None
-        for a in container.find_all('a', href=True):
-            m = _SLUG_RE.search(a['href'])
-            if m:
-                slug, year = m.group(1), m.group(2)
-                break
-
-        if not slug or (slug, year) in seen_slugs:
+        # v2_slug is the stable slug used in page URLs (/tournaments/{v2_slug}/{year}/)
+        slug = t.get('v2_slug') or t.get('slug') or ''
+        year = str(t.get('year') or '')
+        if not slug or not year:
             continue
-        seen_slugs.add((slug, year))
-
-        parent_text = container.get_text(' ', strip=True)
-        dm = _DATE_RE.search(parent_text)
-        dates_str = dm.group(0) if dm else ''
-
-        img = container.find('img')
-        logo = ''
-        if img:
-            logo = img.get('src') or img.get('data-src') or ''
+        uid = f"{slug}_{year}"
+        if uid in seen:
+            continue
+        seen.add(uid)
 
         base = f"https://www.reeltime.app/tournaments/{slug}/{year}"
-        # Assign VHF stream URL if this is a Big Rock series tournament
+        logo = t.get('logo') or t.get('cover') or ''
+        start_date = t.get('startDate') or ''
+        end_date   = t.get('endDate')   or ''
+        dates_str  = t.get('formattedDates') or ''
         stream_url = next((url for key, url in VHF_STREAMS.items() if key in slug), '')
+
         results[name] = {
-            'uid':          f"{slug}_{year}",
+            'uid':          uid,
             'participants': f"{base}/participants",
             'events':       f"{base}/feed",
             'leaderboard':  f"{base}/leaderboards",
             'logo':         logo,
             'dates':        dates_str,
+            'start_date':   start_date,
+            'end_date':     end_date,
             'stream':       stream_url,
         }
 
@@ -510,6 +502,22 @@ def build_tournaments_index(force: bool = False):
                     entry[k] = vals[k]
             out[name] = entry
             continue
+
+        # Fast path: use ISO dates returned directly from the API
+        if vals.get('start_date') and vals.get('end_date'):
+            try:
+                from datetime import datetime as _dt
+                s_dt = _dt.strptime(vals['start_date'], '%Y-%m-%d')
+                e_dt = _dt.strptime(vals['end_date'], '%Y-%m-%d')
+                label = _nice_range_label(s_dt, e_dt)
+                entry = {'start': vals['start_date'], 'end': vals['end_date'], 'label': label}
+                for k in ('participants', 'events', 'leaderboard', 'logo', 'uid', 'stream'):
+                    if k in vals:
+                        entry[k] = vals[k]
+                out[name] = entry
+                continue
+            except (ValueError, KeyError):
+                pass  # fall through to text parsing
 
         # Parse inline date string if present (avoids an HTTP request per tournament)
         if inline_dates:

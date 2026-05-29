@@ -11,6 +11,10 @@ APP_DIR="/home/pi/bigrock-app"
 DEPLOYED_VERSION_FILE="/home/pi/.bigrock-version"
 LOG="/home/pi/bigrock-update.log"
 
+# Optional branch override: echo "dev" > /home/pi/.bigrock-branch to track dev
+BRANCH_OVERRIDE_FILE="/home/pi/.bigrock-branch"
+TARGET_BRANCH=$(cat "$BRANCH_OVERRIDE_FILE" 2>/dev/null | tr -d '[:space:]' || echo "main")
+
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
 
 cd "$APP_DIR"
@@ -20,20 +24,20 @@ cd "$APP_DIR"
 # ---------------------------------------------------------------------------
 PREV=$(git rev-parse HEAD 2>/dev/null || echo "UNKNOWN")
 
-if ! git fetch origin main 2>>"$LOG"; then
+if ! git fetch origin "$TARGET_BRANCH" 2>>"$LOG"; then
     log "WARNING: git fetch failed (no internet?). Skipping update."
     exit 0
 fi
 
-NEW=$(git rev-parse origin/main)
+NEW=$(git rev-parse "origin/$TARGET_BRANCH")
 
 if [ "$PREV" = "$NEW" ]; then
     log "Already up to date at ${PREV:0:7}. No changes."
     exit 0
 fi
 
-log "Update: ${PREV:0:7} -> ${NEW:0:7}"
-git reset --hard origin/main
+log "Update: ${PREV:0:7} -> ${NEW:0:7} (branch: $TARGET_BRANCH)"
+git reset --hard "origin/$TARGET_BRANCH"
 
 # ---------------------------------------------------------------------------
 # 2. Version upgrade (runs upgrade.sh as root when setup/VERSION increases)

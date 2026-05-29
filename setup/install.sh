@@ -58,7 +58,7 @@ if [ -d "$APP_DIR/.git" ]; then
     git reset --hard origin/main
 else
     echo "Cloning repo..."
-    git clone "$REPO_URL" "$APP_DIR"
+    git clone -b main "$REPO_URL" "$APP_DIR"
     cd "$APP_DIR"
 fi
 

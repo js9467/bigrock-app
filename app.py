@@ -2598,22 +2598,15 @@ def wifi_connect():
         return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
     try:
         print(f"🔌 Attempting connection to: {ssid}")
+        # Always delete any existing profile first — stale profiles with missing
+        # key-mgmt cause "802-11-wireless-security.key-mgmt: property is missing".
+        # The UI always prompts for a password so saved credentials are not relied on.
+        subprocess.call(['sudo', 'nmcli', 'connection', 'delete', ssid],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             cmd += ['password', password]
-        try:
-            result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-        except subprocess.CalledProcessError as first_err:
-            # Stale NM profiles missing key-mgmt cause "property is missing" errors.
-            # Delete the profile and retry once — this preserves saved credentials for
-            # prior networks on the first attempt but recovers from corrupt profiles.
-            if 'key-mgmt' in first_err.output or 'property is missing' in first_err.output:
-                print(f"⚠️ Stale profile detected, deleting and retrying: {first_err.output.strip()}")
-                subprocess.call(['sudo', 'nmcli', 'connection', 'delete', ssid],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-            else:
-                raise
+        result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         print(f"✅ Connected: {result}")
         # Kick off an update check in the background now that we have internet
         run_in_thread(_background_update_check, "update-check")

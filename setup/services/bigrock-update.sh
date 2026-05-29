@@ -40,6 +40,20 @@ log "Update: ${PREV:0:7} -> ${NEW:0:7} (branch: $TARGET_BRANCH)"
 git reset --hard "origin/$TARGET_BRANCH"
 
 # ---------------------------------------------------------------------------
+# 1b. Ensure bundled JS assets are present (local copies avoid CDN failures on boot)
+# ---------------------------------------------------------------------------
+JS_DIR="$APP_DIR/static/js"
+ensure_js() {
+    local file="$1" url="$2"
+    [ -s "$JS_DIR/$file" ] && return
+    log "Downloading missing JS asset: $file"
+    curl -sL --retry 3 --retry-delay 2 "$url" -o "$JS_DIR/$file" || log "WARNING: failed to download $file"
+}
+ensure_js "vue.global.prod.js"  "https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"
+ensure_js "hls.min.js"          "https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"
+ensure_js "tailwind.cdn.js"     "https://cdn.tailwindcss.com"
+
+# ---------------------------------------------------------------------------
 # 2. Version upgrade (runs upgrade.sh as root when setup/VERSION increases)
 #    This handles: new apt packages, new service files, sudoers changes, etc.
 # ---------------------------------------------------------------------------

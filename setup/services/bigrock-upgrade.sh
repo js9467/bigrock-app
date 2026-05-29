@@ -56,6 +56,23 @@ for V in $(seq $((DEPLOYED + 1)) "$REPO"); do
         fi
         ;;
 
+    3)
+        # Ensure local copies of bundled JS assets exist (fixes CDN-failure white screen on boot)
+        log "v3: Ensuring local JS assets exist in static/js/..."
+        JS_DIR="$APP_DIR/static/js"
+        ensure_js() {
+            local file="$1" url="$2"
+            [ -s "$JS_DIR/$file" ] && return
+            log "v3: Downloading $file..."
+            curl -sL --retry 3 --retry-delay 2 "$url" -o "$JS_DIR/$file" \
+                && log "v3: $file downloaded." \
+                || log "WARNING: failed to download $file"
+        }
+        ensure_js "vue.global.prod.js" "https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"
+        ensure_js "hls.min.js"         "https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"
+        ensure_js "tailwind.cdn.js"    "https://cdn.tailwindcss.com"
+        ;;
+
     # ---------------------------------------------------------------------------
     # TEMPLATE for future upgrades — copy this block and increment the number:
     #

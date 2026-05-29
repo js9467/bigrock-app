@@ -2598,22 +2598,30 @@ def wifi_connect():
         return jsonify({'status': 'error', 'message': 'Missing SSID'}), 400
     try:
         print(f"🔌 Attempting connection to: {ssid}")
-        # Delete any stale profile for this SSID — stale profiles missing
-        # key-mgmt cause "802-11-wireless-security.key-mgmt: property is missing"
-        subprocess.call(['sudo', 'nmcli', 'connection', 'delete', ssid],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
         if password:
             cmd += ['password', password]
-        result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        try:
+            result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as first_err:
+            # Stale NM profiles missing key-mgmt cause "property is missing" errors.
+            # Delete the profile and retry once — this preserves saved credentials for
+            # prior networks on the first attempt but recovers from corrupt profiles.
+            if 'key-mgmt' in first_err.output or 'property is missing' in first_err.output:
+                print(f"⚠️ Stale profile detected, deleting and retrying: {first_err.output.strip()}")
+                subprocess.call(['sudo', 'nmcli', 'connection', 'delete', ssid],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                result = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            else:
+                raise
         print(f"✅ Connected: {result}")
         # Kick off an update check in the background now that we have internet
         run_in_thread(_background_update_check, "update-check")
         return jsonify({'status': 'ok', 'message': result})
     except subprocess.CalledProcessError as e:
         print(f"❌ nmcli error: {e.output}")
-        if "Secrets were required" in e.output:
-            return jsonify({'status': 'error', 'message': 'Password required for new network', 'code': 'password_required'}), 400
+        if "Secrets were required" in e.output or "No secret" in e.output:
+            return jsonify({'status': 'error', 'message': 'Password required', 'code': 'password_required'}), 400
         return jsonify({'status': 'error', 'message': e.output.strip()}), 500
 
 @app.route('/wifi/disconnect', methods=['POST'])

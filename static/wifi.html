@@ -36,14 +36,19 @@
           });
           document.getElementById('wifi-form').addEventListener('submit', async (e) => {
               e.preventDefault();
-              const formData = new FormData(e.target);
-              const response = await fetch('/wifi', {
+              const ssid = document.getElementById('ssid').value.trim();
+              const password = document.getElementById('password').value;
+              fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+              const response = await fetch('/wifi/connect', {
                   method: 'POST',
-                  body: formData
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ssid, password })
               });
               const result = await response.json();
-              if (result.status === 'success') {
+              if (result.status === 'ok') {
                   alert('Connecting to Wi-Fi... Please wait.');
+              } else {
+                  alert('Error: ' + (result.message || 'Connection failed'));
               }
           });
       </script>

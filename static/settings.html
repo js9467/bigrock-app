@@ -11,6 +11,7 @@
   <script src="/static/js/hls.min.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
+    [v-cloak] { display: none !important; }
     body { touch-action: manipulation; }
     .toast {
       position: fixed; top: 5rem; left: 50%; transform: translateX(-50%);
@@ -20,7 +21,7 @@
   </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans overflow-y-auto">
-  <div id="app">
+  <div id="app" v-cloak>
     <!-- Header -->
     <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
       <div class="flex items-center space-x-4">

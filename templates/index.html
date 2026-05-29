@@ -40,9 +40,7 @@
              :class="{ active: radioPlaying }">
         <div class="header-tournament-info">
           <div class="header-tournament-name">{{ tournamentName || 'Big Rock Tournament' }}</div>
-          <div v-if="tournamentDate" class="header-tournament-date">{{ tournamentDate }}</div>          <a v-if="boatsTodayCount > 0"
-             href="/participants?today=1"
-             class="header-today-badge">&#127907; {{ boatsTodayCount }} TODAY</a>          <div v-if="radioPlaying" class="header-vhf-live-badge">&#9654; VHF LIVE</div>
+          <div v-if="tournamentDate" class="header-tournament-date">{{ tournamentDate }}</div>          <div v-if="radioPlaying" class="header-vhf-live-badge">&#9654; VHF LIVE</div>
         </div>
       </div>
 
@@ -74,16 +72,44 @@
       </div>
     </div>
 
-    <!-- Followed Boats Strip — compact toggle -->
-    <div v-if="followed.length" class="followed-strip">
-      <button class="followed-toggle-btn" @click="followedExpanded = !followedExpanded">
-        &#9733; {{ followed.length }} WATCHING {{ followedExpanded ? '&#9650;' : '&#9660;' }}
-      </button>
-      <div v-show="followedExpanded" class="followed-drawer">
-        <div v-for="boat in followed" :key="boat" class="followed-chip">
-          &#127869; {{ boat }}
-          <button @click.stop="toggleFollow(boat)" class="followed-chip-remove">&#x2715;</button>
-        </div>
+    <!-- Stats Pills Row: Enrolled · Today · Watching -->
+    <div class="stats-pills-row">
+      <div class="stats-pills">
+        <button class="stat-pill pill-enrolled" :class="{active: activePill==='enrolled'}" @click="togglePill('enrolled')">
+          &#127907; {{ enrolledCount }} ENROLLED <span class="pill-caret">{{ activePill==='enrolled' ? '&#9650;' : '&#9660;' }}</span>
+        </button>
+        <button class="stat-pill pill-today" :class="{active: activePill==='today'}" @click="togglePill('today')">
+          &#128197; {{ boatsTodayCount }} TODAY <span class="pill-caret">{{ activePill==='today' ? '&#9650;' : '&#9660;' }}</span>
+        </button>
+        <button class="stat-pill pill-watching" :class="{active: activePill==='watching'}" @click="togglePill('watching')">
+          &#9733; {{ followed.length }} WATCHING <span class="pill-caret">{{ activePill==='watching' ? '&#9650;' : '&#9660;' }}</span>
+        </button>
+      </div>
+      <div v-show="activePill" class="stats-drawer">
+        <template v-if="activePill==='enrolled'">
+          <a href="/participants" class="stats-see-all">&#8594; View all {{ enrolledCount }}</a>
+          <div class="stats-drawer-boats">
+            <span v-for="p in enrolledList.slice(0,18)" :key="p.uid" class="stats-boat-chip">{{ p.boat }}</span>
+            <span v-if="enrolledList.length > 18" class="stats-more">+{{ enrolledList.length - 18 }} more</span>
+          </div>
+        </template>
+        <template v-if="activePill==='today'">
+          <a href="/participants?today=1" class="stats-see-all">&#8594; See all today</a>
+          <div class="stats-drawer-boats">
+            <span v-for="b in boatsTodayList" :key="b" class="stats-boat-chip stats-chip-today">{{ b }}</span>
+            <span v-if="!boatsTodayList.length" class="stats-empty">No boats reported fishing today yet</span>
+          </div>
+        </template>
+        <template v-if="activePill==='watching'">
+          <a href="/participants?followed=1" class="stats-see-all">&#8594; View followed</a>
+          <div class="stats-drawer-boats">
+            <span v-for="boat in followed" :key="boat" class="stats-boat-chip stats-chip-watching">
+              {{ boat }}
+              <button @click.stop="toggleFollow(boat)" class="stats-unfollow-btn">&#x2715;</button>
+            </span>
+            <span v-if="!followed.length" class="stats-empty">No boats followed yet</span>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -195,8 +221,9 @@ const vm = createApp({
       events: [], hooked: [], boatImages: {},
       mobileTab: 'events',
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
-      followed: [], followedExpanded: false, lastEventTimestamps: new Set(),
+      followed: [], lastEventTimestamps: new Set(),
       boatsTodayCount: 0, boatsTodayList: [],
+      enrolledCount: 0, enrolledList: [], activePill: null,
       _soundQueue: [], _soundPlaying: false,
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
       radioPlaying:false, hls:null, error:null, radioDisabled:false, streamUrl:'',
@@ -349,7 +376,8 @@ const vm = createApp({
 
     fetchSettings(){return fetch('/api/settings').then(r=>r.json()).then(d=>{this.settings={...this.settings,...d};});},
     fetchVersion(){fetch('/api/version').then(r=>r.json()).then(d=>{this.version=d.version;});},
-    loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;});},
+    loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;this.enrolledCount=d.count||d.participants.length||0;this.enrolledList=d.participants||[];});},
+    togglePill(name){ this.activePill = this.activePill === name ? null : name; },
     getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.png';},
     onImageError(e){e.target.src='/static/images/bigrock.png';},
     

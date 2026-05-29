@@ -351,6 +351,137 @@ button:hover {
   transform: none !important;
 }
 
+/* === Stats Pills Row (Enrolled / Today / Watching) === */
+.stats-pills-row {
+  background: rgba(0,0,0,0.22);
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.stats-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.75rem;
+  flex-wrap: wrap;
+}
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  white-space: nowrap;
+  transition: all 0.15s;
+  user-select: none;
+  line-height: 1.4;
+}
+.pill-enrolled {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  color: #dbeafe;
+  border-color: rgba(96,165,250,0.4);
+}
+.pill-enrolled.active, .pill-enrolled:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+  color: #fff;
+}
+.pill-today {
+  background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+  color: #d1fae5;
+  border-color: rgba(16,185,129,0.4);
+}
+.pill-today.active, .pill-today:hover {
+  background: linear-gradient(135deg, #059669 0%, #34d399 100%);
+  color: #fff;
+}
+.pill-watching {
+  background: linear-gradient(135deg, #7a5c00 0%, #d4a800 100%);
+  color: #fef9c3;
+  border-color: rgba(234,179,8,0.4);
+}
+.pill-watching.active, .pill-watching:hover {
+  background: linear-gradient(135deg, #d4a800 0%, #f6c553 100%);
+  color: #001528;
+}
+.pill-caret {
+  font-size: 0.5rem;
+  opacity: 0.75;
+  margin-left: 0.1rem;
+}
+.stats-drawer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem 0.35rem;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.stats-see-all {
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  white-space: nowrap;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.stats-see-all:hover { background: rgba(255,255,255,0.18); }
+.stats-drawer-boats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-height: 72px;
+  overflow-y: auto;
+}
+.stats-drawer-boats::-webkit-scrollbar { display: none; }
+.stats-boat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.88);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.stats-chip-today {
+  background: rgba(16,185,129,0.25);
+  color: #6ee7b7;
+}
+.stats-chip-watching {
+  background: linear-gradient(135deg, #f6c553 0%, #d97706 100%);
+  color: #001528;
+}
+.stats-unfollow-btn {
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  color: rgba(0,26,58,0.55) !important;
+  font-size: 0.55rem !important;
+  padding: 0 !important;
+  margin-left: 0.1rem !important;
+  line-height: 1 !important;
+  transition: color 0.15s !important;
+}
+.stats-unfollow-btn:hover { color: #7f1d1d !important; }
+.stats-more, .stats-empty {
+  font-size: 0.63rem;
+  color: rgba(255,255,255,0.45);
+  font-weight: 600;
+  padding: 0.15rem 0.3rem;
+  white-space: nowrap;
+}
+
 /* === Message Ticker === */
 .ticker-bar {
   background: rgba(0,18,45,0.85);

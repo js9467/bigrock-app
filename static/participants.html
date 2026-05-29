@@ -63,6 +63,10 @@
             &#127907; Showing {{ todayCount || filteredParticipants.length }} boats fishing today
             <button @click="todayFilter=false" class="ml-1 text-green-600 hover:text-red-600 font-bold leading-none">&#x2715;</button>
           </div>
+          <div v-if="followedFilter" class="mt-1 inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold border border-yellow-300">
+            &#9733; Showing {{ filteredParticipants.length }} followed boat{{ filteredParticipants.length !== 1 ? 's' : '' }}
+            <button @click="followedFilter=false" class="ml-1 text-yellow-600 hover:text-red-600 font-bold leading-none">&#x2715;</button>
+          </div>
         </div>
         <div class="flex gap-2 w-full sm:w-auto">
           <input
@@ -150,6 +154,7 @@
         todayFilter: false,
         todayBoats: [],
         todayCount: 0,
+        followedFilter: false,
         followedCollapsed: false,
       };
     },
@@ -167,6 +172,14 @@
               b.toLowerCase() === boat ||
               b.toLowerCase().replace(/[^a-z0-9]+/g, '_') === uid
             );
+          }
+          if (this.followedFilter && this.followed.length > 0) {
+            const uid = (p.uid || '').toLowerCase();
+            const boat = (p.boat || '').toLowerCase();
+            return this.followed.some(b => {
+              const bn = b.toLowerCase();
+              return bn === boat || bn.replace(/[^a-z0-9]+/g, '_') === uid;
+            });
           }
           return true;
         });
@@ -310,6 +323,9 @@
       const params = new URLSearchParams(window.location.search);
       if (params.get('today') === '1') {
         this.todayFilter = true;
+      }
+      if (params.get('followed') === '1') {
+        this.followedFilter = true;
       }
       this.loadLogo();
       this.loadParticipants();

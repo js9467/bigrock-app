@@ -21,12 +21,16 @@
       <script>
           const ssidInput = document.getElementById('ssid');
           const passwordInput = document.getElementById('password');
+          let _kbdHideTimer = null;
           [ssidInput, passwordInput].forEach(inp => {
               inp.addEventListener('focus', () => {
+                  clearTimeout(_kbdHideTimer);
                   fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
               });
               inp.addEventListener('blur', () => {
-                  fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+                  _kbdHideTimer = setTimeout(() => {
+                      fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+                  }, 500);
               });
           });
           document.getElementById('wifi-form').addEventListener('submit', async (e) => {

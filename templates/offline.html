@@ -215,12 +215,18 @@
       return wrap;
     }
 
+    let _kbdHideTimer = null;
     function indicateKeyboard(input){
       input.addEventListener('focus', () => {
+        clearTimeout(_kbdHideTimer);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         fetch('/launch_keyboard', { method:'POST' }).catch(()=>{});
       });
-      input.addEventListener('blur', () => fetch('/hide_keyboard', { method:'POST' }).catch(()=>{}));
+      input.addEventListener('blur', () => {
+        _kbdHideTimer = setTimeout(() => {
+          fetch('/hide_keyboard', { method:'POST' }).catch(()=>{});
+        }, 500);
+      });
     }
 
     function dedupeSortNetworks(networks){

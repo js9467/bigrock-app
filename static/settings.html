@@ -324,8 +324,18 @@
       },
       addRecipient() { this.recipients.push({ email: '' }); },
       removeRecipient(i) { this.recipients.splice(i, 1); },
-      launchKeyboard() { fetch('/launch_keyboard', { method: 'POST' }).catch(() => {}); },
-      hideKeyboard() { fetch('/hide_keyboard', { method: 'POST' }).catch(() => {}); },
+      launchKeyboard() {
+        clearTimeout(this._kbdHideTimer);
+        fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
+      },
+      hideKeyboard() {
+        // Debounce: only hide if no other input gains focus within 500ms.
+        // On touchscreens, blur fires immediately when the keyboard appears,
+        // which would kill the keyboard before the user types anything.
+        this._kbdHideTimer = setTimeout(() => {
+          fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+        }, 500);
+      },
       saveAlerts() {
         const emails = this.recipients.filter(r => r.email.trim()).map(r => r.email);
         axios.post('/alerts/subscribe', { sms_emails: emails });

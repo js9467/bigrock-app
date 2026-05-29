@@ -435,9 +435,14 @@ button:hover {
   }
 }
 .pill-caret {
-  font-size: 0.5rem;
-  opacity: 0.75;
+  font-size: 0.55rem;
+  opacity: 0.88;
   margin-left: 0.1rem;
+}
+.pill-icon {
+  font-size: 1.18em;
+  flex-shrink: 0;
+  line-height: 1;
 }
 .stats-drawer {
   display: flex;
@@ -474,27 +479,32 @@ button:hover {
 .stats-drawer-boats {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  max-height: 72px;
+  gap: 0.28rem;
+  flex: 1;
+  min-width: 0;
+  max-height: 90px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .stats-drawer-boats::-webkit-scrollbar { display: none; }
 .stats-boat-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  padding: 0.15rem 0.45rem;
+  padding: 0.18rem 0.52rem;
   border-radius: 9999px;
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.88);
+  background: rgba(59,130,246,0.42);
+  color: #bfdbfe;
+  border: 1px solid rgba(96,165,250,0.3);
   white-space: nowrap;
   flex-shrink: 0;
 }
 .stats-chip-today {
-  background: rgba(16,185,129,0.25);
-  color: #6ee7b7;
+  background: rgba(5,150,105,0.48);
+  color: #86efac;
+  border: 1px solid rgba(16,185,129,0.3);
 }
 .stats-chip-watching {
   background: linear-gradient(135deg, #f6c553 0%, #d97706 100%);

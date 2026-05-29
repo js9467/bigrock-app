@@ -76,13 +76,13 @@
     <div class="stats-pills-row">
       <div class="stats-pills">
         <button class="stat-pill pill-enrolled" :class="{active: activePill==='enrolled'}" @click="togglePill('enrolled')">
-          &#127907; {{ enrolledCount }} ENROLLED <span class="pill-caret">{{ activePill==='enrolled' ? '&#9650;' : '&#9660;' }}</span>
+          <span class="pill-icon">&#127907;</span> {{ enrolledCount }} ENROLLED <span class="pill-caret">{{ activePill==='enrolled' ? '&#9650;' : '&#9660;' }}</span>
         </button>
         <button class="stat-pill pill-today" :class="{active: activePill==='today'}" @click="togglePill('today')">
-          &#128197; {{ boatsTodayCount }} TODAY <span class="pill-caret">{{ activePill==='today' ? '&#9650;' : '&#9660;' }}</span>
+          <span class="pill-icon">&#128197;</span> {{ boatsTodayCount }} TODAY <span class="pill-caret">{{ activePill==='today' ? '&#9650;' : '&#9660;' }}</span>
         </button>
         <button class="stat-pill pill-watching" :class="{active: activePill==='watching'}" @click="togglePill('watching')">
-          &#9733; {{ followed.length }} WATCHING <span class="pill-caret">{{ activePill==='watching' ? '&#9650;' : '&#9660;' }}</span>
+          <span class="pill-icon">&#11088;</span> {{ followed.length }} WATCHING <span class="pill-caret">{{ activePill==='watching' ? '&#9650;' : '&#9660;' }}</span>
         </button>
       </div>
       <div v-show="activePill" class="stats-drawer">

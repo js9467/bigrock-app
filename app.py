@@ -129,8 +129,57 @@ def safe_json_dump(path, obj):
         json.dump(obj, f, indent=2)
     os.replace(tmp, path)
 
+_BOT_CHALLENGE_MARKERS = (
+    'Vercel Security Checkpoint',
+    'Security Checkpoint',
+    '__cf_chl_',
+    'cf-browser-verification',
+    'cf_clearance',
+    'Checking your browser',
+)
+
+def _is_bot_challenge(html: str) -> bool:
+    """Return True if the HTML is a bot-challenge page rather than real content."""
+    return bool(html) and any(m in html for m in _BOT_CHALLENGE_MARKERS)
+
+
+def _fetch_html_playwright(url: str) -> str:
+    """Render a page with headless Chromium (bypasses JS bot challenges)."""
+    try:
+        from playwright.sync_api import sync_playwright
+        print(f"🌐 Playwright fetch: {url}")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                executable_path='/usr/bin/chromium',
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-setuid-sandbox',
+                    '--single-process',
+                ],
+            )
+            try:
+                page = browser.new_page()
+                page.goto(url, wait_until='networkidle', timeout=45000)
+                html = page.content()
+                return html if html and not _is_bot_challenge(html) else ""
+            finally:
+                browser.close()
+    except ImportError:
+        print("⚠️ playwright not installed — run: pip3 install playwright")
+        return ""
+    except Exception as e:
+        print(f"⚠️ Playwright fetch error for {url}: {e}")
+        return ""
+
+
 def fetch_html(url, use_scraperapi: bool = False) -> str:
-    """Resilient HTML fetch with 429-aware retry backoff."""
+    """Resilient HTML fetch with 429-aware retry backoff.
+    Falls back to headless Chromium if a bot-challenge page is detected.
+    """
+    html = ""
     for attempt in range(3):
         headers = {
             "User-Agent": random.choice(UA_POOL),
@@ -143,6 +192,10 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
         try:
             r = SESS.get(url, headers=headers, timeout=20, verify=False)
             if r.status_code == 200 and r.text.strip():
+                if _is_bot_challenge(r.text):
+                    print(f"⚠️ Bot challenge on attempt {attempt+1}/3 for {url} — will use Playwright")
+                    html = r.text  # remember we got a challenge
+                    break         # no point retrying with same headers
                 return r.text
             if r.status_code == 429:
                 retry_after = int(r.headers.get('Retry-After', 0))
@@ -156,7 +209,11 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
             print(f"⚠️ Fetch error (attempt {attempt+1}/3) for {url}: {e}")
             if attempt < 2:
                 time.sleep(5 * (attempt + 1))
-    return ""
+
+    # If we only got a bot challenge, escalate to headless browser
+    if _is_bot_challenge(html):
+        return _fetch_html_playwright(url)
+    return html
 
 def load_alerts():
     return safe_json_load(ALERTS_FILE, [])

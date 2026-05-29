@@ -182,7 +182,7 @@ const vm = createApp({
   data() {
     return {
       events: [], hooked: [], boatImages: {},
-      tournamentLogo: '', tournamentDate: '', version: '', loading: false,
+      tournamentLogo: '', tournamentDate: '', version: '', loading: false, initialLoad: true,
       followed: [], lastEventTimestamps: new Set(),
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
       radioPlaying:false, hls:null, error:null, radioDisabled:false, streamUrl:'',
@@ -271,7 +271,7 @@ const vm = createApp({
     },
 
     fetchAll(){
-      this.loading=true;
+      if(this.initialLoad) this.loading=true;
       Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
         .then(([ed,hd])=>{
           const ne=ed.events||[],nh=hd.events||[];
@@ -279,14 +279,18 @@ const vm = createApp({
             const k=e.timestamp+e.uid;
             const isNew=!this.lastEventTimestamps.has(k);
             this.lastEventTimestamps.add(k);
-            if(isNew && this.settings.sounds_enabled){
+            // Never play sounds on the first fetch — those are pre-existing events
+            if(!this.initialLoad && isNew && this.settings.sounds_enabled){
               const et=(e.event||'').toLowerCase();
               if(et.includes('boated')) this.playSound(this.settings.boated_sound);
               else if(et.includes('hooked up')) this.playSound(this.settings.hooked_sound);
               else if(this.isFollowed(e.uid)) this.playSound(this.settings.followed_sound);
             }
           }
-          this.events=ne;this.hooked=nh;this.loading=false;this.updateDemoMessage();
+          this.events=ne;this.hooked=nh;
+          this.loading=false;
+          this.initialLoad=false;
+          this.updateDemoMessage();
         }).catch(()=>{this.loading=false;});
     },
 

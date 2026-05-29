@@ -139,28 +139,31 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
         "Pragma": "no-cache",
     }
     # First try direct (short timeout)
+    direct_status = None
     try:
         r = SESS.get(url, headers=headers, timeout=12, verify=False)
         if r.status_code == 200 and r.text.strip():
             return r.text
+        direct_status = r.status_code
         print(f"⚠️ Direct fetch {r.status_code} for {url}")
     except Exception as e:
         print(f"⚠️ Direct fetch error for {url}: {e}")
 
-    # Optional ScraperAPI (render=true enables JS execution for JS-heavy SPAs)
-    if use_scraperapi:
+    # ScraperAPI fallback — always used when rate-limited (429), or when requested
+    if use_scraperapi or direct_status == 429:
         api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
-        api = f"https://api.scraperapi.com?api_key={api_key}&render=true&keep_headers=true&url={quote(url, safe='')}"
+        api = f"https://api.scraperapi.com?api_key={api_key}&render=true&url={quote(url, safe='')}"
         try:
-            r = SESS.get(api, headers=headers, timeout=30)
+            r = SESS.get(api, headers=headers, timeout=45)
             if r.status_code == 200 and r.text.strip():
                 return r.text
             print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
         except Exception as e:
             print(f"❌ Error via ScraperAPI: {e}")
+        return ""  # Don't retry direct after ScraperAPI — avoid double-hammering
 
-    # Final quick retry direct
-    time.sleep(0.5)
+    # Final quick retry direct (only reached if ScraperAPI was not tried)
+    time.sleep(1)
     try:
         r = SESS.get(url, headers=headers, timeout=10, verify=False)
         if r.status_code == 200 and r.text.strip():
@@ -881,7 +884,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
     events_file = get_cache_path(tournament, "events.json")
     cache_key = f"events_{tournament}"
 
-    if not force and is_cache_fresh(cache, cache_key, 2):
+    if not force and is_cache_fresh(cache, cache_key, 10):
         return safe_json_load(events_file, [])
 
     try:
@@ -1134,7 +1137,7 @@ def scrape_leaderboard(tournament=None, force: bool = False):
     lb_file = get_cache_path(tournament, "leaderboard.json")
     cache_key = f"leaderboard_{tournament}"
 
-    if not force and is_cache_fresh(cache, cache_key, 2):
+    if not force and is_cache_fresh(cache, cache_key, 10):
         return safe_json_load(lb_file, [])
 
     try:
@@ -1824,6 +1827,20 @@ def scrape_events_route():
 @app.route("/scrape/all")
 def scrape_all():
     tournament = get_current_tournament()
+    cache = load_cache()
+    # Rate-limit guard: allow forced refresh at most every 5 minutes
+    last_all = cache.get('scrape_all_last', {}).get('last_scraped')
+    if last_all:
+        try:
+            elapsed = (datetime.now() - datetime.fromisoformat(last_all)).total_seconds()
+            if elapsed < 300:
+                return jsonify({"status": "throttled",
+                                "message": f"Last full scrape was {int(elapsed)}s ago. Wait {300 - int(elapsed)}s.",
+                                "tournament": tournament})
+        except Exception:
+            pass
+    cache['scrape_all_last'] = {'last_scraped': datetime.now().isoformat()}
+    save_cache(cache)
     print(f"🔁 Starting full scrape for tournament: {tournament}")
     participants = scrape_participants(force=True)
     events = scrape_events(force=True, tournament=tournament)
@@ -1863,11 +1880,11 @@ def get_status():
         if event_key in cache:
             ts = cache[event_key].get("last_scraped")
             status["events_last_scraped"] = ts
-            status["events_cache_fresh"] = is_cache_fresh(cache, event_key, 2)
+            status["events_cache_fresh"] = is_cache_fresh(cache, event_key, 10)
         if lb_key in cache:
             ts = cache[lb_key].get("last_scraped")
             status["leaderboard_last_scraped"] = ts
-            status["leaderboard_cache_fresh"] = is_cache_fresh(cache, lb_key, 2)
+            status["leaderboard_cache_fresh"] = is_cache_fresh(cache, lb_key, 10)
         return jsonify(status)
     except Exception as e:
         print(f"❌ Error in /status: {e}")
@@ -2748,7 +2765,7 @@ def api_boats_today():
     cache_key = f'boats_today_{tournament}'
     cache = load_cache()
 
-    if is_cache_fresh(cache, cache_key, 15):
+    if is_cache_fresh(cache, cache_key, 30):
         cached = cache.get(cache_key, {})
         return jsonify({'status': 'ok', 'count': cached.get('count', 0), 'boats': cached.get('boats', [])})
 
@@ -2766,7 +2783,7 @@ def api_boats_today():
             whos_url = parts[0] + '/whos-fishing' if len(parts) == 2 else events_url
 
         print(f"🎣 Scraping who's-fishing: {whos_url}")
-        html = fetch_html(whos_url)
+        html = fetch_html(whos_url, use_scraperapi=True)
         if not html:
             return jsonify({'status': 'ok', 'count': 0, 'boats': []})
 
@@ -3024,9 +3041,9 @@ def startup_scrape():
         lb_key = f"leaderboard_{tournament}"
         if not os.path.exists(participants_file) or not is_cache_fresh(cache, part_key, 1440):
             run_in_thread(scrape_participants, "participants")
-        if not os.path.exists(events_file) or not is_cache_fresh(cache, event_key, 2):
+        if not os.path.exists(events_file) or not is_cache_fresh(cache, event_key, 10):
             run_in_thread(lambda: scrape_events(tournament=tournament), "events")
-        if not os.path.exists(lb_file) or not is_cache_fresh(cache, lb_key, 2):
+        if not os.path.exists(lb_file) or not is_cache_fresh(cache, lb_key, 10):
             run_in_thread(lambda: scrape_leaderboard(tournament), "leaderboard")
     elif mode == "demo":
         print(f"🔄 Startup: Checking demo cache for {tournament}")

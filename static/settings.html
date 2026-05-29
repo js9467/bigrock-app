@@ -403,6 +403,7 @@
         });
       },
       connectWifiPrompt(ssid) {
+        fetch('/launch_keyboard', { method: 'POST' }).catch(() => {});
         this.wifiPasswordModal = { show: true, ssid, password: '' };
         this.$nextTick(() => {
           const inp = document.getElementById('wifi-pwd-input');

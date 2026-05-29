@@ -78,6 +78,8 @@ echo "Python deps installed."
 # ---------------------------------------------------------------------------
 mkdir -p "$APP_DIR/cache"
 mkdir -p "$APP_DIR/static/boat-images"
+# Ensure pi owns everything (install may run as root via sudo)
+chown -R pi:pi "$APP_DIR"
 
 # ---------------------------------------------------------------------------
 # 5. Sudoers rule (one-time; enables CI runner + update service to manage services)

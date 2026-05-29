@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Participants</title>
   <script src="/static/js/offline.js"></script>
+  <script src="/static/js/nav.js"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -12,25 +13,8 @@
   <style>[v-cloak]{display:none}</style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans overflow-y-auto">
+  <div id="nav-placeholder"></div>
   <div id="app" v-cloak>
-    <!-- Header -->
-    <header class="bg-brand-blue text-white flex items-center justify-between px-4 py-3 shadow-md">
-      <div class="flex items-center space-x-4">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-14 drop-shadow" />
-        <span v-else class="text-white text-base">Loading Logo...</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-3 bg-blue-900/50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md border border-yellow-400/70 animate-pulse-slow">
-          <button data-vhf-toggle class="px-4 py-2 w-28 sm:w-32 font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition shadow-md">VHF ON</button>
-          <div class="flex items-center gap-2 text-sm text-white flex-nowrap">
-            <span class="text-lg">🔊</span>
-            <input type="range" min="0" max="100" data-vhf-volume class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-24 sm:w-32 md:w-40 flex-shrink-0 accent-yellow-400">
-            <span data-vhf-volume-display class="w-8 text-right text-xs"></span>
-          </div>
-        </div>
-        <a href="/" class="px-4 py-2 text-white font-semibold border border-white rounded hover:bg-white hover:text-blue-900 transition">Back</a>
-      </div>
-    </header>
 
     <div class="p-4 max-w-screen-xl mx-auto">
 
@@ -196,10 +180,12 @@
           const settingsRes = await fetch('/api/settings');
           const settings = await settingsRes.json();
           const tournament = settings.tournament;
-          const configRes = await fetch('https://js9467.github.io/Brtourney/settings.json');
-          const allTournaments = await configRes.json();
-          this.tournamentLogo = allTournaments[tournament]?.logo || '';
-          this.setBrandColor(tournament, allTournaments);
+          const configRes = await fetch('/api/tournaments');
+          const data = await configRes.json();
+          const info = (data.tournaments || {})[tournament] || {};
+          this.tournamentLogo = info.logo || '';
+          const color = info.color || '#002855';
+          document.documentElement.style.setProperty('--brand-color', color);
         } catch(e) { console.error('Logo load failed', e); }
       },
       launchKeyboard() {

@@ -11,87 +11,79 @@
   <link rel="stylesheet" href="/static/css/base.css">
 
   <style>
-    @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-    .message-strip-wrapper { position: relative; overflow: hidden; height: 2rem; background-color: #002855; }
-    .message-strip {
-      display: inline-block; white-space: nowrap; font-size: 0.85rem; font-weight: 600; color: white;
-      animation: marquee 40s linear infinite; will-change: transform; padding-left: 100%;
-    }
-    .message-strip a { color: #facc15; text-decoration: underline; font-weight: bold; padding: 0 0.5rem; }
-    .message-strip-wrapper:hover .message-strip { animation-play-state: paused; cursor: pointer; }
     @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-    /* Compact header for 1024×600 kiosk */
-    .kiosk-header { min-height: 0; }
-    .demo-badge {
-      position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
-      background: #f59e0b; color: #1e3a5f; font-size: 0.6rem; font-weight: 700;
-      padding: 1px 6px; border-radius: 999px; letter-spacing: 0.05em;
-      text-transform: uppercase; z-index: 10; white-space: nowrap;
-    }
   </style>
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-x-hidden">
 <div id="app" class="h-full flex flex-col">
 
-  <!-- Header (non-scrolling) — compact for 1024×600 kiosk -->
-  <header class="relative kiosk-header bg-brand-blue text-white px-3 py-1.5 shadow-lg shrink-0">
+  <!-- ===== PREMIUM HEADER ===== -->
+  <header class="site-header shrink-0">
     <!-- Demo badge -->
-    <span v-if="settings.data_source === 'demo'" class="demo-badge">&#9888; DEMO</span>
+    <div v-if="settings.data_source === 'demo'" class="header-demo-badge">&#9888; DEMO MODE</div>
 
-    <div class="grid grid-cols-3 items-center gap-2 w-full">
-
-      <!-- Left: Logo + Date -->
-      <div class="flex items-center gap-2">
-        <img v-if="tournamentLogo" :src="tournamentLogo" alt="Tournament Logo" class="h-10 drop-shadow-lg animate-pulse-slow flex-shrink-0">
-        <div class="min-w-0">
-          <div v-if="tournamentDate" class="text-xs text-white/80 font-semibold leading-tight truncate">{{ tournamentDate }}</div>
-          <div v-if="radioPlaying" class="text-xs font-bold text-green-300 animate-pulse">&#9654; VHF LIVE</div>
+    <div class="header-main">
+      <!-- Left: Logo + Tournament Info -->
+      <div class="header-left">
+        <img :src="tournamentLogo || '/static/images/bigrock.webp'"
+             alt="Tournament Logo"
+             class="header-logo animate-pulse-slow"
+             :class="{ active: radioPlaying }">
+        <div class="header-tournament-info">
+          <div class="header-tournament-name">{{ tournamentName || 'Big Rock Tournament' }}</div>
+          <div v-if="tournamentDate" class="header-tournament-date">{{ tournamentDate }}</div>
+          <div v-if="radioPlaying" class="header-vhf-live-badge">&#9654; VHF LIVE</div>
         </div>
       </div>
 
       <!-- Center: VHF Controls -->
-      <div class="flex justify-center">
-        <div class="flex items-center gap-1.5 bg-blue-900/50 rounded-full px-3 py-1 border border-yellow-400/70">
+      <div style="display:flex;justify-content:center">
+        <div class="vhf-pod" :class="{ 'vhf-active': radioPlaying }">
           <button @click="toggleRadio" :disabled="radioDisabled"
-                  class="px-3 py-1 text-xs font-semibold border border-yellow-400 text-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                  class="vhf-toggle-btn" :class="{ 'is-playing': radioPlaying }">
             {{ radioDisabled ? 'NO VHF' : (radioPlaying ? 'VHF OFF' : 'VHF ON') }}
           </button>
-          <span class="text-xs text-white/70">VOL</span>
-          <input v-if="!radioDisabled" type="range" min="0" max="100" v-model="settings.radio_volume"
-                 @input="applyRadioVolume" class="h-1 bg-yellow-400 rounded-lg appearance-none cursor-pointer w-20 accent-yellow-400">
-          <span v-if="!radioDisabled" class="text-xs w-6 text-right">{{ settings.radio_volume }}%</span>
+          <div class="vhf-vol-row">
+            <span class="vhf-vol-icon">&#128266;</span>
+            <input type="range" min="0" max="100"
+                   v-model="settings.radio_volume"
+                   @input="applyRadioVolume"
+                   :disabled="radioDisabled"
+                   class="vhf-vol-slider">
+            <span class="vhf-vol-display">{{ settings.radio_volume }}%</span>
+          </div>
         </div>
       </div>
 
-      <!-- Right: Navigation Buttons -->
-      <div class="flex items-center justify-end gap-1.5">
-        <a href="/participants" class="px-2 py-1 text-xs text-white font-semibold border border-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition whitespace-nowrap">Participants</a>
-        <a href="/leaderboard" class="px-2 py-1 text-xs text-white font-semibold border border-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition whitespace-nowrap">Leaderboard</a>
-        <a href="/release-summary" class="px-2 py-1 text-xs text-white font-semibold border border-yellow-400 rounded hover:bg-yellow-400 hover:text-blue-900 transition whitespace-nowrap">Releases</a>
-        <a href="/settings-page" class="w-8 h-8 flex items-center justify-center text-white border border-yellow-400 rounded-full hover:bg-yellow-400 hover:text-blue-900 transition text-sm">&#9881;</a>
+      <!-- Right: Navigation -->
+      <div class="header-nav">
+        <a href="/participants"   class="header-nav-btn">Participants</a>
+        <a href="/leaderboard"    class="header-nav-btn">Leaderboard</a>
+        <a href="/release-summary" class="header-nav-btn">Releases</a>
+        <a href="/settings-page"  class="header-nav-btn header-nav-settings">&#9881;</a>
       </div>
     </div>
 
-    <!-- Followed Boats Chips (compact strip) -->
-    <div v-if="followed.length" class="mt-1 overflow-x-auto">
-      <div class="flex gap-1.5">
-        <div v-for="boat in followed" :key="boat"
-             class="flex items-center bg-yellow-200 text-blue-900 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0">
-          {{ boat }}
-          <button @click="toggleFollow(boat)" class="ml-1 text-red-600 hover:text-red-800 text-xs">✕</button>
+    <!-- Followed Boats Strip -->
+    <div v-if="followed.length" class="followed-strip">
+      <span class="followed-strip-label">&#9733; WATCHING</span>
+      <div class="followed-chips-scroll">
+        <div v-for="boat in followed" :key="boat" class="followed-chip">
+          &#127869; {{ boat }}
+          <button @click="toggleFollow(boat)" class="followed-chip-remove">&#x2715;</button>
         </div>
       </div>
     </div>
 
-    <!-- Live Alert Bar -->
-    <div v-if="messageQueue.length > 0" class="w-full mt-1 message-strip-wrapper">
-      <div class="message-strip" v-html="currentMessage"></div>
+    <!-- Message Ticker -->
+    <div v-if="messageQueue.length > 0" class="ticker-bar">
+      <div class="ticker-track" v-html="currentMessage"></div>
     </div>
 
     <!-- Version tag -->
-    <div class="absolute bottom-0.5 right-2 text-xs text-white/40 italic" v-if="version">v{{ version }}</div>
+    <div v-if="version" class="header-version-tag">{{ version }}</div>
   </header>
 
   <!-- Content area fills remaining height; both columns scroll -->
@@ -182,7 +174,7 @@ const vm = createApp({
   data() {
     return {
       events: [], hooked: [], boatImages: {},
-      tournamentLogo: '', tournamentDate: '', version: '', loading: false, initialLoad: true,
+      tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
       followed: [], lastEventTimestamps: new Set(),
       _soundQueue: [], _soundPlaying: false,
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
@@ -234,6 +226,7 @@ const vm = createApp({
         .then(r=>r.json())
         .then(s=>{
           const t=s.tournament;
+          this.tournamentName=t||'';
           fetch('/api/tournaments')
             .then(r=>r.json())
             .then(data=>{

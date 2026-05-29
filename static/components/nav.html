@@ -1,14 +1,51 @@
-<nav class="bg-brand-blue text-white shadow-md">
-  <div class="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-3">
-    <div class="flex items-center gap-4">
-      <img id="nav-logo" src="/static/images/bigrock.webp" alt="Tournament Logo" class="h-10" />
+<header class="site-header" id="site-header">
+  <!-- Demo badge (shown by nav.js when data_source = demo) -->
+  <div id="nav-demo-badge" class="header-demo-badge" style="display:none">&#9888; DEMO MODE</div>
+
+  <div class="header-main">
+    <!-- Left: Logo + Tournament Info -->
+    <div class="header-left">
+      <img id="nav-logo" src="/static/images/bigrock.webp" alt="Tournament Logo" class="header-logo">
+      <div class="header-tournament-info">
+        <div id="nav-tournament-name" class="header-tournament-name">&nbsp;</div>
+        <div id="nav-tournament-date" class="header-tournament-date"></div>
+        <div id="nav-vhf-live" class="header-vhf-live-badge" style="display:none">&#9654; VHF LIVE</div>
+      </div>
     </div>
-    <div class="flex gap-4 text-sm font-semibold">
-      <a href="/" class="hover:text-brand-gold">Home</a>
-      <a href="/participants" class="hover:text-brand-gold">Participants</a>
-      <a href="/leaderboard" class="hover:text-brand-gold">Leaderboard</a>
-      <a href="/release-summary" class="hover:text-brand-gold">Releases</a>
-      <a href="/settings-page" class="hover:text-brand-gold">Settings</a>
+
+    <!-- Center: VHF Controls -->
+    <div style="display:flex;justify-content:center">
+      <div class="vhf-pod" id="nav-vhf-pod">
+        <button data-vhf-toggle class="vhf-toggle-btn">VHF ON</button>
+        <div class="vhf-vol-row">
+          <span class="vhf-vol-icon">&#128266;</span>
+          <input type="range" min="0" max="100" value="30" data-vhf-volume class="vhf-vol-slider">
+          <span data-vhf-volume-display class="vhf-vol-display">30%</span>
+        </div>
+      </div>
     </div>
+
+    <!-- Right: Navigation -->
+    <nav class="header-nav">
+      <a href="/" class="header-nav-btn" data-page="home">Home</a>
+      <a href="/participants" class="header-nav-btn" data-page="participants">Participants</a>
+      <a href="/leaderboard" class="header-nav-btn" data-page="leaderboard">Leaderboard</a>
+      <a href="/release-summary" class="header-nav-btn" data-page="releases">Releases</a>
+      <a href="/settings-page" class="header-nav-btn header-nav-settings" data-page="settings">&#9881;</a>
+    </nav>
   </div>
-</nav>
+
+  <!-- Followed Boats Strip -->
+  <div id="nav-followed-strip" class="followed-strip" style="display:none">
+    <span class="followed-strip-label">&#9733; WATCHING</span>
+    <div id="nav-followed-boats" class="followed-chips-scroll"></div>
+  </div>
+
+  <!-- Message Ticker -->
+  <div id="nav-ticker-bar" class="ticker-bar" style="display:none">
+    <div id="nav-ticker-track" class="ticker-track"></div>
+  </div>
+
+  <!-- Version tag -->
+  <div id="nav-version" class="header-version-tag"></div>
+</header>

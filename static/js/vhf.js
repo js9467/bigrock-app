@@ -37,9 +37,8 @@
     try{
       const s = await fetch('/api/settings').then(r=>r.json());
       const t = s.tournament;
-      const all = await fetch('https://js9467.github.io/Brtourney/settings.json').then(r=>r.json());
-
-      streamUrl = all[t]?.stream || all[t]?.fallback_stream || '';
+      const data = await fetch('/api/tournaments').then(r=>r.json());
+      streamUrl = (data?.tournaments?.[t])?.stream || '';
     }catch(e){console.error('stream fetch failed',e);}
     if(!streamUrl){
       disableControls();
@@ -81,7 +80,7 @@
     localStorage.setItem(STORAGE_VOLUME, v);
     updateVolumeDisplay(v);
   }
-  document.addEventListener('DOMContentLoaded',()=>{
+  function setupListeners(){
     const btn = document.querySelector('[data-vhf-toggle]');
     const vol = document.querySelector('[data-vhf-volume]');
     if(btn) btn.addEventListener('click',toggle);
@@ -101,13 +100,21 @@
     }
     if(localStorage.getItem(STORAGE_PLAYING)==='true'){
       play().catch(()=>{
-
         if(localStorage.getItem(STORAGE_PLAYING)==='true'){
           document.addEventListener('click',resumeOnInteraction,{once:true});
           document.addEventListener('touchstart',resumeOnInteraction,{once:true});
         }
       });
-
     }else updateButton(false);
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    // If a nav-placeholder exists, the controls are injected async by nav.js.
+    // Wait for the 'nav-ready' event before binding VHF listeners.
+    if(document.getElementById('nav-placeholder')){
+      document.addEventListener('nav-ready', setupListeners, {once:true});
+    } else {
+      setupListeners();
+    }
   });
 })();

@@ -2732,10 +2732,20 @@ def list_sounds():
 @app.route('/api/version')
 def api_version():
     try:
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        commit = subprocess.check_output(
+            ['git', '-C', app_dir, 'rev-parse', '--short', 'HEAD'],
+            text=True, timeout=5
+        ).strip()
+        if commit:
+            return jsonify({"version": commit})
+    except Exception:
+        pass
+    try:
         with open("version.txt") as f:
             return jsonify({"version": f.read().strip()})
-    except:
-        return jsonify({"version": "Unknown"})
+    except Exception:
+        return jsonify({"version": "unknown"})
 
 @app.route('/api/update/check')
 def api_update_check():

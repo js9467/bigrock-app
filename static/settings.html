@@ -438,6 +438,7 @@
       }
     },
     mounted() {
+      fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
       // Load saved settings
       axios.get('/api/settings').then(res => {
         this.settings = { ...this.settings, ...res.data };

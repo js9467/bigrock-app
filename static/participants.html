@@ -253,6 +253,7 @@
       }
     },
     mounted() {
+      fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
       this.loadLogo();
       this.loadParticipants();
       this.loadFollowed();

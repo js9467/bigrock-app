@@ -19,6 +19,7 @@
         </form>
     </div>
       <script>
+          fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
           const ssidInput = document.getElementById('ssid');
           const passwordInput = document.getElementById('password');
           let _kbdHideTimer = null;

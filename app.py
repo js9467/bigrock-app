@@ -2629,34 +2629,44 @@ def wifi_disconnect():
         print(f"❌ Unexpected error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# wvkbd starts --hidden; track visibility so SIGUSR2 only fires when hidden
+# (SIGUSR2 toggles, so calling it twice would hide the keyboard again)
+_keyboard_visible = False
+_keyboard_lock = Lock()
+
 @app.route('/launch_keyboard', methods=['POST'])
 def launch_keyboard():
+    global _keyboard_visible
     try:
-        env = os.environ.copy()
-        env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
-        env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
-        # wvkbd is pre-started --hidden in the labwc autostart before Chromium,
-        # so it already holds a Wayland connection. Send SIGUSR2 to make it visible.
-        # (Chromium kiosk evicts any wvkbd launched AFTER it starts.)
-        rc = subprocess.call(['pkill', '-USR2', 'wvkbd-mobintl'],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if rc == 0:
-            return jsonify({"status": "shown", "keyboard": "wvkbd-mobintl"})
-        # Fallback: wvkbd not running yet — launch it (works if Chromium not up)
-        if subprocess.call(['which', 'wvkbd-mobintl'], stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL) == 0:
-            subprocess.Popen(['wvkbd-mobintl', '-L', '220'], env=env)
-            return jsonify({"status": "launched", "keyboard": "wvkbd-mobintl"})
-        return jsonify({"status": "no_keyboard_available"})
+        with _keyboard_lock:
+            if _keyboard_visible:
+                return jsonify({"status": "already_shown", "keyboard": "wvkbd-mobintl"})
+            rc = subprocess.call(['pkill', '-USR2', 'wvkbd-mobintl'],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if rc == 0:
+                _keyboard_visible = True
+                return jsonify({"status": "shown", "keyboard": "wvkbd-mobintl"})
+            # Fallback: wvkbd not running — launch fresh
+            env = os.environ.copy()
+            env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
+            env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
+            if subprocess.call(['which', 'wvkbd-mobintl'], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL) == 0:
+                subprocess.Popen(['wvkbd-mobintl', '-L', '220'], env=env)
+                _keyboard_visible = True
+                return jsonify({"status": "launched", "keyboard": "wvkbd-mobintl"})
+            return jsonify({"status": "no_keyboard_available"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/hide_keyboard', methods=['POST'])
 def hide_keyboard():
+    global _keyboard_visible
     try:
-        # Send SIGUSR1 to hide wvkbd without killing it (keeps Wayland connection)
-        subprocess.call(['pkill', '-USR1', 'wvkbd-mobintl'],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        with _keyboard_lock:
+            subprocess.call(['pkill', '-USR1', 'wvkbd-mobintl'],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _keyboard_visible = False
         return jsonify({"status": "hidden"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

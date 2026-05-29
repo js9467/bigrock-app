@@ -682,7 +682,7 @@ def build_demo_cache(tournament: str) -> int:
 # ---- Shared scraper helpers ----
 
 def _parse_relative_time(text: str):
-    """Convert relative strings like '5d', '2h', '1w', '30m' to absolute datetime."""
+    """Convert relative strings like '5d', '2h', '1w', '30m' to absolute UTC datetime."""
     text = (text or "").strip().lower()
     m = re.match(r'^(\d+)\s*([smhdw])\b', text)
     if m:
@@ -693,7 +693,7 @@ def _parse_relative_time(text: str):
             'w': timedelta(weeks=n),
         }.get(unit)
         if delta:
-            return datetime.now() - delta
+            return datetime.now(ZoneInfo('UTC')) - delta
     try:
         return date_parser.parse(text)
     except Exception:
@@ -1086,7 +1086,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     ts_dt = _parse_relative_time(raw)
                     if not ts_dt:
                         try:
-                            ts_dt = date_parser.parse(raw).replace(year=datetime.now().year)
+                            ts_dt = date_parser.parse(raw).replace(year=datetime.now(ZoneInfo('UTC')).year)
                         except Exception:
                             continue
                     boat = name_tag.get_text(strip=True)

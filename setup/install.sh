@@ -45,7 +45,8 @@ $SUDO apt-get install -y \
     build-essential libssl-dev libffi-dev \
     network-manager \
     labwc wlr-randr \
-    wvkbd
+    wvkbd \
+    fonts-noto-color-emoji
 
 # ---------------------------------------------------------------------------
 # 2. Clone or update the repo

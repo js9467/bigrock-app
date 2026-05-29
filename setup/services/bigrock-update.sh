@@ -52,6 +52,7 @@ ensure_js() {
 ensure_js "vue.global.prod.js"  "https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js"
 ensure_js "hls.min.js"          "https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"
 ensure_js "tailwind.cdn.js"     "https://cdn.tailwindcss.com"
+ensure_js "chart.min.js"        "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
 
 # ---------------------------------------------------------------------------
 # 2. Version upgrade (runs upgrade.sh as root when setup/VERSION increases)

@@ -447,6 +447,14 @@ button:hover {
   padding: 0.25rem 0.75rem 0.35rem;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
+/* Panel wrapper divs inside the drawer (used by nav.html — mirrors Vue <template> transparency) */
+.stats-panel {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
 .stats-see-all {
   font-size: 0.67rem;
   font-weight: 700;

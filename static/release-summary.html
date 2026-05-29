@@ -15,7 +15,7 @@
   <script src="/static/js/vue.global.prod.js"></script>
   <script src="/static/js/tailwind.cdn.js"></script>
   <script src="/static/js/hls.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/js/chart.min.js"></script>
   <link rel="stylesheet" href="/static/css/base.css">
   <style>
     .modal-bg { background-color: rgba(0, 0, 0, 0.6); }
@@ -144,6 +144,7 @@ createApp({
         }
 
         this.loading = false;
+        await this.$nextTick();
         this.renderCharts();
       } catch (err) {
         console.error('❌ Failed to load release summary:', err);
@@ -240,39 +241,55 @@ createApp({
     },
     renderCharts() {
       if (!this.summary.length) return;
-      for (const key in this.charts) { this.charts[key].destroy(); }
 
       const labels = this.summary.map(day => this.formatDate(day.date));
-      const blue = this.summary.map(day => day.blue_marlins);
-      const white = this.summary.map(day => day.white_marlins);
-      const sail = this.summary.map(day => day.sailfish);
+      const blue   = this.summary.map(day => day.blue_marlins);
+      const white  = this.summary.map(day => day.white_marlins);
+      const sail   = this.summary.map(day => day.sailfish);
       const totals = this.summary.map(day => day.total_releases);
 
-      const anim = { duration: 800, easing: 'easeOutQuart' };
+      const totalBlue  = blue.reduce((a,b)=>a+b,0);
+      const totalWhite = white.reduce((a,b)=>a+b,0);
+      const totalSail  = sail.reduce((a,b)=>a+b,0);
 
+      // Update existing charts in-place — no destroy/recreate, no animation
+      if (this.charts.releaseChart) {
+        this.charts.releaseChart.data.labels = labels;
+        this.charts.releaseChart.data.datasets[0].data = blue;
+        this.charts.releaseChart.data.datasets[1].data = white;
+        this.charts.releaseChart.data.datasets[2].data = sail;
+        this.charts.releaseChart.update('none');
+
+        this.charts.trendChart.data.labels = labels;
+        this.charts.trendChart.data.datasets[0].data = totals;
+        this.charts.trendChart.update('none');
+
+        this.charts.speciesChart.data.datasets[0].data = [totalBlue, totalWhite, totalSail];
+        this.charts.speciesChart.update('none');
+        return;
+      }
+
+      // First-time creation — no animation for fast kiosk rendering
       this.charts.releaseChart = new Chart(document.getElementById('releaseChart'), {
         type: 'bar',
         data: { labels, datasets: [
-          { label: 'Blue Marlin', data: blue, backgroundColor: '#3b82f6' },
+          { label: 'Blue Marlin',  data: blue,  backgroundColor: '#3b82f6' },
           { label: 'White Marlin', data: white, backgroundColor: '#a78bfa' },
-          { label: 'Sailfish', data: sail, backgroundColor: '#22c55e' }
+          { label: 'Sailfish',     data: sail,  backgroundColor: '#22c55e' }
         ] },
-        options: { responsive: true, animation: anim, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+        options: { responsive: true, animation: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
       });
 
       this.charts.trendChart = new Chart(document.getElementById('trendChart'), {
         type: 'line',
         data: { labels, datasets: [{ label: 'Total Releases', data: totals, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: true, tension: 0.3 }] },
-        options: { responsive: true, animation: anim, scales: { y: { beginAtZero: true } } }
+        options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
       });
 
-      const totalBlue = blue.reduce((a,b)=>a+b,0);
-      const totalWhite = white.reduce((a,b)=>a+b,0);
-      const totalSail = sail.reduce((a,b)=>a+b,0);
       this.charts.speciesChart = new Chart(document.getElementById('speciesChart'), {
         type: 'doughnut',
-        data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue,totalWhite,totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
-        options: { responsive: true, animation: { animateScale: true }, plugins: { legend: { position: 'bottom' } } }
+        data: { labels: ['Blue Marlin', 'White Marlin', 'Sailfish'], datasets: [{ data: [totalBlue, totalWhite, totalSail], backgroundColor: ['#3b82f6','#a78bfa','#22c55e'] }] },
+        options: { responsive: true, animation: false, plugins: { legend: { position: 'bottom' } } }
       });
     },
     openDrilldown(date) {

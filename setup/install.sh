@@ -193,6 +193,7 @@ curl -sL https://cdn.jsdelivr.net/npm/vue@3.4.15/dist/vue.global.prod.js -o "$AP
 curl -sL https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js         -o "$APP_DIR/static/js/axios.min.js"
 curl -sL https://cdn.tailwindcss.com                                         -o "$APP_DIR/static/js/tailwind.cdn.js"
 curl -sL https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js         -o "$APP_DIR/static/js/hls.min.js"
+curl -sL https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js  -o "$APP_DIR/static/js/chart.min.js"
 echo "JS assets downloaded."
 
 REPO_VERSION=$(cat "$APP_DIR/setup/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "1")

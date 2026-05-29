@@ -24,32 +24,6 @@
 
     <div class="p-4 max-w-screen-xl mx-auto">
 
-      <!-- Followed Boats Section -->
-      <div v-if="followed.length" class="mb-6 bg-white rounded-xl shadow border border-yellow-300">
-        <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none" @click="followedCollapsed = !followedCollapsed">
-          <div class="text-lg font-semibold text-yellow-700">
-            Followed Boats
-            <span class="ml-1 text-sm font-normal text-yellow-500">({{ followed.length }})</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button v-if="!followedCollapsed" @click.stop="unfollowAll"
-                    class="text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 transition">
-              Unfollow All
-            </button>
-            <span class="text-yellow-500 text-lg transition-transform" :class="followedCollapsed ? 'rotate-0' : 'rotate-180'">&#9650;</span>
-          </div>
-        </div>
-        <div v-if="!followedCollapsed" class="px-4 pb-4">
-          <div class="flex flex-wrap gap-2">
-            <div v-for="boat in followed" :key="boat"
-                 class="flex items-center bg-yellow-200 text-yellow-900 font-semibold px-3 py-1 rounded-full shadow-sm">
-              {{ boat }}
-              <button @click="toggleFollow(boat)" class="ml-2 text-red-600 hover:text-red-800 font-bold text-sm">&#x274C;</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Heading and Controls -->
       <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
@@ -63,12 +37,8 @@
             &#127907; Showing {{ todayCount || filteredParticipants.length }} boats fishing today
             <button @click="todayFilter=false" class="ml-1 text-green-600 hover:text-red-600 font-bold leading-none">&#x2715;</button>
           </div>
-          <div v-if="followedFilter" class="mt-1 inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold border border-yellow-300">
-            &#9733; Showing {{ filteredParticipants.length }} followed boat{{ filteredParticipants.length !== 1 ? 's' : '' }}
-            <button @click="followedFilter=false" class="ml-1 text-yellow-600 hover:text-red-600 font-bold leading-none">&#x2715;</button>
-          </div>
         </div>
-        <div class="flex gap-2 w-full sm:w-auto">
+        <div class="flex gap-2 w-full sm:w-auto items-center">
           <input
             v-model="search"
             type="text"
@@ -77,6 +47,10 @@
             @focus="launchKeyboard"
             @blur="hideKeyboard"
           />
+          <button v-if="followed.length" @click="unfollowAll"
+                  class="text-xs font-semibold px-3 py-1.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 transition whitespace-nowrap">
+            Unfollow All
+          </button>
         </div>
       </header>
 
@@ -154,8 +128,6 @@
         todayFilter: false,
         todayBoats: [],
         todayCount: 0,
-        followedFilter: false,
-        followedCollapsed: false,
       };
     },
     computed: {
@@ -172,14 +144,6 @@
               b.toLowerCase() === boat ||
               b.toLowerCase().replace(/[^a-z0-9]+/g, '_') === uid
             );
-          }
-          if (this.followedFilter && this.followed.length > 0) {
-            const uid = (p.uid || '').toLowerCase();
-            const boat = (p.boat || '').toLowerCase();
-            return this.followed.some(b => {
-              const bn = b.toLowerCase();
-              return bn === boat || bn.replace(/[^a-z0-9]+/g, '_') === uid;
-            });
           }
           return true;
         });
@@ -323,9 +287,6 @@
       const params = new URLSearchParams(window.location.search);
       if (params.get('today') === '1') {
         this.todayFilter = true;
-      }
-      if (params.get('followed') === '1') {
-        this.followedFilter = true;
       }
       this.loadLogo();
       this.loadParticipants();

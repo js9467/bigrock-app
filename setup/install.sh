@@ -1,4 +1,4 @@
-ssh pi@192.168.4.104 "sudo bash /home/pi/bigrock-app/setup/sysprep.sh"ssh pi@192.168.4.104 "sudo bash /home/pi/bigrock-app/setup/sysprep.sh"#!/usr/bin/env bash
+#!/usr/bin/env bash
 # =============================================================================
 # BigRock App — Fresh Raspberry Pi Setup Script
 # =============================================================================
@@ -114,7 +114,8 @@ $SUDO systemctl enable bigrock.service
 $SUDO systemctl enable bigrock-update.timer
 $SUDO systemctl disable bigrock-wifi-setup.service 2>/dev/null || true
 $SUDO systemctl mask bigrock-wifi-setup.service 2>/dev/null || true
-echo "Services enabled."
+$SUDO systemctl start bigrock.service
+echo "Services enabled and started."
 
 # ---------------------------------------------------------------------------
 # 7. Auto-login on tty1 (required for kiosk without display manager)
@@ -185,10 +186,8 @@ echo "===== BigRock Setup Complete ====="
 echo ""
 echo "Next steps:"
 echo "  1. Reboot the Pi: sudo reboot"
-echo "  2. On first boot, if no WiFi is configured, the Pi will create a"
-echo "     hotspot named 'BigRock-Setup' (password: bigrock1234)."
-echo "  3. Connect your phone/laptop to that network and visit:"
-echo "     http://10.42.0.1 to configure WiFi."
-echo "  4. After WiFi is configured, the Pi reboots into the kiosk app."
+echo "  2. Kiosk will launch automatically on boot."
+echo "  3. If no internet, the app will redirect to WiFi settings."
+echo "  4. Once online, the app auto-checks for updates from GitHub."
 echo ""
 echo "Log saved to: $LOG"

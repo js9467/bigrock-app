@@ -44,13 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Tournament + brand
     loadTournamentInfo();
 
-    // Followed boats
+    // Stats pills: enrolled count, boats today, followed boats
+    loadEnrolledCount();
+    setInterval(loadEnrolledCount, 5 * 60 * 1000);
+
+    loadBoatsToday();
+    setInterval(loadBoatsToday, 5 * 60 * 1000);
+
     loadFollowedBoats();
     setInterval(loadFollowedBoats, 10000);
-
-    // Boats fishing today
-    loadBoatsToday();
-    setInterval(loadBoatsToday, 5 * 60 * 1000); // refresh every 5 min
 
     // Offline ticker
     if (!navigator.onLine) {
@@ -102,22 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function loadFollowedBoats() {
-    fetch('/followed-boats')
+  function loadEnrolledCount() {
+    fetch('/api/enrolled-count')
       .then(r => r.json())
-      .then(boats => {
-        const strip    = document.getElementById('nav-followed-strip');
-        const countEl  = document.getElementById('nav-followed-count');
-        const drawer   = document.getElementById('nav-followed-boats');
-        if (!strip) return;
-
-        strip.style.display = boats.length ? 'flex' : 'none';
-        if (countEl) countEl.textContent = boats.length;
-        if (drawer) {
-          drawer.innerHTML = boats
-            .map(b => `<div class="followed-chip">&#127869; ${esc(b)} <button class="followed-chip-remove" onclick="window._navUnfollow(${JSON.stringify(b)})">&#x2715;</button></div>`)
-            .join('');
-        }
+      .then(d => {
+        const el = document.getElementById('nav-enrolled-count');
+        if (el) el.textContent = d.count != null ? d.count : '?';
       })
       .catch(() => {});
   }
@@ -126,12 +118,34 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/boats-today')
       .then(r => r.json())
       .then(d => {
-        const badge    = document.getElementById('nav-today-badge');
-        const countEl  = document.getElementById('nav-today-count');
-        if (!badge) return;
-        const count = d.count || 0;
-        badge.style.display = count > 0 ? 'inline-flex' : 'none';
+        const countEl = document.getElementById('nav-today-count');
+        const drawer  = document.getElementById('nav-today-boats');
+        const count   = d.count || 0;
+        const boats   = d.boats || [];
         if (countEl) countEl.textContent = count;
+        if (drawer) {
+          drawer.innerHTML = boats.length
+            ? boats.map(b => `<span class="stats-boat-chip stats-chip-today">${esc(b)}</span>`).join('')
+            : '<span class="stats-empty">No boats reported fishing today yet</span>';
+        }
+      })
+      .catch(() => {});
+  }
+
+  function loadFollowedBoats() {
+    fetch('/followed-boats')
+      .then(r => r.json())
+      .then(boats => {
+        const countEl = document.getElementById('nav-followed-count');
+        const drawer  = document.getElementById('nav-watching-boats');
+        if (countEl) countEl.textContent = boats.length;
+        if (drawer) {
+          drawer.innerHTML = boats.length
+            ? boats.map(b =>
+                `<span class="stats-boat-chip stats-chip-watching">${esc(b)} <button class="stats-unfollow-btn" onclick="window._navUnfollow(${JSON.stringify(b)})">&#x2715;</button></span>`
+              ).join('')
+            : '<span class="stats-empty">No boats followed yet</span>';
+        }
       })
       .catch(() => {});
   }
@@ -147,15 +161,65 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(() => {});
   };
 
-  window._navToggleFollowed = function() {
-    const drawer  = document.getElementById('nav-followed-drawer');
-    const toggleBtn = document.getElementById('nav-followed-toggle');
-    if (!drawer) return;
-    const open = drawer.style.display !== 'none';
-    drawer.style.display = open ? 'none' : 'flex';
-    if (toggleBtn) {
-      toggleBtn.innerHTML = '&#9733; ' + (document.getElementById('nav-followed-count')?.textContent || '') +
-        ' WATCHING ' + (open ? '&#9660;' : '&#9650;');
+  let _activePill = null;
+  let _enrolledBoatsLoaded = false;
+
+  window._navTogglePill = function(name) {
+    const drawerWrap   = document.getElementById('nav-stats-drawer');
+    const panels = {
+      enrolled: document.getElementById('nav-drawer-enrolled'),
+      today:    document.getElementById('nav-drawer-today'),
+      watching: document.getElementById('nav-drawer-watching'),
+    };
+    const pills = {
+      enrolled: document.getElementById('nav-pill-enrolled'),
+      today:    document.getElementById('nav-pill-today'),
+      watching: document.getElementById('nav-pill-watching'),
+    };
+
+    if (_activePill === name) {
+      // Close
+      _activePill = null;
+      if (drawerWrap) drawerWrap.style.display = 'none';
+      Object.values(panels).forEach(p => { if (p) p.style.display = 'none'; });
+      Object.values(pills).forEach(p => { if (p) p.classList.remove('active'); });
+      return;
+    }
+
+    // Open new, close others
+    _activePill = name;
+    if (drawerWrap) drawerWrap.style.display = 'flex';
+    Object.entries(panels).forEach(([key, p]) => {
+      if (p) p.style.display = key === name ? '' : 'none';
+    });
+    Object.entries(pills).forEach(([key, p]) => {
+      if (p) p.classList.toggle('active', key === name);
+    });
+
+    // Lazy-load enrolled boats list on first open
+    if (name === 'enrolled' && !_enrolledBoatsLoaded) {
+      const drawer = document.getElementById('nav-enrolled-boats');
+      if (drawer) {
+        drawer.innerHTML = '<span class="stats-empty">Loading\u2026</span>';
+        fetch('/participants_data')
+          .then(r => r.json())
+          .then(d => {
+            const list = Array.isArray(d) ? d : (d.participants || []);
+            const MAX  = 18;
+            if (!list.length) {
+              drawer.innerHTML = '<span class="stats-empty">No participants found</span>';
+              return;
+            }
+            const chips = list.slice(0, MAX).map(p => `<span class="stats-boat-chip">${esc(p.boat || p.name || '')}</span>`).join('');
+            const more  = list.length > MAX ? `<span class="stats-more">+${list.length - MAX} more</span>` : '';
+            drawer.innerHTML = chips + more;
+            _enrolledBoatsLoaded = true;
+          })
+          .catch(() => {
+            const drawer2 = document.getElementById('nav-enrolled-boats');
+            if (drawer2) drawer2.innerHTML = '<span class="stats-empty">Could not load participants</span>';
+          });
+      }
     }
   };
 

@@ -9,9 +9,6 @@
       <div class="header-tournament-info">
         <div id="nav-tournament-name" class="header-tournament-name">&nbsp;</div>
         <div id="nav-tournament-date" class="header-tournament-date"></div>
-        <a id="nav-today-badge" class="header-today-badge" href="/participants?today=1" style="display:none">
-          &#127907; <span id="nav-today-count">0</span> TODAY
-        </a>
         <div id="nav-vhf-live" class="header-vhf-live-badge" style="display:none">&#9654; VHF LIVE</div>
       </div>
     </div>
@@ -38,13 +35,32 @@
     </nav>
   </div>
 
-  <!-- Followed Boats Strip — compact toggle badge + expandable drawer -->
-  <div id="nav-followed-strip" class="followed-strip" style="display:none">
-    <button class="followed-toggle-btn" id="nav-followed-toggle" onclick="window._navToggleFollowed()">
-      &#9733; <span id="nav-followed-count">0</span> WATCHING &#9660;
-    </button>
-    <div id="nav-followed-drawer" class="followed-drawer" style="display:none">
-      <div id="nav-followed-boats"></div>
+  <!-- Stats Pills Row: Enrolled · Today · Watching -->
+  <div id="nav-stats-row" class="stats-pills-row">
+    <div class="stats-pills">
+      <button class="stat-pill pill-enrolled" id="nav-pill-enrolled" onclick="window._navTogglePill('enrolled')">
+        &#127907; <span id="nav-enrolled-count">&#8230;</span> ENROLLED <span class="pill-caret">&#9660;</span>
+      </button>
+      <button class="stat-pill pill-today" id="nav-pill-today" onclick="window._navTogglePill('today')">
+        &#128197; <span id="nav-today-count">0</span> TODAY <span class="pill-caret">&#9660;</span>
+      </button>
+      <button class="stat-pill pill-watching" id="nav-pill-watching" onclick="window._navTogglePill('watching')">
+        &#9733; <span id="nav-followed-count">0</span> WATCHING <span class="pill-caret">&#9660;</span>
+      </button>
+    </div>
+    <div id="nav-stats-drawer" class="stats-drawer" style="display:none">
+      <div id="nav-drawer-enrolled" style="display:none">
+        <a href="/participants" class="stats-see-all">&#8594; View all enrolled</a>
+        <div id="nav-enrolled-boats" class="stats-drawer-boats"></div>
+      </div>
+      <div id="nav-drawer-today" style="display:none">
+        <a href="/participants?today=1" class="stats-see-all">&#8594; See all today</a>
+        <div id="nav-today-boats" class="stats-drawer-boats"></div>
+      </div>
+      <div id="nav-drawer-watching" style="display:none">
+        <a href="/participants?followed=1" class="stats-see-all">&#8594; View followed</a>
+        <div id="nav-watching-boats" class="stats-drawer-boats"></div>
+      </div>
     </div>
   </div>
 

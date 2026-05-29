@@ -2880,6 +2880,15 @@ def api_boats_today():
         return jsonify({'status': 'error', 'count': 0, 'boats': []})
 
 
+@app.route('/api/enrolled-count')
+def api_enrolled_count():
+    """Return the enrolled participant count from cache (fast, for nav pills)."""
+    tournament = get_current_tournament()
+    participants_file = get_cache_path(tournament, "participants.json")
+    participants = safe_json_load(participants_file, [])
+    return jsonify({'count': len(participants)})
+
+
 @app.route('/manifest.json')
 def pwa_manifest():
     """Web App Manifest for PWA / iOS Add to Home Screen."""

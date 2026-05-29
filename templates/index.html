@@ -184,6 +184,7 @@ const vm = createApp({
       events: [], hooked: [], boatImages: {},
       tournamentLogo: '', tournamentDate: '', version: '', loading: false, initialLoad: true,
       followed: [], lastEventTimestamps: new Set(),
+      _soundQueue: [], _soundPlaying: false,
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
       radioPlaying:false, hls:null, error:null, radioDisabled:false, streamUrl:'',
       messageQueue:[], currentMessage:'', messageTimer:null
@@ -265,9 +266,21 @@ const vm = createApp({
       if(!f||!this.settings.sounds_enabled)return;
       let fn=f.trim();
       if(!fn.toLowerCase().match(/\.(mp3|wav)$/))fn+='.mp3';
+      // Queue sounds — never open more than one PipeWire stream simultaneously.
+      // Opening multiple Audio streams at once crashes PipeWire on Pi 5.
+      this._soundQueue.push(fn);
+      if(!this._soundPlaying) this._drainSoundQueue();
+    },
+    _drainSoundQueue(){
+      if(!this._soundQueue.length){ this._soundPlaying=false; return; }
+      this._soundPlaying=true;
+      const fn=this._soundQueue.shift();
       const a=new Audio(`/static/sounds/${encodeURIComponent(fn)}`);
       a.volume=(this.settings.event_volume||80)/100;
-      a.play().catch(()=>{});
+      const next=()=>{ setTimeout(()=>this._drainSoundQueue(), 300); };
+      a.addEventListener('ended', next);
+      a.addEventListener('error', next);
+      a.play().catch(next);
     },
 
     fetchAll(){
@@ -275,6 +288,8 @@ const vm = createApp({
       Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
         .then(([ed,hd])=>{
           const ne=ed.events||[],nh=hd.events||[];
+          // Collect at most one sound per type per poll to avoid sound storms
+          const soundsThisPoll=new Set();
           for(const e of ne){
             const k=e.timestamp+e.uid;
             const isNew=!this.lastEventTimestamps.has(k);
@@ -282,9 +297,11 @@ const vm = createApp({
             // Never play sounds on the first fetch — those are pre-existing events
             if(!this.initialLoad && isNew && this.settings.sounds_enabled){
               const et=(e.event||'').toLowerCase();
-              if(et.includes('boated')) this.playSound(this.settings.boated_sound);
-              else if(et.includes('hooked up')) this.playSound(this.settings.hooked_sound);
-              else if(this.isFollowed(e.uid)) this.playSound(this.settings.followed_sound);
+              let snd=null;
+              if(et.includes('boated')) snd=this.settings.boated_sound;
+              else if(et.includes('hooked up')) snd=this.settings.hooked_sound;
+              else if(this.isFollowed(e.uid)) snd=this.settings.followed_sound;
+              if(snd && !soundsThisPoll.has(snd)){ soundsThisPoll.add(snd); this.playSound(snd); }
             }
           }
           this.events=ne;this.hooked=nh;

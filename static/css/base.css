@@ -441,3 +441,86 @@ button:hover {
   color: #001528;
   transform: translateY(-1px);
 }
+
+/* ==========================================
+   MOBILE PWA — portrait phone layout
+   ========================================== */
+
+/* Mobile tab bar — hidden on kiosk/desktop, shown on small portrait */
+.mobile-tab-bar { display: none; }
+
+.mobile-tab-btn {
+  flex: 1;
+  padding: 0.6rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  background: #1a2332;
+  color: rgba(255,255,255,0.5);
+  border: none;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  letter-spacing: 0.02em;
+}
+.mobile-tab-btn.active {
+  color: #f6c553;
+  border-bottom-color: #f6c553;
+  background: #0f172a;
+}
+.tab-badge {
+  display: inline-block;
+  background: #f6c553;
+  color: #001528;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  margin-left: 0.25rem;
+  line-height: 1.45;
+  vertical-align: middle;
+}
+
+@media (max-width: 639px) {
+  /* Allow natural scroll on portrait phone */
+  body       { height: auto !important; }
+  #app       { height: auto !important; min-height: 100dvh; display: flex; flex-direction: column; }
+
+  /* Show mobile tab bar */
+  .mobile-tab-bar { display: flex !important; background: #1a2332; border-bottom: 1px solid rgba(255,255,255,0.08); }
+
+  /* Content stack: each column goes full-width, scrollable */
+  .mobile-columns { flex-direction: column !important; height: auto !important; overflow: visible !important; }
+  .mobile-main    { overflow-y: visible !important; flex: none !important; }
+
+  .hooked-col {
+    width: 100% !important;
+    order: unset !important;
+    max-height: 55vh;
+    overflow-y: auto !important;
+  }
+  .events-col {
+    width: 100% !important;
+    order: unset !important;
+    overflow-y: auto !important;
+    max-height: 70vh;
+  }
+
+  /* Tab switching */
+  .mobile-tab-hidden { display: none !important; }
+
+  /* Compact header on mobile — hide VHF pod, 2-col grid */
+  .vhf-pod-wrapper  { display: none !important; }
+  .header-main      { grid-template-columns: 1fr auto !important; padding: 0.35rem 0.75rem !important; }
+  .header-logo      { height: 1.9rem !important; }
+  .header-tournament-name { font-size: 0.78rem !important; }
+  .header-tournament-date { display: none; }
+  .header-nav-btn   { font-size: 0.58rem !important; padding: 0.2rem 0.42rem !important; }
+  .header-nav-settings { width: 1.6rem !important; height: 1.6rem !important; font-size: 0.82rem !important; }
+  .followed-strip   { padding: 0.15rem 0.6rem; }
+  .header-version-tag { display: none; }
+
+  /* Make boat image thumbnails smaller on mobile */
+  .hooked-col .w-12 { width: 2.5rem !important; height: 2.5rem !important; }
+  .events-col .w-14 { width: 2.75rem !important; height: 2.75rem !important; }
+}

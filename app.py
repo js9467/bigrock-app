@@ -2795,6 +2795,42 @@ def api_boats_today():
         print(f'❌ api_boats_today error: {e}')
         return jsonify({'status': 'error', 'count': 0, 'boats': []})
 
+
+@app.route('/manifest.json')
+def pwa_manifest():
+    """Web App Manifest for PWA / iOS Add to Home Screen."""
+    tournament = get_current_tournament() or 'Big Rock Tournament'
+    manifest = {
+        "name": tournament,
+        "short_name": "BigRock",
+        "description": "Live tournament event feed, leaderboard and participants",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#001528",
+        "theme_color": "#002855",
+        "orientation": "any",
+        "icons": [
+            {"src": "/static/images/bigrock.png",      "sizes": "any", "type": "image/png", "purpose": "any"},
+            {"src": "/static/images/WHITELOGOBR.png",  "sizes": "any", "type": "image/png", "purpose": "maskable"},
+        ],
+        "shortcuts": [
+            {"name": "Leaderboard",  "url": "/leaderboard"},
+            {"name": "Participants", "url": "/participants"},
+            {"name": "Releases",     "url": "/release-summary"},
+        ],
+    }
+    resp = jsonify(manifest)
+    resp.headers['Content-Type'] = 'application/manifest+json'
+    return resp
+
+
+@app.route('/sw.js')
+def pwa_service_worker():
+    """Serve service worker from root scope so it covers the whole origin."""
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
+
 @app.route('/api/version')
 def api_version():
     try:

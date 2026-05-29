@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- PWA / iOS Home Screen -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#002855">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BigRock">
+  <link rel="apple-touch-icon" href="/static/images/bigrock.png">
   <title>Events Feed</title>
   <script src="/static/js/offline.js"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -40,7 +47,7 @@
       </div>
 
       <!-- Center: VHF Controls -->
-      <div style="display:flex;justify-content:center">
+      <div class="vhf-pod-wrapper" style="display:flex;justify-content:center">
         <div class="vhf-pod" :class="{ 'vhf-active': radioPlaying }">
           <button @click="toggleRadio" :disabled="radioDisabled"
                   class="vhf-toggle-btn" :class="{ 'is-playing': radioPlaying }">
@@ -89,14 +96,23 @@
     <div v-if="version" class="header-version-tag">{{ version }}</div>
   </header>
 
+  <!-- Mobile tab bar (hidden on kiosk/desktop via CSS) -->
+  <div class="mobile-tab-bar">
+    <button class="mobile-tab-btn" :class="{ active: mobileTab === 'events' }" @click="mobileTab = 'events'">&#128203; Events</button>
+    <button class="mobile-tab-btn" :class="{ active: mobileTab === 'hooked' }" @click="mobileTab = 'hooked'">
+      &#127869; Hooked <span v-if="hooked.length" class="tab-badge">{{ hooked.length }}</span>
+    </button>
+  </div>
+
   <!-- Content area fills remaining height; both columns scroll -->
-  <main class="flex-1 overflow-hidden">
+  <main class="mobile-main flex-1 overflow-hidden">
     <!-- Always display columns side by side -->
-    <div class="flex h-full flex-row">
+    <div class="mobile-columns flex h-full flex-row">
 
       <!-- Hooked Column (scrolls) -->
       <div class="hooked-col" :class="['w-1/4 bg-white border-l border-gray-300 overflow-y-auto order-2',
-                    hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '']">
+                    hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '',
+                    mobileTab !== 'hooked' ? 'mobile-tab-hidden' : '']">
         <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Hooked Up <span v-if="hooked.length > 0">({{ hooked.length }})</span>
         </div>
@@ -126,7 +142,7 @@
       </div>
 
       <!-- Event Feed (scrolls) -->
-      <div class="w-3/4 overflow-y-auto event-feed order-1 events-col border-r border-gray-300">
+      <div :class="['w-3/4 overflow-y-auto event-feed order-1 events-col border-r border-gray-300', mobileTab !== 'events' ? 'mobile-tab-hidden' : '']">
 
         <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Event Feed
@@ -177,6 +193,7 @@ const vm = createApp({
   data() {
     return {
       events: [], hooked: [], boatImages: {},
+      mobileTab: 'events',
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
       followed: [], followedExpanded: false, lastEventTimestamps: new Set(),
       boatsTodayCount: 0, boatsTodayList: [],
@@ -415,6 +432,14 @@ const vm = createApp({
 }).mount('#app');
 
 window.vm = vm;
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 
 </body>

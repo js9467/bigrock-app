@@ -114,7 +114,10 @@
         <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
       </div>
 
-      <!-- App Update Banner -->
+      <!-- App Version / Update Banner -->
+      <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 mb-2">
+        App commit: <span class="font-mono" id="deployed-commit">checking...</span>
+      </div>
       <div v-if="updateInfo" class="p-4 bg-green-100 border border-green-400 rounded-lg flex items-center justify-between">
         <span class="text-green-800 font-semibold">🔄 Update available ({{ updateInfo.deployed }} → {{ updateInfo.latest }})</span>
         <button @click="applyUpdate" class="ml-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Update Now</button>
@@ -507,6 +510,8 @@
 
       // Check for app updates
       axios.get('/api/update/check').then(res => {
+        const el = document.getElementById('deployed-commit');
+        if (el && res.data.deployed) el.textContent = res.data.deployed;
         if (res.data.update_available) {
           this.updateInfo = res.data;
         }

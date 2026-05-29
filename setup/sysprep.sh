@@ -117,6 +117,9 @@ echo ">>> Keeping WiFi portal service disabled (app handles WiFi natively)..."
 systemctl disable bigrock-wifi-setup.service 2>/dev/null || true
 systemctl mask bigrock-wifi-setup.service 2>/dev/null || true
 
+echo ">>> Disabling NetworkManager-wait-online (prevents boot hang when no WiFi)..."
+systemctl disable NetworkManager-wait-online.service 2>/dev/null || true
+
 echo ">>> Resetting cloud-init instance ID so it re-runs on each clone..."
 CLI=/boot/firmware/cmdline.txt
 sed -i 's|i=[^ ]*|i=bigrock-clone-ready|g' "$CLI"

@@ -665,45 +665,60 @@ button:hover {
 }
 
 @media (max-width: 639px) {
-  /* Allow natural scroll on portrait phone */
+  /* ── Base ── */
   body       { height: auto !important; }
   #app       { height: auto !important; min-height: 100dvh; display: flex; flex-direction: column; }
 
-  /* Show mobile tab bar */
+  /* ── Mobile tab bar (Events / Hooked) ── */
   .mobile-tab-bar { display: flex !important; background: #1a2332; border-bottom: 1px solid rgba(255,255,255,0.08); }
 
-  /* Content stack: each column goes full-width, scrollable */
+  /* ── Content columns ── */
   .mobile-columns { flex-direction: column !important; height: auto !important; overflow: visible !important; }
   .mobile-main    { overflow-y: visible !important; flex: none !important; }
-
-  .hooked-col {
-    width: 100% !important;
-    order: unset !important;
-    max-height: 55vh;
-    overflow-y: auto !important;
-  }
-  .events-col {
-    width: 100% !important;
-    order: unset !important;
-    overflow-y: auto !important;
-    max-height: 70vh;
-  }
-
-  /* Tab switching */
+  .hooked-col     { width: 100% !important; order: unset !important; max-height: 55vh; overflow-y: auto !important; }
+  .events-col     { width: 100% !important; order: unset !important; overflow-y: auto !important; max-height: 70vh; }
   .mobile-tab-hidden { display: none !important; }
 
-  /* Compact header on mobile — hide VHF pod, 2-col grid */
-  .vhf-pod-wrapper  { display: none !important; }
-  .header-main      { grid-template-columns: 1fr auto !important; padding: 0.35rem 0.75rem !important; }
-  .header-logo      { height: 1.9rem !important; }
-  .header-tournament-name { font-size: 0.78rem !important; }
+  /* ── Header: compact 2-col, no VHF pod ── */
+  .vhf-pod-wrapper        { display: none !important; }
+  .header-main            { grid-template-columns: 1fr auto !important; padding: 0.4rem 0.9rem !important; gap: 0.5rem !important; }
+  .header-logo            { height: 2.2rem !important; }
+  .header-tournament-name { font-size: 0.9rem !important; }
   .header-tournament-date { display: none; }
-  .header-nav-btn   { font-size: 0.58rem !important; padding: 0.2rem 0.42rem !important; }
-  .header-nav-settings { width: 1.6rem !important; height: 1.6rem !important; font-size: 0.82rem !important; }
-  .followed-strip   { padding: 0.15rem 0.6rem; }
-  .header-version-tag { display: none; }
+  .header-version-tag     { display: none; }
 
-  /* Make boat image thumbnails smaller on mobile */
+  /* Nav buttons: compact but tap-friendly (min 44px touch target) */
+  .header-nav             { gap: 0.25rem !important; }
+  .header-nav-btn         { font-size: 0.62rem !important; padding: 0.35rem 0.5rem !important; min-height: 2rem; }
+  .header-nav-settings    { width: 2rem !important; height: 2rem !important; font-size: 0.9rem !important; }
+
+  /* ── Stats pills row: horizontal scroll strip ── */
+  .stats-pills-row        { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .stats-pills            { flex-wrap: nowrap !important; padding: 0.3rem 0.75rem !important; gap: 0.4rem !important; width: max-content; min-width: 100%; }
+  .stat-pill              { font-size: 0.72rem !important; padding: 0.28rem 0.7rem !important; white-space: nowrap; }
+  .pill-icon              { font-size: 1.05em !important; }
+
+  /* Drawer: taller on mobile, full-width chips */
+  .stats-drawer           { padding: 0.3rem 0.75rem 0.4rem !important; gap: 0.35rem !important; }
+  .stats-drawer-boats     { max-height: 110px !important; }
+  .stats-boat-chip        { font-size: 0.72rem !important; padding: 0.2rem 0.55rem !important; }
+
+  /* ── Thumbnail sizes ── */
   .hooked-col .w-12 { width: 2.5rem !important; height: 2.5rem !important; }
   .events-col .w-14 { width: 2.75rem !important; height: 2.75rem !important; }
+
+  /* ── Page content typography (participants, leaderboard, etc.) ── */
+  .text-4xl   { font-size: 1.5rem !important; }
+  .text-3xl   { font-size: 1.25rem !important; }
+  .text-2xl   { font-size: 1.1rem !important; }
+  .p-4, .p-6 { padding: 0.75rem !important; }
+  .mb-6       { margin-bottom: 1rem !important; }
+  .max-w-screen-xl { max-width: 100% !important; }
+
+  /* Tables: wrap in horizontal scroll automatically */
+  .overflow-hidden > table,
+  .overflow-x-auto > table,
+  div > table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; max-width: 100%; }
+  table       { font-size: 0.8rem !important; }
+  th, td      { padding: 0.35rem 0.45rem !important; }
 }

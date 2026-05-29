@@ -715,7 +715,7 @@ def scrape_participants(force: bool = False):
             raise Exception(f"No participants URL found for '{tournament}'")
 
         print(f"📡 Scraping participants from: {participants_url}")
-        html = fetch_html(participants_url)
+        html = fetch_html(participants_url, use_scraperapi=True)
         if not html:
             safe_json_dump(participants_file, [])
             # Record failed attempt so is_cache_fresh backoff prevents hammering
@@ -891,7 +891,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
             raise Exception(f"No events URL found for '{tournament}'")
 
         print(f"📡 Scraping events (with pagination) from: {events_url}")
-        first_html = fetch_html(events_url)
+        first_html = fetch_html(events_url, use_scraperapi=True)
         if not first_html:
             safe_json_dump(events_file, [])
             cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
@@ -1054,7 +1054,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
 
         # iterate additional pages
         for url in page_urls[1:]:
-            html = fetch_html(url)
+            html = fetch_html(url, use_scraperapi=True)
             if not html:
                 consecutive_empty += 1
                 if consecutive_empty >= max_consecutive_empty:

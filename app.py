@@ -198,6 +198,11 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
                     break         # no point retrying with same headers
                 return r.text
             if r.status_code == 429:
+                # On the first 429 go straight to Playwright — no point waiting since
+                # reeltime.app uses Vercel bot protection that blocks plain HTTP entirely
+                if attempt == 0:
+                    print(f"⚠️ Rate limited on first attempt — escalating to Playwright for {url}")
+                    return _fetch_html_playwright(url)
                 retry_after = int(r.headers.get('Retry-After', 0))
                 wait = max(retry_after, (attempt + 1) * 20) + random.uniform(0, 10)
                 print(f"⚠️ Rate limited (attempt {attempt+1}/3), waiting {wait:.0f}s for {url}")
@@ -210,8 +215,8 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
             if attempt < 2:
                 time.sleep(5 * (attempt + 1))
 
-    # If we only got a bot challenge, escalate to headless browser
-    if _is_bot_challenge(html):
+    # Escalate to headless browser on bot challenge OR when all HTTP attempts returned nothing
+    if _is_bot_challenge(html) or not html:
         return _fetch_html_playwright(url)
     return html
 

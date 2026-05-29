@@ -62,6 +62,14 @@ IMAGE_MAX_SIZE = (400, 400)
 
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 24 * 3600  # cache static files for a day
 
+@app.after_request
+def no_cache_html(response):
+    """HTML pages must never be cached so Chromium always gets the latest version."""
+    if response.content_type and 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+    return response
+
 UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
@@ -2628,7 +2636,7 @@ def launch_keyboard():
         env['WAYLAND_DISPLAY'] = os.environ.get('WAYLAND_DISPLAY', 'wayland-0')
         env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', '/run/user/1000')
         # Try squeekboard (Wayland), then wvkbd, then onboard (X11 fallback)
-        for kbd in [['squeekboard'], ['wvkbd-mobintl', '--landscape', '-L', '220'],
+        for kbd in [['squeekboard'], ['wvkbd-mobintl', '-L', '220'],
                     ['onboard']]:
             if subprocess.call(['which', kbd[0]], stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL) == 0:

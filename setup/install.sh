@@ -44,7 +44,8 @@ $SUDO apt-get install -y \
     chromium \
     build-essential libssl-dev libffi-dev \
     network-manager \
-    labwc wlr-randr
+    labwc wlr-randr \
+    wvkbd
 
 # ---------------------------------------------------------------------------
 # 2. Clone or update the repo

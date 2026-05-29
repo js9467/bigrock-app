@@ -12,6 +12,8 @@ Restart=always
 RestartSec=5
 # Flask should not run in debug mode in production
 Environment=FLASK_ENV=production
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 
 [Install]
 WantedBy=multi-user.target

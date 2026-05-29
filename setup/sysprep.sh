@@ -113,9 +113,9 @@ rm -f /home/pi/.bigrock-wifi-configured
 echo ">>> Removing WiFi credentials (clones must not inherit master's network)..."
 rm -f /etc/NetworkManager/system-connections/*.nmconnection
 
-echo ">>> Re-enabling WiFi portal service for clones..."
-systemctl unmask bigrock-wifi-setup.service 2>/dev/null || true
-systemctl enable bigrock-wifi-setup.service 2>/dev/null || true
+echo ">>> Keeping WiFi portal service disabled (app handles WiFi natively)..."
+systemctl disable bigrock-wifi-setup.service 2>/dev/null || true
+systemctl mask bigrock-wifi-setup.service 2>/dev/null || true
 
 echo ">>> Resetting cloud-init instance ID so it re-runs on each clone..."
 CLI=/boot/firmware/cmdline.txt

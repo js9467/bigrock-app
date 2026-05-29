@@ -153,6 +153,27 @@ rm -f /home/pi/.bash_history /root/.bash_history 2>/dev/null || true
 rm -f /home/pi/bigrock-app/cache/*.json 2>/dev/null || true
 apt-get clean -qq 2>/dev/null || true
 
+echo ">>> Clearing Chromium cache and browsing data..."
+# Keep the profile directory (preserves kiosk mode settings/extensions)
+# but wipe anything that could contain browsing data, credentials, or local network info
+rm -rf /home/pi/.cache/chromium 2>/dev/null || true
+for ITEM in \
+    "Cache" "Code Cache" "GPUCache" \
+    "Cookies" "Cookies-journal" \
+    "History" "History-journal" \
+    "Visited Links" \
+    "Login Data" "Login Data-journal" \
+    "Network" \
+    "Sessions" "Session Storage"; do
+    rm -rf "/home/pi/.config/chromium/Default/${ITEM}" 2>/dev/null || true
+done
+
+echo ">>> Clearing SSH known_hosts (each clone will build its own)..."
+rm -f /home/pi/.ssh/known_hosts /root/.ssh/known_hosts 2>/dev/null || true
+
+echo ">>> Clearing pip and Python caches..."
+rm -rf /home/pi/.cache/pip /root/.cache/pip 2>/dev/null || true
+
 echo ""
 echo "==========================================="
 echo "  Sysprep complete!"

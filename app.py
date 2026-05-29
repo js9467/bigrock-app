@@ -130,46 +130,33 @@ def safe_json_dump(path, obj):
     os.replace(tmp, path)
 
 def fetch_html(url, use_scraperapi: bool = False) -> str:
-    """Fast, resilient HTML fetch with short timeouts."""
-    headers = {
-        "User-Agent": random.choice(UA_POOL),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
-    }
-    # First try direct (short timeout)
-    direct_status = None
-    try:
-        r = SESS.get(url, headers=headers, timeout=12, verify=False)
-        if r.status_code == 200 and r.text.strip():
-            return r.text
-        direct_status = r.status_code
-        print(f"⚠️ Direct fetch {r.status_code} for {url}")
-    except Exception as e:
-        print(f"⚠️ Direct fetch error for {url}: {e}")
-
-    # ScraperAPI fallback — always used when rate-limited (429), or when requested
-    if use_scraperapi or direct_status == 429:
-        api_key = "e6f354c9c073ceba04c0fe82e4243ebd"
-        api = f"https://api.scraperapi.com?api_key={api_key}&render=true&url={quote(url, safe='')}"
+    """Resilient HTML fetch with 429-aware retry backoff."""
+    for attempt in range(3):
+        headers = {
+            "User-Agent": random.choice(UA_POOL),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Referer": "https://www.google.com/",
+            "Connection": "keep-alive",
+        }
         try:
-            r = SESS.get(api, headers=headers, timeout=45)
+            r = SESS.get(url, headers=headers, timeout=20, verify=False)
             if r.status_code == 200 and r.text.strip():
                 return r.text
-            print(f"⚠️ ScraperAPI failed: HTTP {r.status_code}")
+            if r.status_code == 429:
+                retry_after = int(r.headers.get('Retry-After', 0))
+                wait = max(retry_after, (attempt + 1) * 20) + random.uniform(0, 10)
+                print(f"⚠️ Rate limited (attempt {attempt+1}/3), waiting {wait:.0f}s for {url}")
+                time.sleep(wait)
+                continue
+            print(f"⚠️ HTTP {r.status_code} for {url}")
+            break
         except Exception as e:
-            print(f"❌ Error via ScraperAPI: {e}")
-        return ""  # Don't retry direct after ScraperAPI — avoid double-hammering
-
-    # Final quick retry direct (only reached if ScraperAPI was not tried)
-    time.sleep(1)
-    try:
-        r = SESS.get(url, headers=headers, timeout=10, verify=False)
-        if r.status_code == 200 and r.text.strip():
-            return r.text
-        print(f"⚠️ Final retry got {r.status_code} for {url}")
-    except Exception as e:
+            print(f"⚠️ Fetch error (attempt {attempt+1}/3) for {url}: {e}")
+            if attempt < 2:
+                time.sleep(5 * (attempt + 1))
+    return ""
         print(f"⚠️ Final retry error for {url}: {e}")
     return ""
 
@@ -718,14 +705,13 @@ def scrape_participants(force: bool = False):
             raise Exception(f"No participants URL found for '{tournament}'")
 
         print(f"📡 Scraping participants from: {participants_url}")
-        html = fetch_html(participants_url, use_scraperapi=True)
+        html = fetch_html(participants_url)
         if not html:
-            safe_json_dump(participants_file, [])
-            # Record failed attempt so is_cache_fresh backoff prevents hammering
+            # Preserve existing cache — never wipe data on a failed fetch
             cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
             save_cache(cache)
-            print("⚠️ Error scraping participants: no HTML — wrote empty participants.json")
-            return []
+            print("⚠️ Failed to fetch participants HTML — keeping existing cache")
+            return safe_json_load(participants_file, [])
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -894,13 +880,13 @@ def scrape_events(force: bool = False, tournament: str | None = None):
             raise Exception(f"No events URL found for '{tournament}'")
 
         print(f"📡 Scraping events (with pagination) from: {events_url}")
-        first_html = fetch_html(events_url, use_scraperapi=True)
+        first_html = fetch_html(events_url)
         if not first_html:
-            safe_json_dump(events_file, [])
+            # Preserve existing cache — never wipe data on a failed fetch
             cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
             save_cache(cache)
-            print("❌ Failed to fetch events HTML — wrote empty events.json")
-            return []
+            print("❌ Failed to fetch events HTML — keeping existing cache")
+            return safe_json_load(events_file, [])
 
         first_soup = BeautifulSoup(first_html, 'html.parser')
         page_urls = discover_event_page_urls(events_url, first_soup)
@@ -1057,7 +1043,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
 
         # iterate additional pages
         for url in page_urls[1:]:
-            html = fetch_html(url, use_scraperapi=True)
+            html = fetch_html(url)
             if not html:
                 consecutive_empty += 1
                 if consecutive_empty >= max_consecutive_empty:
@@ -2782,8 +2768,8 @@ def api_boats_today():
             parts = events_url.rstrip('/').rsplit('/', 1)
             whos_url = parts[0] + '/whos-fishing' if len(parts) == 2 else events_url
 
-        print(f"🎣 Scraping who's-fishing: {whos_url}")
-        html = fetch_html(whos_url, use_scraperapi=True)
+        print(f"📡 Scraping who's-fishing: {whos_url}")
+        html = fetch_html(whos_url)
         if not html:
             return jsonify({'status': 'ok', 'count': 0, 'boats': []})
 

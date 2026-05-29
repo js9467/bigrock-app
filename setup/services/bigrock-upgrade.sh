@@ -43,6 +43,19 @@ for V in $(seq $((DEPLOYED + 1)) "$REPO"); do
         su -c "bash $APP_DIR/setup/install.sh" pi
         ;;
 
+    2)
+        # Patch Chromium autostart to add --no-restore-last-session
+        # Prevents crash-recovery mode after unclean shutdown (e.g. power loss)
+        log "v2: Patching labwc autostart to add --no-restore-last-session..."
+        AUTOSTART="/home/pi/.config/labwc/autostart"
+        if grep -q 'disable-session-crashed-bubble' "$AUTOSTART" && ! grep -q 'no-restore-last-session' "$AUTOSTART"; then
+            sed -i 's/--disable-session-crashed-bubble/--disable-session-crashed-bubble --no-restore-last-session/' "$AUTOSTART"
+            log "v2: autostart patched."
+        else
+            log "v2: autostart already up to date — skipping."
+        fi
+        ;;
+
     # ---------------------------------------------------------------------------
     # TEMPLATE for future upgrades — copy this block and increment the number:
     #

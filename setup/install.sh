@@ -151,7 +151,7 @@ wvkbd-mobintl -L 220 --hidden &
 sleep 1
 # Launch app maximized (not --kiosk) so wvkbd layer-shell renders above it.
 # labwc rc.xml strips the title bar via windowRule below.
-chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
+chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --no-restore-last-session --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
 EOF
 chmod +x /home/pi/.config/labwc/autostart
 

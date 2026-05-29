@@ -2553,11 +2553,15 @@ def bluetooth_disconnect():
 @app.route('/wifi/scan')
 def wifi_scan():
     try:
+        # Trigger a fresh scan, ignore errors (device may already be scanning)
+        subprocess.call(['nmcli', 'dev', 'wifi', 'rescan'], stderr=subprocess.DEVNULL)
+        import time as _t; _t.sleep(2)  # give NM a moment to collect results
         scan_result = subprocess.check_output(['nmcli', '-t', '-f', 'SSID,SIGNAL,IN-USE', 'dev', 'wifi'], text=True)
         seen = {}
         connected_ssid = None
         for line in scan_result.strip().split('\n'):
-            parts = line.strip().split(':')
+            # Split only on first 2 colons (SSID may contain colons)
+            parts = line.strip().split(':', 2)
             if len(parts) >= 3:
                 ssid, signal, in_use = parts
                 if not ssid.strip():
@@ -2603,21 +2607,14 @@ def wifi_connect():
 @app.route('/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():
     try:
-        result = subprocess.check_output(['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'con', 'show', '--active'], text=True)
-        lines = result.strip().split('\n')
-        for line in lines:
-            parts = line.strip().split(':')
-            if len(parts) < 3:
-                continue
-            name, ctype, device = parts
-            if 'wireless' in ctype or ctype == 'wifi':
-                print(f"🚫 Disconnecting Wi-Fi connection: {name}")
-                subprocess.check_call(['nmcli', 'con', 'down', name])
-                return jsonify({'status': 'ok', 'message': f'Disconnected from {name}'})
-        print("⚠️ No connection name found — disconnecting wlan0 directly...")
-        subprocess.check_call(['nmcli', 'device', 'disconnect', 'wlan0'])
-        return jsonify({'status': 'ok', 'message': 'Disconnected wlan0'})
+        # Use device disconnect — this brings down wlan0 AND suppresses autoconnect
+        # until the user manually connects again. More reliable than 'con down'.
+        subprocess.check_call(['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'])
+        return jsonify({'status': 'ok', 'message': 'Disconnected from Wi-Fi'})
     except subprocess.CalledProcessError as e:
+        # Exit code 6 means device not connected — treat as success
+        if e.returncode == 6:
+            return jsonify({'status': 'ok', 'message': 'Already disconnected'})
         print(f"❌ Wi-Fi disconnect error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
     except Exception as e:

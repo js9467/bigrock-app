@@ -3,3 +3,4 @@ python-dateutil
 beautifulsoup4
 requests
 Pillow
+playwright

@@ -763,10 +763,15 @@ def scrape_participants(force: bool = False):
         html = fetch_html(participants_url)
         if not html:
             # Preserve existing cache — never wipe data on a failed fetch
-            cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+            # If there IS existing data keep normal TTL; if empty use short TTL so we retry soon
+            existing = safe_json_load(participants_file, [])
+            if existing:
+                cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+            else:
+                cache[cache_key] = {"last_scraped": (datetime.now() - timedelta(minutes=1438)).isoformat()}
             save_cache(cache)
             print("⚠️ Failed to fetch participants HTML — keeping existing cache")
-            return safe_json_load(participants_file, [])
+            return existing
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -938,10 +943,15 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         first_html = fetch_html(events_url)
         if not first_html:
             # Preserve existing cache — never wipe data on a failed fetch
-            cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+            # If there IS existing data keep normal TTL; if empty use short TTL so we retry soon
+            existing = safe_json_load(events_file, [])
+            if existing:
+                cache[cache_key] = {"last_scraped": datetime.now().isoformat()}
+            else:
+                cache[cache_key] = {"last_scraped": (datetime.now() - timedelta(minutes=8)).isoformat()}
             save_cache(cache)
             print("❌ Failed to fetch events HTML — keeping existing cache")
-            return safe_json_load(events_file, [])
+            return existing
 
         first_soup = BeautifulSoup(first_html, 'html.parser')
         page_urls = discover_event_page_urls(events_url, first_soup)

@@ -5,10 +5,13 @@
   <div class="header-main">
     <!-- Left: Logo + Tournament Info -->
     <div class="header-left">
-      <img id="nav-logo" src="/static/images/bigrock.webp" alt="Tournament Logo" class="header-logo">
+      <img id="nav-logo" src="/static/images/bigrock.png" alt="Tournament Logo" class="header-logo">
       <div class="header-tournament-info">
         <div id="nav-tournament-name" class="header-tournament-name">&nbsp;</div>
         <div id="nav-tournament-date" class="header-tournament-date"></div>
+        <a id="nav-today-badge" class="header-today-badge" href="/participants?today=1" style="display:none">
+          &#127907; <span id="nav-today-count">0</span> TODAY
+        </a>
         <div id="nav-vhf-live" class="header-vhf-live-badge" style="display:none">&#9654; VHF LIVE</div>
       </div>
     </div>
@@ -35,10 +38,14 @@
     </nav>
   </div>
 
-  <!-- Followed Boats Strip -->
+  <!-- Followed Boats Strip — compact toggle badge + expandable drawer -->
   <div id="nav-followed-strip" class="followed-strip" style="display:none">
-    <span class="followed-strip-label">&#9733; WATCHING</span>
-    <div id="nav-followed-boats" class="followed-chips-scroll"></div>
+    <button class="followed-toggle-btn" id="nav-followed-toggle" onclick="window._navToggleFollowed()">
+      &#9733; <span id="nav-followed-count">0</span> WATCHING &#9660;
+    </button>
+    <div id="nav-followed-drawer" class="followed-drawer" style="display:none">
+      <div id="nav-followed-boats"></div>
+    </div>
   </div>
 
   <!-- Message Ticker -->

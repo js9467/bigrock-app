@@ -6,7 +6,7 @@
   <title>Events Feed</title>
   <script src="/static/js/offline.js"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/js/tailwind.cdn.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css">
 
@@ -33,8 +33,9 @@
              :class="{ active: radioPlaying }">
         <div class="header-tournament-info">
           <div class="header-tournament-name">{{ tournamentName || 'Big Rock Tournament' }}</div>
-          <div v-if="tournamentDate" class="header-tournament-date">{{ tournamentDate }}</div>
-          <div v-if="radioPlaying" class="header-vhf-live-badge">&#9654; VHF LIVE</div>
+          <div v-if="tournamentDate" class="header-tournament-date">{{ tournamentDate }}</div>          <a v-if="boatsTodayCount > 0"
+             href="/participants?today=1"
+             class="header-today-badge">&#127907; {{ boatsTodayCount }} TODAY</a>          <div v-if="radioPlaying" class="header-vhf-live-badge">&#9654; VHF LIVE</div>
         </div>
       </div>
 
@@ -66,13 +67,15 @@
       </div>
     </div>
 
-    <!-- Followed Boats Strip -->
+    <!-- Followed Boats Strip — compact toggle -->
     <div v-if="followed.length" class="followed-strip">
-      <span class="followed-strip-label">&#9733; WATCHING</span>
-      <div class="followed-chips-scroll">
+      <button class="followed-toggle-btn" @click="followedExpanded = !followedExpanded">
+        &#9733; {{ followed.length }} WATCHING {{ followedExpanded ? '&#9650;' : '&#9660;' }}
+      </button>
+      <div v-show="followedExpanded" class="followed-drawer">
         <div v-for="boat in followed" :key="boat" class="followed-chip">
           &#127869; {{ boat }}
-          <button @click="toggleFollow(boat)" class="followed-chip-remove">&#x2715;</button>
+          <button @click.stop="toggleFollow(boat)" class="followed-chip-remove">&#x2715;</button>
         </div>
       </div>
     </div>
@@ -175,7 +178,8 @@ const vm = createApp({
     return {
       events: [], hooked: [], boatImages: {},
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
-      followed: [], lastEventTimestamps: new Set(),
+      followed: [], followedExpanded: false, lastEventTimestamps: new Set(),
+      boatsTodayCount: 0, boatsTodayList: [],
       _soundQueue: [], _soundPlaying: false,
       settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
       radioPlaying:false, hls:null, error:null, radioDisabled:false, streamUrl:'',
@@ -188,8 +192,9 @@ const vm = createApp({
         .then(()=>this.loadFollowed())
         .then(()=>this.checkStreamAvailability())
         .then(()=>{ this.setupMessages(); this.startMessageRotation(); this.fetchVersion();
-          this.loadTournamentLogo(); this.loadParticipants(); this.fetchAll();
+          this.loadTournamentLogo(); this.loadParticipants(); this.fetchAll(); this.loadBoatsToday();
           setInterval(this.fetchAll, 30000); setInterval(this.loadParticipants, 10000);
+          setInterval(this.loadBoatsToday, 5 * 60 * 1000);
 
           const player=document.getElementById('radio-player');
           if(player) player.volume=this.settings.radio_volume/100;
@@ -241,6 +246,13 @@ const vm = createApp({
     },
 
     async loadFollowed(){ try{ const r=await fetch('/followed-boats'); this.followed=await r.json(); }catch{this.followed=[];} },
+    async loadBoatsToday(){
+      try{
+        const d=await fetch('/api/boats-today').then(r=>r.json());
+        this.boatsTodayCount=d.count||0;
+        this.boatsTodayList=d.boats||[];
+      }catch{ this.boatsTodayCount=0; this.boatsTodayList=[]; }
+    },
     async toggleFollow(boat){
       try{ const r=await fetch('/followed-boats/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({boat})});
         const data=await r.json(); if(data.status==='ok') this.followed=data.followed_boats;
@@ -295,7 +307,11 @@ const vm = createApp({
             this.lastEventTimestamps.add(k);
             // Never play sounds on the first fetch — those are pre-existing events.
             // Only play sounds for followed boats.
-            if(!this.initialLoad && isNew && this.settings.sounds_enabled && this.isFollowed(e.uid)){
+            // Skip if event is older than 10 minutes — guards against the scraper
+            // discovering stale events on later polls and re-triggering sounds.
+            const eventAge = Date.now() - new Date(e.timestamp).getTime();
+            const MAX_SOUND_AGE_MS = 10 * 60 * 1000;
+            if(!this.initialLoad && isNew && eventAge < MAX_SOUND_AGE_MS && this.settings.sounds_enabled && this.isFollowed(e.uid)){
               const et=(e.event||'').toLowerCase();
               let snd=null;
               if(et.includes('boated')) snd=this.settings.boated_sound;
@@ -317,8 +333,8 @@ const vm = createApp({
     fetchSettings(){return fetch('/api/settings').then(r=>r.json()).then(d=>{this.settings={...this.settings,...d};});},
     fetchVersion(){fetch('/api/version').then(r=>r.json()).then(d=>{this.version=d.version;});},
     loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;});},
-    getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.webp';},
-    onImageError(e){e.target.src='/static/images/bigrock.webp';},
+    getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.png';},
+    onImageError(e){e.target.src='/static/images/bigrock.png';},
     
    
     parseTs(ts){

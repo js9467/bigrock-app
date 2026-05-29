@@ -48,6 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFollowedBoats();
     setInterval(loadFollowedBoats, 10000);
 
+    // Boats fishing today
+    loadBoatsToday();
+    setInterval(loadBoatsToday, 5 * 60 * 1000); // refresh every 5 min
+
     // Offline ticker
     if (!navigator.onLine) {
       showTicker('&#128225; Offline &mdash; <a href="/settings-page">Connect to Wi-Fi</a>');
@@ -81,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const logoEl = document.getElementById('nav-logo');
       if (logoEl && info.logo) {
         logoEl.src = info.logo;
-        logoEl.onerror = () => { logoEl.src = '/static/images/bigrock.webp'; };
+        logoEl.onerror = () => { logoEl.src = '/static/images/bigrock.png'; };
       }
 
       const dateEl = document.getElementById('nav-tournament-date');
@@ -102,13 +106,32 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/followed-boats')
       .then(r => r.json())
       .then(boats => {
-        const strip     = document.getElementById('nav-followed-strip');
-        const container = document.getElementById('nav-followed-boats');
-        if (!strip || !container) return;
+        const strip    = document.getElementById('nav-followed-strip');
+        const countEl  = document.getElementById('nav-followed-count');
+        const drawer   = document.getElementById('nav-followed-boats');
+        if (!strip) return;
+
         strip.style.display = boats.length ? 'flex' : 'none';
-        container.innerHTML = boats
-          .map(b => `<div class="followed-chip">&#127869; ${esc(b)} <button class="followed-chip-remove" onclick="window._navUnfollow(${JSON.stringify(b)})">&#x2715;</button></div>`)
-          .join('');
+        if (countEl) countEl.textContent = boats.length;
+        if (drawer) {
+          drawer.innerHTML = boats
+            .map(b => `<div class="followed-chip">&#127869; ${esc(b)} <button class="followed-chip-remove" onclick="window._navUnfollow(${JSON.stringify(b)})">&#x2715;</button></div>`)
+            .join('');
+        }
+      })
+      .catch(() => {});
+  }
+
+  function loadBoatsToday() {
+    fetch('/api/boats-today')
+      .then(r => r.json())
+      .then(d => {
+        const badge    = document.getElementById('nav-today-badge');
+        const countEl  = document.getElementById('nav-today-count');
+        if (!badge) return;
+        const count = d.count || 0;
+        badge.style.display = count > 0 ? 'inline-flex' : 'none';
+        if (countEl) countEl.textContent = count;
       })
       .catch(() => {});
   }
@@ -122,6 +145,18 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(r => r.json())
       .then(d => { if (d.status === 'ok') loadFollowedBoats(); })
       .catch(() => {});
+  };
+
+  window._navToggleFollowed = function() {
+    const drawer  = document.getElementById('nav-followed-drawer');
+    const toggleBtn = document.getElementById('nav-followed-toggle');
+    if (!drawer) return;
+    const open = drawer.style.display !== 'none';
+    drawer.style.display = open ? 'none' : 'flex';
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '&#9733; ' + (document.getElementById('nav-followed-count')?.textContent || '') +
+        ' WATCHING ' + (open ? '&#9660;' : '&#9650;');
+    }
   };
 
   function showTicker(msg) {

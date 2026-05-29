@@ -2729,6 +2729,72 @@ def list_sounds():
     except Exception as e:
         return jsonify({'files': [], 'error': str(e)}), 500
 
+
+@app.route('/api/boats-today')
+def api_boats_today():
+    """Return the number of boats (and their names) fishing today from the who's-fishing page."""
+    tournament = get_current_tournament()
+    cache_key = f'boats_today_{tournament}'
+    cache = load_cache()
+
+    if is_cache_fresh(cache, cache_key, 15):
+        cached = cache.get(cache_key, {})
+        return jsonify({'status': 'ok', 'count': cached.get('count', 0), 'boats': cached.get('boats', [])})
+
+    try:
+        info = _get_tournament_urls(tournament)
+        events_url = info.get('events', '')
+        if not events_url:
+            return jsonify({'status': 'ok', 'count': 0, 'boats': []})
+
+        # Derive who's-fishing URL from events URL (…/feed → …/whos-fishing)
+        whos_url = re.sub(r'/feed$', '/whos-fishing', events_url)
+        if whos_url == events_url:
+            # fallback: try replacing last path segment
+            parts = events_url.rstrip('/').rsplit('/', 1)
+            whos_url = parts[0] + '/whos-fishing' if len(parts) == 2 else events_url
+
+        print(f"🎣 Scraping who's-fishing: {whos_url}")
+        html = fetch_html(whos_url)
+        if not html:
+            return jsonify({'status': 'ok', 'count': 0, 'boats': []})
+
+        soup = BeautifulSoup(html, 'html.parser')
+
+        # Load known participants for name cross-referencing
+        participants_file = get_cache_path(tournament, 'participants.json')
+        known = {normalize_boat_name(p['boat']): p['boat']
+                 for p in safe_json_load(participants_file, []) if p.get('boat')}
+
+        boats, seen = [], set()
+
+        # Try to find a numeric count first (e.g. "23 Boats Fishing Today")
+        page_text = soup.get_text(' ')
+        count_match = re.search(r'(\d{1,4})\s+(?:boats?\s+)?fishing\s+today', page_text, re.I)
+        scraped_count = int(count_match.group(1)) if count_match else None
+
+        # Cross-reference every non-trivial text line with known participant names
+        lines = [l.strip() for l in soup.get_text('\n').splitlines() if 2 < len(l.strip()) < 80]
+        for line in lines:
+            uid = normalize_boat_name(line)
+            if uid in known and uid not in seen:
+                seen.add(uid)
+                boats.append(known[uid])
+
+        count = scraped_count if scraped_count is not None else len(boats)
+
+        cache[cache_key] = {
+            'last_scraped': datetime.now().isoformat(),
+            'count': count,
+            'boats': boats,
+        }
+        save_cache(cache)
+        return jsonify({'status': 'ok', 'count': count, 'boats': boats})
+
+    except Exception as e:
+        print(f'❌ api_boats_today error: {e}')
+        return jsonify({'status': 'error', 'count': 0, 'boats': []})
+
 @app.route('/api/version')
 def api_version():
     try:

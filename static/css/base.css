@@ -73,7 +73,6 @@ button:hover {
   color: white;
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
   flex-shrink: 0;
-  overflow: hidden;
 }
 
 /* Subtle diagonal stripe for depth */
@@ -269,34 +268,52 @@ button:hover {
   font-size: 1rem;
 }
 
-/* === Followed Boats Strip === */
+/* === Followed Boats Strip — compact badge + expandable drawer === */
 .followed-strip {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.25rem 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.22rem 1rem;
   background: rgba(0,0,0,0.22);
   border-top: 1px solid rgba(255,255,255,0.07);
 }
-.followed-strip-label {
-  font-size: 0.6rem;
+/* Toggle button: "★ 34 WATCHING ▾" */
+.followed-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: linear-gradient(135deg, #7a5c00 0%, #d4a800 60%, #7a5c00 100%);
+  color: #fff;
+  font-size: 0.68rem;
   font-weight: 800;
-  color: #f6c553;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  flex-shrink: 0;
+  letter-spacing: 0.07em;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1.5px solid rgba(246,197,83,0.55);
+  user-select: none;
   white-space: nowrap;
+  transition: background 0.15s;
+  line-height: 1.4;
 }
-.followed-chips-scroll {
+.followed-toggle-btn:hover {
+  background: linear-gradient(135deg, #d4a800 0%, #f6c553 60%, #d4a800 100%);
+  color: #001528;
+  transform: none;
+}
+/* Expandable chip drawer — wraps onto multiple rows */
+.followed-drawer {
   display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  flex: 1;
-  padding: 0.05rem 0;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  width: 100%;
+  max-height: 90px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.1rem 0;
 }
-.followed-chips-scroll::-webkit-scrollbar { display: none; }
+.followed-drawer::-webkit-scrollbar { display: none; }
 .followed-chip {
   display: inline-flex;
   align-items: center;
@@ -399,4 +416,28 @@ button:hover {
   .header-tournament-name { font-size: 0.95rem; }
   .vhf-pod { padding: 0.25rem 0.6rem; }
   .vhf-vol-slider { width: 4rem; }
+}
+
+/* === Boats fishing today badge === */
+.header-today-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+  color: #ecfdf5;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  text-decoration: none !important;
+  white-space: nowrap;
+  border: 1.5px solid rgba(16,185,129,0.45);
+  transition: background 0.15s, color 0.15s;
+  margin-top: 0.15rem;
+  cursor: pointer;
+}
+.header-today-badge:hover {
+  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  color: #001528;
+  transform: translateY(-1px);
 }

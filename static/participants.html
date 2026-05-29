@@ -7,7 +7,7 @@
   <script src="/static/js/offline.js"></script>
   <script src="/static/js/nav.js"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/js/tailwind.cdn.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <link rel="stylesheet" href="/static/css/base.css" />
   <style>[v-cloak]{display:none}</style>
@@ -32,7 +32,15 @@
 
       <!-- Heading and Controls -->
       <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <h1 class="text-4xl font-bold text-yellow-600">Tournament Participants</h1>
+        <div>
+          <h1 class="text-4xl font-bold text-yellow-600">
+            Tournament Participants
+          </h1>
+          <div v-if="todayFilter" class="mt-1 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold border border-green-300">
+            &#127907; Showing {{ todayCount || filteredParticipants.length }} boats fishing today
+            <button @click="todayFilter=false" class="ml-1 text-green-600 hover:text-red-600 font-bold leading-none">&#x2715;</button>
+          </div>
+        </div>
         <div class="flex gap-2 w-full sm:w-auto">
           <input
             v-model="search"
@@ -116,15 +124,28 @@
         search: '',
         loading: false,
         pollInterval: null,
+        todayFilter: false,
+        todayBoats: [],
+        todayCount: 0,
       };
     },
     computed: {
       filteredParticipants() {
         const q = this.search.toLowerCase();
-        return this.participants.filter(p =>
-          (p.boat || '').toLowerCase().includes(q) ||
-          (p.type || '').toLowerCase().includes(q)
-        );
+        return this.participants.filter(p => {
+          const matchSearch = (p.boat || '').toLowerCase().includes(q) ||
+            (p.type || '').toLowerCase().includes(q);
+          if (!matchSearch) return false;
+          if (this.todayFilter && this.todayBoats.length > 0) {
+            const uid = (p.uid || '').toLowerCase();
+            const boat = (p.boat || '').toLowerCase();
+            return this.todayBoats.some(b =>
+              b.toLowerCase() === boat ||
+              b.toLowerCase().replace(/[^a-z0-9]+/g, '_') === uid
+            );
+          }
+          return true;
+        });
       }
     },
     methods: {
@@ -221,6 +242,16 @@
         images.forEach(img => observer.observe(img));
       },
 
+      async loadBoatsToday() {
+        try {
+          const d = await fetch('/api/boats-today').then(r => r.json());
+          this.todayBoats = d.boats || [];
+          this.todayCount = d.count || 0;
+        } catch(e) {
+          this.todayBoats = [];
+          this.todayCount = 0;
+        }
+      },
       startPolling() {
         this.pollInterval = setInterval(async () => {
           try {
@@ -240,9 +271,15 @@
     },
     mounted() {
       fetch('/hide_keyboard', { method: 'POST' }).catch(() => {});
+      // Check for ?today=1 filter
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('today') === '1') {
+        this.todayFilter = true;
+      }
       this.loadLogo();
       this.loadParticipants();
       this.loadFollowed();
+      if (this.todayFilter) this.loadBoatsToday();
       this.startPolling();
     },
     beforeUnmount() { if (this.pollInterval) clearInterval(this.pollInterval); }

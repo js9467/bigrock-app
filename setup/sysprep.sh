@@ -43,11 +43,10 @@ else
     echo "OK:   Flask app returned HTTP 200"
 fi
 
-# 3. Actions runner must be active
+# 3. Actions runner (optional — sysprep removes it anyway; warn only)
 RUNNER_SVC=$(systemctl list-units --type=service --state=active --no-legend 2>/dev/null | grep -o 'actions\.runner\.[^ ]*' | head -1 || true)
 if [ -z "$RUNNER_SVC" ]; then
-    echo "FAIL: GitHub Actions runner service is not active. Set it up before imaging."
-    PREFLIGHT_FAIL=1
+    echo "WARN: GitHub Actions runner is not active (non-fatal — sysprep removes it anyway)"
 else
     echo "OK:   Actions runner is active ($RUNNER_SVC)"
 fi

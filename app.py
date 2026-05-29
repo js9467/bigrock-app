@@ -2674,21 +2674,33 @@ def api_version():
 
 @app.route('/api/update/check')
 def api_update_check():
-    """Compare local deployed version against latest on GitHub main branch."""
+    """Compare local git HEAD against latest commit on GitHub main (no CDN caching)."""
     try:
-        deployed = int(open('/home/pi/.bigrock-version').read().strip())
+        app_dir = '/home/pi/bigrock-app'
+        local = subprocess.check_output(
+            ['git', '-C', app_dir, 'rev-parse', 'HEAD'], text=True
+        ).strip()
     except Exception:
-        deployed = 0
+        local = '0000000000000000000000000000000000000000'
     try:
-        url = 'https://raw.githubusercontent.com/js9467/bigrock-app/main/setup/VERSION'
-        remote = int(requests.get(url, timeout=5).text.strip())
+        out = subprocess.check_output(
+            ['git', 'ls-remote', 'https://github.com/js9467/bigrock-app.git', 'refs/heads/main'],
+            text=True, timeout=10
+        )
+        remote = out.split()[0] if out.strip() else local
     except Exception:
         return jsonify({'status': 'error', 'message': 'Could not reach GitHub', 'update_available': False})
-    return jsonify({'status': 'ok', 'deployed': deployed, 'latest': remote, 'update_available': remote > deployed})
+    update_available = (local != remote)
+    return jsonify({
+        'status': 'ok',
+        'deployed': local[:7],
+        'latest': remote[:7],
+        'update_available': update_available
+    })
 
 @app.route('/api/update/apply', methods=['POST'])
 def api_update_apply():
-    """Pull latest code and restart the bigrock service."""
+    """Trigger the canonical update script."""
     try:
         run_in_thread(_do_update, "apply-update")
         return jsonify({'status': 'ok', 'message': 'Update started — app will restart shortly'})
@@ -2696,38 +2708,20 @@ def api_update_apply():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def _do_update():
-    import shutil
-    app_dir = '/home/pi/bigrock-app'
+    """Call bigrock-update.sh — the single authoritative update mechanism."""
+    script = '/home/pi/bigrock-app/setup/services/bigrock-update.sh'
     try:
-        subprocess.check_call(['git', '-C', app_dir, 'fetch', 'origin', 'main'])
-        subprocess.check_call(['git', '-C', app_dir, 'reset', '--hard', 'origin/main'])
-        pip = os.path.join(app_dir, 'venv', 'bin', 'pip')
-        if os.path.exists(pip):
-            subprocess.check_call([pip, 'install', '-r', os.path.join(app_dir, 'requirements.txt'), '-q'])
-        # Write new deployed version
-        ver_file = os.path.join(app_dir, 'setup', 'VERSION')
-        if os.path.exists(ver_file):
-            shutil.copy(ver_file, '/home/pi/.bigrock-version')
-        subprocess.check_call(['sudo', 'systemctl', 'restart', 'bigrock.service'])
+        subprocess.call(['sudo', 'bash', script])
     except Exception as e:
         print(f"❌ Update failed: {e}")
 
 def _background_update_check():
-    """After WiFi connects: silently update if a newer version exists."""
+    """After WiFi connects: silently run the update script (exits early if already up to date)."""
     import time as _time
     _time.sleep(5)  # give NM a moment to fully establish the connection
     try:
-        deployed = int(open('/home/pi/.bigrock-version').read().strip())
-    except Exception:
-        deployed = 0
-    try:
-        url = 'https://raw.githubusercontent.com/js9467/bigrock-app/main/setup/VERSION'
-        remote = int(requests.get(url, timeout=10).text.strip())
-        if remote > deployed:
-            print(f"🔄 Auto-update: {deployed} → {remote}")
-            _do_update()
-        else:
-            print(f"✅ Already on latest version ({deployed})")
+        _do_update()
+        print("✅ Background update check complete.")
     except Exception as e:
         print(f"⚠️ Background update check failed: {e}")
 

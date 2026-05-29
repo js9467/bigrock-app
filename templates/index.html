@@ -291,7 +291,13 @@ const vm = createApp({
           // Collect at most one sound per type per poll to avoid sound storms
           const soundsThisPoll=new Set();
           for(const e of ne){
-            const k=e.timestamp+e.uid;
+            // Timestamps come from relative scraping ("2m ago") so they drift slightly
+            // on every poll. Round to the nearest 5-minute bucket so the same event
+            // always produces the same key regardless of when it was scraped.
+            const tsBucket = e.timestamp
+              ? new Date(Math.round(new Date(e.timestamp).getTime() / 300000) * 300000).toISOString()
+              : '';
+            const k=(e.uid||'')+'|'+(e.event||'')+'|'+tsBucket;
             const isNew=!this.lastEventTimestamps.has(k);
             this.lastEventTimestamps.add(k);
             // Never play sounds on the first fetch — those are pre-existing events.
@@ -305,7 +311,10 @@ const vm = createApp({
               if(snd && !soundsThisPoll.has(snd)){ soundsThisPoll.add(snd); this.playSound(snd); }
             }
           }
-          this.events=ne;this.hooked=nh;
+          // Only reassign if content actually changed to avoid unnecessary re-renders
+          const neStr=JSON.stringify(ne), nhStr=JSON.stringify(nh);
+          if(JSON.stringify(this.events)!==neStr) this.events=ne;
+          if(JSON.stringify(this.hooked)!==nhStr) this.hooked=nh;
           this.loading=false;
           this.initialLoad=false;
           this.updateDemoMessage();

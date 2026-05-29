@@ -151,6 +151,7 @@ sleep 1
 # Launch app in kiosk mode
 chromium \
     --kiosk \
+    --ozone-platform=wayland \
     --noerrdialogs \
     --disable-infobars \
     --no-first-run \

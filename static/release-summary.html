@@ -343,5 +343,13 @@ createApp({
 <audio id="radio-player" hidden></audio>
 <script src="/static/js/vhf.js"></script>
 
+<!-- Mobile bottom nav (CSS shows only on ≤639px) -->
+<nav class="mobile-bottom-nav">
+  <a href="/"                class="mbn-btn" data-mbn="home">          <span class="mbn-icon">🏠</span><span>Home</span></a>
+  <a href="/participants"    class="mbn-btn" data-mbn="participants">   <span class="mbn-icon">⚓</span><span>Roster</span></a>
+  <a href="/leaderboard"     class="mbn-btn" data-mbn="leaderboard">    <span class="mbn-icon">🏆</span><span>Board</span></a>
+  <a href="/release-summary" class="mbn-btn is-active" data-mbn="releases"><span class="mbn-icon">📊</span><span>Releases</span></a>
+  <a href="/settings-page"   class="mbn-btn" data-mbn="settings">       <span class="mbn-icon">⚙️</span><span>Settings</span></a>
+</nav>
 </body>
 </html>

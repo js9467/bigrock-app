@@ -2900,8 +2900,8 @@ def pwa_manifest():
         "start_url": "/",
         "scope": "/",
         "display": "standalone",
-        "background_color": "#001528",
-        "theme_color": "#002855",
+        "background_color": "#0d1424",
+        "theme_color": "#0d1424",
         "orientation": "any",
         "icons": [
             {"src": "/static/images/bigrock.png",      "sizes": "any", "type": "image/png", "purpose": "any"},

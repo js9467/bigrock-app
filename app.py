@@ -699,13 +699,7 @@ def _parse_relative_time(text: str):
             'w': timedelta(weeks=n),
         }.get(unit)
         if delta:
-            ts = datetime.now(ZoneInfo('UTC')) - delta
-            # Floor to the precision we actually know to avoid false :40-minute artifacts
-            if unit in ('h', 'd', 'w'):
-                ts = ts.replace(minute=0, second=0, microsecond=0)
-            elif unit == 'm':
-                ts = ts.replace(second=0, microsecond=0)
-            return ts
+            return datetime.now(ZoneInfo('UTC')) - delta
     try:
         return date_parser.parse(text)
     except Exception:
@@ -1044,6 +1038,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                         'boat':      boat,
                                         'uid':       uid,
                                         'details':   desc,
+                                        'time_str':  time_str,
                                     })
                                     found += 1
                 i += 1
@@ -1081,6 +1076,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                         all_events.append({
                             'timestamp': ts_dt.isoformat(), 'event': event_type,
                             'boat': boat, 'uid': uid, 'details': desc,
+                            'time_str': time_str,
                         })
                         found += 1
 
@@ -1108,12 +1104,16 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                         boat = participants[uid]['boat']
                     event_type = _classify_event(desc)
                     dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                    is_relative = bool(re.match(r'^\d+\s*[smhdw]\b', raw.lower()))
                     if dkey not in seen:
                         seen.add(dkey)
-                        all_events.append({
+                        ev = {
                             'timestamp': ts_dt.isoformat(), 'event': event_type,
                             'boat': boat, 'uid': uid, 'details': desc,
-                        })
+                        }
+                        if is_relative:
+                            ev['time_str'] = raw
+                        all_events.append(ev)
                         found += 1
 
             return found

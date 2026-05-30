@@ -158,7 +158,7 @@
 
           <div class="flex-1 min-w-0">
             <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
-            <div class="text-xs text-gray-600">{{ formatDate(event.timestamp) }} {{ formatTime(event.timestamp) }}</div>
+            <div class="text-xs text-gray-600">{{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}</div>
           </div>
 
           <button @click="toggleFollow(event.boat)"
@@ -190,7 +190,7 @@
 
           <div class="flex-1 min-w-0">
             <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
-            <div class="text-xs text-gray-500">{{ event.event }} — {{ formatDate(event.timestamp) }} {{ formatTime(event.timestamp) }}</div>
+            <div class="text-xs text-gray-500">{{ event.event }} — {{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}</div>
             <div class="text-xs text-gray-700 truncate">{{ event.details }}</div>
           </div>
 

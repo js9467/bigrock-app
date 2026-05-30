@@ -704,6 +704,12 @@ button:hover {
    ========================================== */
 @media (max-width: 639px) {
 
+  /* ─── Root background (fixes rubber-band overscroll showing white in Safari) ─── */
+  html {
+    background: #0d1424 !important;
+    overscroll-behavior-y: none;
+  }
+
   /* ─── Layout base ─── */
   body  {
     height: auto !important;

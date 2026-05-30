@@ -970,7 +970,18 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         participants_file = get_cache_path(tournament, "participants.json")
         participants = {p["uid"]: p for p in safe_json_load(participants_file, []) if p.get("uid")}
 
-        all_events, seen = [], set()
+        # Seed from existing events so previous days are never lost
+        existing_events = safe_json_load(events_file, [])
+        all_events = list(existing_events)
+        seen = set()
+        for e in all_events:
+            uid = e.get('uid', '')
+            etype = e.get('event', '')
+            try:
+                day = date_parser.parse(e['timestamp']).strftime('%Y-%m-%d')
+            except Exception:
+                day = ''
+            seen.add(f"{uid}_{etype}_{day}")
 
         # Labels/patterns to skip when extracting description lines
         _SKIP_LABELS = {

@@ -732,6 +732,9 @@ _SCRAPER_SKIP_NAMES = {
     'no results', 'login', 'disclaimer', 'additional links', 'reeltime apps',
     'secure your spot', 'official results', 'contact tournament',
     'data may be delayed', 'all results displayed',
+    # ReelTime page navigation tabs that can bleed into scrape as fake boat names
+    'posts', 'all', 'scores', 'photos', 'videos', 'messages', 'stats',
+    'score alert', 'photo', 'video', 'message',
 }
 
 
@@ -970,9 +973,10 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         participants_file = get_cache_path(tournament, "participants.json")
         participants = {p["uid"]: p for p in safe_json_load(participants_file, []) if p.get("uid")}
 
-        # Seed from existing events so previous days are never lost
+        # Seed from existing events so previous days are never lost.
+        # Filter out any previously cached garbage while loading.
         existing_events = safe_json_load(events_file, [])
-        all_events = list(existing_events)
+        all_events = [e for e in existing_events if _is_valid_boat_name(e.get('boat', ''))]
         seen = set()
         for e in all_events:
             uid = e.get('uid', '')

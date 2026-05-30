@@ -1038,6 +1038,10 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                     break
                                 if jl.lower() in _SKIP_LABELS or _REACT_RE.match(jl):
                                     continue
+                                # Strip leading "Score Alert" prefix injected by ReelTime
+                                jl = re.sub(r'^score\s+alert\s*', '', jl, flags=re.I).strip()
+                                if not jl:
+                                    continue
                                 if _DESC_RE.search(jl):
                                     desc = jl
                                     break
@@ -1082,7 +1086,9 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     )
                     if not dm:
                         continue
-                    desc = dm.group(1).strip()
+                    desc = re.sub(r'^score\s+alert\s*', '', dm.group(1).strip(), flags=re.I).strip()
+                    if not desc:
+                        continue
                     uid  = normalize_boat_name(boat)
                     if uid in participants:
                         boat = participants[uid]['boat']

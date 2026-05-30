@@ -146,7 +146,7 @@
         <div v-if="hooked.length === 0" class="p-3 text-gray-500 italic text-sm">No current hookups.</div>
 
         <div v-for="event in hooked" :key="event.timestamp + event.uid"
-             :class="['p-2 border-b hover:bg-gray-50 flex items-center gap-2', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+             :class="['hooked-row p-2 border-b hover:bg-gray-50 flex items-center gap-2', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
           <div class="relative w-12 h-12 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
             <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
@@ -178,7 +178,7 @@
         <div v-else-if="events.length === 0" class="p-3 text-gray-500 italic text-sm">No events to show.</div>
 
         <div v-for="event in events" :key="event.timestamp + event.uid"
-             :class="['p-2 border-b flex items-center gap-3 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+             :class="['event-row p-2 border-b flex items-center gap-3 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
 
           <div class="relative w-14 h-14 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
             <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"

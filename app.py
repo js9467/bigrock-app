@@ -735,6 +735,8 @@ _SCRAPER_SKIP_NAMES = {
     # ReelTime page navigation tabs that can bleed into scrape as fake boat names
     'posts', 'all', 'scores', 'photos', 'videos', 'messages', 'stats',
     'score alert', 'photo', 'video', 'message',
+    # Event type words that can be misread as boat names
+    'released', 'boated', 'hooked up', 'pulled hook', 'wrong species', 'other',
 }
 
 

@@ -143,6 +143,11 @@ def _is_bot_challenge(html: str) -> bool:
     return bool(html) and any(m in html for m in _BOT_CHALLENGE_MARKERS)
 
 
+def _is_nextjs_spa(html: str) -> bool:
+    """Return True if the HTML is a Next.js client-side SPA shell with no rendered data."""
+    return bool(html) and '/_next/static/' in html and '__NEXT_DATA__' not in html
+
+
 def _fetch_html_playwright(url: str) -> str:
     """Render a page with headless Chromium (bypasses JS bot challenges)."""
     try:
@@ -150,14 +155,12 @@ def _fetch_html_playwright(url: str) -> str:
         print(f"🌐 Playwright fetch: {url}")
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                executable_path='/usr/bin/chromium',
                 headless=True,
                 args=[
                     '--no-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
                     '--disable-setuid-sandbox',
-                    '--single-process',
                 ],
             )
             try:
@@ -196,6 +199,9 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
                     print(f"⚠️ Bot challenge on attempt {attempt+1}/3 for {url} — will use Playwright")
                     html = r.text  # remember we got a challenge
                     break         # no point retrying with same headers
+                if _is_nextjs_spa(r.text):
+                    print(f"⚠️ Next.js SPA shell (no SSR data) for {url} — escalating to Playwright")
+                    return _fetch_html_playwright(url)
                 return r.text
             if r.status_code == 429:
                 # On the first 429 go straight to Playwright — no point waiting since
@@ -1768,8 +1774,6 @@ def _has_internet():
 
 @app.route('/')
 def homepage():
-    if not _has_internet():
-        return redirect('/settings-page/?tab=wifi&reason=no-internet')
     return send_from_directory('templates', 'index.html')
 
 @app.route('/offline')

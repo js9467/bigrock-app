@@ -773,13 +773,37 @@ button:hover {
   .text-gray-700 { color: #cbd5e1 !important; }
   .text-gray-600 { color: #94a3b8 !important; }
   .text-gray-500 { color: #64748b !important; }
-  .border-gray-300 { border-color: rgba(255,255,255,0.08) !important; }
+  /* Catch text-black and anything we missed */
+  .text-black   { color: #f1f5f9 !important; }
+  .text-gray-400 { color: #94a3b8 !important; }
+  .border-gray-300, .border-gray-200, .border-gray-400 { border-color: rgba(255,255,255,0.12) !important; }
   .border-l, .border-r, .border-b:not(.mobile-tab-btn) { border-color: rgba(255,255,255,0.07) !important; }
   .shadow-lg  { box-shadow: 0 2px 12px rgba(0,0,0,0.5) !important; }
   .shadow-xl  { box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important; }
-  .hover\:bg-gray-50:hover { background: #0f1a2a !important; }
+  .hover\:bg-gray-50:hover  { background: #0f1a2a !important; }
+  .hover\:bg-gray-100:hover { background: #111d2e !important; }
+  .hover\:bg-gray-200:hover { background: #1e2d45 !important; }
   .hover\:bg-gray-400:hover { background: rgba(255,255,255,0.15) !important; }
-  .hover\:bg-shadow-xl:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important; }
+  /* Form elements */
+  select, input[type="email"], input[type="password"], input[type="range"] {
+    background: #1e2d45 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    color: #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+  }
+  select option { background: #1e2d45; color: #e2e8f0; }
+  label         { color: #cbd5e1 !important; }
+  /* Info/status boxes */
+  .bg-green-100 { background: rgba(16,185,129,0.1) !important; }
+  .bg-yellow-100 { background: rgba(246,197,83,0.1) !important; }
+  .bg-blue-100  { background: rgba(59,130,246,0.1) !important; }
+  .text-green-800 { color: #6ee7b7 !important; }
+  .text-yellow-800 { color: #fde68a !important; }
+  .text-blue-800  { color: #93c5fd !important; }
+  .border-green-400 { border-color: rgba(16,185,129,0.3) !important; }
+  .border-yellow-400 { border-color: rgba(246,197,83,0.3) !important; }
+  /* Settings card/panel */
+  .rounded-xl, .rounded-2xl, .rounded-lg { border-color: rgba(255,255,255,0.06) !important; }
 
   /* ─── EVENT FEED ROWS (.event-row) ─── */
   .event-row {
@@ -904,4 +928,30 @@ button:hover {
   div > table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; max-width: 100%; }
   table       { font-size: 0.8rem !important; }
   th, td      { padding: 0.3rem 0.4rem !important; }
+
+  /* ─── Add to Home Screen nudge (shown only in browser, hidden in standalone PWA) ─── */
+  .ath-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(246,197,83,0.12);
+    border-bottom: 1px solid rgba(246,197,83,0.2);
+    padding: 0.55rem 1rem;
+    font-size: 0.72rem;
+    color: #fde68a;
+    line-height: 1.3;
+  }
+  .ath-banner .ath-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .ath-banner .ath-close {
+    margin-left: auto; flex-shrink: 0;
+    background: none; border: none;
+    color: rgba(253,230,138,0.6); font-size: 1.1rem; cursor: pointer;
+    padding: 0 0.2rem; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ─── Hide ATH banner in PWA standalone mode ─── */
+@media (display-mode: standalone) {
+  .ath-banner { display: none !important; }
 }

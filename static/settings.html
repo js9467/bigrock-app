@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <!-- PWA / iOS Home Screen -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#002855">
+  <meta name="theme-color" content="#0d1424">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BigRock">
@@ -559,5 +559,13 @@
     },
   }).mount('#app');
   </script>
+
+  <nav class="mobile-bottom-nav">
+    <a href="/" class="mbn-btn"><span class="mbn-icon">🏠</span><span>Home</span></a>
+    <a href="/participants" class="mbn-btn"><span class="mbn-icon">⚓</span><span>Roster</span></a>
+    <a href="/leaderboard" class="mbn-btn"><span class="mbn-icon">🏆</span><span>Board</span></a>
+    <a href="/release-summary" class="mbn-btn"><span class="mbn-icon">📊</span><span>Releases</span></a>
+    <a href="/settings-page" class="mbn-btn is-active"><span class="mbn-icon">⚙️</span><span>Settings</span></a>
+  </nav>
 </body>
 </html>

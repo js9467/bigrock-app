@@ -737,7 +737,6 @@ button:hover {
   .header-main            { grid-template-columns: 1fr !important; padding: 0.55rem 1rem !important; }
   .header-logo            { height: 2.1rem !important; }
   .header-tournament-name { font-size: 0.88rem !important; font-weight: 700; }
-  .header-tournament-date { display: none; }
   .header-version-tag     { display: none; }
   .header-nav             { display: none !important; }
 

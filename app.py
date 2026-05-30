@@ -699,7 +699,13 @@ def _parse_relative_time(text: str):
             'w': timedelta(weeks=n),
         }.get(unit)
         if delta:
-            return datetime.now(ZoneInfo('UTC')) - delta
+            ts = datetime.now(ZoneInfo('UTC')) - delta
+            # Floor to the precision we actually know to avoid false :40-minute artifacts
+            if unit in ('h', 'd', 'w'):
+                ts = ts.replace(minute=0, second=0, microsecond=0)
+            elif unit == 'm':
+                ts = ts.replace(second=0, microsecond=0)
+            return ts
     try:
         return date_parser.parse(text)
     except Exception:

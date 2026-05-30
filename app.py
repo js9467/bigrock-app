@@ -188,7 +188,7 @@ def fetch_html(url, use_scraperapi: bool = False) -> str:
             "User-Agent": random.choice(UA_POOL),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Encoding": "gzip, deflate",
             "Referer": "https://www.google.com/",
             "Connection": "keep-alive",
         }

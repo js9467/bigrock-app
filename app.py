@@ -688,17 +688,28 @@ def build_demo_cache(tournament: str) -> int:
 # ---- Shared scraper helpers ----
 
 _EMOJI_RE = re.compile(
-    u"[\U0001F300-\U0001F9FF"   # Misc symbols, emoticons, transport, etc.
-    u"\U00002600-\U000027BF"    # Misc symbols
-    u"\U0000FE00-\U0000FE0F"    # Variation selectors
-    u"\U0001FA00-\U0001FA6F"    # Chess, etc.
-    u"\U0001FA70-\U0001FAFF"    # Symbols and pictographs extended-A
-    u"\u200d"                   # Zero-width joiner
-    u"]+", flags=re.UNICODE
+    "["
+    "\U0001F000-\U0001FFFF"  # All SMP emoji (emoticons, symbols, transport, etc.)
+    "\U00002190-\U000027BF"  # Arrows, misc symbols, dingbats
+    "\U00002900-\U00002BFF"  # Supplemental arrows and misc symbols
+    "\U0000FE00-\U0000FE0F"  # Variation selectors
+    "\u200d"                 # Zero-width joiner
+    "\u20e3"                 # Combining enclosing keycap
+    "]+",
+    flags=re.UNICODE
 )
 
 def _strip_emoji(text: str) -> str:
     return _EMOJI_RE.sub('', text).strip()
+
+def _clean_event(e: dict) -> dict:
+    """Return a copy of event with emojis stripped from details and boat."""
+    out = dict(e)
+    if out.get('details'):
+        out['details'] = _strip_emoji(out['details'])
+    if out.get('boat'):
+        out['boat'] = _strip_emoji(out['boat'])
+    return out
 
 def _parse_relative_time(text: str):
     """Convert relative strings like '5d', '2h', '1w', '30m' to absolute UTC datetime."""
@@ -1918,14 +1929,14 @@ def scrape_events_route():
 
         filtered.sort(key=lambda e: e["timestamp"], reverse=True)
 
-        return jsonify({"status": "ok", "count": len(filtered), "events": filtered[:100]})
+        return jsonify({"status": "ok", "count": len(filtered), "events": [_clean_event(e) for e in filtered[:100]]})
 
     try:
         # Use cache TTL (2 min) instead of force — prevents each client request from
         # making a separate upstream HTTP call to reeltime.app
         events = scrape_events(force=False, tournament=tournament)
         events.sort(key=lambda e: e["timestamp"], reverse=True)
-        return jsonify({"status": "ok", "count": len(events), "events": events[:100]})
+        return jsonify({"status": "ok", "count": len(events), "events": [_clean_event(e) for e in events[:100]]})
     except Exception as e:
         print(f"❌ Error in /scrape/events: {e}")
         return jsonify({"status": "error", "message": str(e)})

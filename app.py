@@ -687,6 +687,19 @@ def build_demo_cache(tournament: str) -> int:
 
 # ---- Shared scraper helpers ----
 
+_EMOJI_RE = re.compile(
+    u"[\U0001F300-\U0001F9FF"   # Misc symbols, emoticons, transport, etc.
+    u"\U00002600-\U000027BF"    # Misc symbols
+    u"\U0000FE00-\U0000FE0F"    # Variation selectors
+    u"\U0001FA00-\U0001FA6F"    # Chess, etc.
+    u"\U0001FA70-\U0001FAFF"    # Symbols and pictographs extended-A
+    u"\u200d"                   # Zero-width joiner
+    u"]+", flags=re.UNICODE
+)
+
+def _strip_emoji(text: str) -> str:
+    return _EMOJI_RE.sub('', text).strip()
+
 def _parse_relative_time(text: str):
     """Convert relative strings like '5d', '2h', '1w', '30m' to absolute UTC datetime."""
     text = (text or "").strip().lower()
@@ -1038,8 +1051,9 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                     break
                                 if jl.lower() in _SKIP_LABELS or _REACT_RE.match(jl):
                                     continue
-                                # Strip leading "Score Alert" prefix injected by ReelTime
+                                # Strip leading "Score Alert" prefix and emojis injected by ReelTime
                                 jl = re.sub(r'^score\s+alert\s*', '', jl, flags=re.I).strip()
+                                jl = _strip_emoji(jl)
                                 if not jl:
                                     continue
                                 if _DESC_RE.search(jl):
@@ -1087,6 +1101,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     if not dm:
                         continue
                     desc = re.sub(r'^score\s+alert\s*', '', dm.group(1).strip(), flags=re.I).strip()
+                    desc = _strip_emoji(desc)
                     if not desc:
                         continue
                     uid  = normalize_boat_name(boat)
@@ -1121,7 +1136,9 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                         except Exception:
                             continue
                     boat = name_tag.get_text(strip=True)
-                    desc = desc_tag.get_text(strip=True)
+                    desc = _strip_emoji(desc_tag.get_text(strip=True))
+                    if not desc:
+                        continue
                     uid  = normalize_boat_name(boat)
                     if uid in participants:
                         boat = participants[uid]['boat']

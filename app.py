@@ -706,7 +706,9 @@ _SCORE_ALERT_RE = re.compile(r'^score\s+alert\s*', re.I)
 _BOAT_HEADER_PREFIX_RE = re.compile(r'^.{2,60}?\s*[·•]\s*\d+\s*[smhdw]\s*', re.UNICODE)
 _JUNK_DESC_RE = re.compile(
     r'sponsor|award|congratulat|thank you|register|weigh.?in ceremony|angler of the year'
-    r'|hall of fame|banquet|presented by|in memory|scholarship|donation|raffle|silent auction',
+    r'|hall of fame|banquet|presented by|in memory|scholarship|donation|raffle|silent auction'
+    r'|\bweighed\b'  # weight-in entries are not fishing action events
+    r'|for sponsoring|visit us at|visit www',
     re.I
 )
 
@@ -779,11 +781,23 @@ _SCRAPER_SKIP_NAMES = {
 }
 
 
+# Words/phrases that can never appear inside a legitimate boat name
+_INVALID_BOAT_CONTENT_RE = re.compile(
+    r'\bweighed?\b|\bsponsoring\b|\bsponsored?\b|\bpresented\s+by\b'
+    r'|\bvisit\s+(?:us|www|\w+\.com)|\bcongrat|\bbanquet\b|\baward\b'
+    r'|\bdolphin\b|\btuna\b|\bwahoo\b|\bmahi\b|\byellowfin\b|\bbillfish\b'
+    r'|\bsailfish\b|\bmarlin\b|\blbs\b|\boz\b|\bpounds?\b'
+    r'|\bfor\s+sponsoring\b|score\s+alert',
+    re.I
+)
+
 def _is_valid_boat_name(name: str) -> bool:
     if not name or len(name) < 2 or len(name) > 70:
         return False
     nl = name.lower().strip()
     if any(nl == s or nl.startswith(s) for s in _SCRAPER_SKIP_NAMES):
+        return False
+    if _INVALID_BOAT_CONTENT_RE.search(name):
         return False
     # Must start with letter or digit
     return bool(re.match(r'^[A-Za-z0-9]', name))
@@ -1017,7 +1031,11 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         # Seed from existing events so previous days are never lost.
         # Filter out any previously cached garbage while loading.
         existing_events = safe_json_load(events_file, [])
-        all_events = [e for e in existing_events if _is_valid_boat_name(e.get('boat', ''))]
+        all_events = [
+            e for e in existing_events
+            if _is_valid_boat_name(e.get('boat', ''))
+            and not _JUNK_DESC_RE.search(e.get('details', ''))
+        ]
         seen = set()
         for e in all_events:
             uid = e.get('uid', '')

@@ -713,7 +713,7 @@ _JUNK_DESC_RE = re.compile(
 )
 
 def _clean_event(e: dict) -> dict:
-    """Return a copy of event with emojis stripped and badly-stored prefixes removed."""
+    """Return a copy of event with emojis stripped, prefixes removed, and fresh time_str."""
     out = dict(e)
     if out.get('details'):
         d = out['details']
@@ -726,6 +726,25 @@ def _clean_event(e: dict) -> dict:
         out['details'] = d
     if out.get('boat'):
         out['boat'] = _strip_emoji(out['boat'])
+    # Recompute time_str from the stored absolute timestamp so it stays accurate over time.
+    # The cached time_str is the raw scraped value (e.g. "5h") which becomes stale as the
+    # event ages — the timestamp field is the source of truth.
+    if out.get('timestamp'):
+        try:
+            ts = date_parser.parse(out['timestamp'])
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=ZoneInfo('UTC'))
+            diff = int((datetime.now(ZoneInfo('UTC')) - ts).total_seconds())
+            if diff < 60:
+                out['time_str'] = f"{diff}s"
+            elif diff < 3600:
+                out['time_str'] = f"{diff // 60}m"
+            elif diff < 86400:
+                out['time_str'] = f"{diff // 3600}h"
+            else:
+                out['time_str'] = f"{diff // 86400}d"
+        except Exception:
+            pass  # keep whatever was stored
     return out
 
 def _parse_relative_time(text: str):

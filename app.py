@@ -702,11 +702,26 @@ _EMOJI_RE = re.compile(
 def _strip_emoji(text: str) -> str:
     return _EMOJI_RE.sub('', text).strip()
 
+_SCORE_ALERT_RE = re.compile(r'^score\s+alert\s*', re.I)
+_BOAT_HEADER_PREFIX_RE = re.compile(r'^.{2,60}?\s*[·•]\s*\d+\s*[smhdw]\s*', re.UNICODE)
+_JUNK_DESC_RE = re.compile(
+    r'sponsor|award|congratulat|thank you|register|weigh.?in ceremony|angler of the year'
+    r'|hall of fame|banquet|presented by|in memory|scholarship|donation|raffle|silent auction',
+    re.I
+)
+
 def _clean_event(e: dict) -> dict:
-    """Return a copy of event with emojis stripped from details and boat."""
+    """Return a copy of event with emojis stripped and badly-stored prefixes removed."""
     out = dict(e)
     if out.get('details'):
-        out['details'] = _strip_emoji(out['details'])
+        d = out['details']
+        # Strip any leading "BoatName · Xh " header that got concatenated into details
+        d = _BOAT_HEADER_PREFIX_RE.sub('', d).strip()
+        # Strip "Score Alert" prefix
+        d = _SCORE_ALERT_RE.sub('', d).strip()
+        # Strip emojis
+        d = _strip_emoji(d)
+        out['details'] = d
     if out.get('boat'):
         out['boat'] = _strip_emoji(out['boat'])
     return out
@@ -1023,7 +1038,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                r'\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\s]+$')
         # Header pattern: "Boat · Xd" — the · may be on its own line due to HTML structure
         _HEADER_RE = re.compile(r'^(.{2,60}?)\s*[·•]\s*(\d+\s*[smhdw])\s*$', re.UNICODE)
-        _DESC_RE   = re.compile(r'released|boated|hooked|pulled hook|wrong species', re.I)
+        _DESC_RE   = re.compile(r'released|boated|hooked up|pulled hook|wrong species', re.I)
 
         def parse_events_from_soup(soup):
             found = 0
@@ -1067,7 +1082,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                 jl = _strip_emoji(jl)
                                 if not jl:
                                     continue
-                                if _DESC_RE.search(jl):
+                                if _DESC_RE.search(jl) and not _JUNK_DESC_RE.search(jl):
                                     desc = jl
                                     break
                             if desc:
@@ -1936,7 +1951,8 @@ def scrape_events_route():
         # making a separate upstream HTTP call to reeltime.app
         events = scrape_events(force=False, tournament=tournament)
         events.sort(key=lambda e: e["timestamp"], reverse=True)
-        return jsonify({"status": "ok", "count": len(events), "events": [_clean_event(e) for e in events[:100]]})
+        cleaned = [_clean_event(e) for e in events[:100] if not _JUNK_DESC_RE.search(e.get('details', ''))]
+        return jsonify({"status": "ok", "count": len(cleaned), "events": cleaned})
     except Exception as e:
         print(f"❌ Error in /scrape/events: {e}")
         return jsonify({"status": "error", "message": str(e)})

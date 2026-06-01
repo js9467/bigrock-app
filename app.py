@@ -832,7 +832,15 @@ _INVALID_BOAT_CONTENT_RE = re.compile(
     r'|\bvisit\s+(?:us|www|\w+\.com)|\bcongrat|\bbanquet\b|\baward\b'
     r'|\bdolphin\b|\btuna\b|\bwahoo\b|\bmahi\b|\byellowfin\b|\bbillfish\b'
     r'|\bsailfish\b|\bmarlin\b|\blbs\b|\boz\b|\bpounds?\b'
-    r'|\bfor\s+sponsoring\b|score\s+alert',
+    r'|\bfor\s+sponsoring\b|score\s+alert'
+    # Narrative / caption phrases that bleed in before a real boat name on ReelTime
+    r'|\bfish\s+day\b'           # "their 2nd fish day for …"
+    r'|\btheir\s+\d'             # "their 2nd …"
+    r'|\b\d{1,2}/\d{1,2}/\d{2,4}\b'  # dates like 05/29/26
+    r'|\.\s+[A-Z]{2,}'          # ". BULL PEN" — period then caps (caption + boat)
+    r'|\bday\s+\d\b'            # "Day 1", "Day 2"
+    r'|\bfish\s+of\s+the\b'     # "fish of the day" type phrases
+    r'|\bright\s+here\b|\bright\s+now\b',
     re.I
 )
 

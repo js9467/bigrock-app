@@ -136,6 +136,15 @@ AUTOSTART_EOF
             || log "WARNING: emoji font install failed — check internet."
         ;;
 
+    8)
+        # Reboot to apply the emoji font installed in v7. Chromium kiosk must
+        # restart to load newly installed system fonts — a service restart alone
+        # is not enough because the kiosk process caches fonts at launch.
+        log "v8: Scheduling reboot in 1 minute to apply emoji font..."
+        fc-cache -f 2>/dev/null || true
+        shutdown -r +1 "BigRock v8: rebooting to apply emoji font" || true
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

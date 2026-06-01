@@ -3297,10 +3297,10 @@ def release_summary_data():
         tournament = get_current_tournament()
         settings = load_settings()
         demo_mode = settings.get("data_source") == "demo"
+        eastern = ZoneInfo("America/New_York")
         if demo_mode:
             data = load_demo_data(tournament)
             all_events = data.get("events", [])
-            eastern = ZoneInfo("America/New_York")
             now = datetime.now(eastern)
             events = []
             for e in all_events:

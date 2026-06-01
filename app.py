@@ -3126,41 +3126,56 @@ def api_system_status():
     except Exception:
         pass
 
-    # --- Dependency checklist ---
+    # --- Dependency checklist (operator-meaningful groups) ---
     checks = []
 
-    # Python venv
+    # 1. Python venv exists
     venv_python = '/home/pi/bigrock-app/venv/bin/python3'
-    checks.append({'name': 'Python venv', 'ok': os.path.isfile(venv_python)})
+    venv_ok = os.path.isfile(venv_python)
+    checks.append({'name': 'Python env', 'ok': venv_ok})
 
-    # Each pip package in requirements.txt
-    pip_pkgs = ['flask', 'python-dateutil', 'beautifulsoup4', 'requests', 'Pillow', 'playwright']
-    for pkg in pip_pkgs:
-        try:
-            out = subprocess.check_output(
-                [venv_python, '-c', f'import importlib.util; assert importlib.util.find_spec("{pkg.lower().replace("-","_")}") is not None'],
-                timeout=5, stderr=subprocess.DEVNULL
-            )
-            checks.append({'name': pkg, 'ok': True})
-        except Exception:
-            checks.append({'name': pkg, 'ok': False})
+    # 2. Core scraper packages (grouped — user doesn't need individual names)
+    scraper_pkgs = [
+        ('flask', 'flask'),
+        ('python-dateutil', 'dateutil'),
+        ('beautifulsoup4', 'bs4'),
+        ('requests', 'requests'),
+        ('Pillow', 'PIL'),
+        ('playwright', 'playwright'),
+    ]
+    if venv_ok:
+        failed = []
+        for display, import_name in scraper_pkgs:
+            try:
+                subprocess.check_output(
+                    [venv_python, '-c', f'import {import_name}'],
+                    timeout=5, stderr=subprocess.DEVNULL
+                )
+            except Exception:
+                failed.append(display)
+        if failed:
+            checks.append({'name': f'Python deps (missing: {", ".join(failed)})', 'ok': False})
+        else:
+            checks.append({'name': 'Python deps', 'ok': True})
+    else:
+        checks.append({'name': 'Python deps', 'ok': False})
 
-    # Playwright Chromium browser binary
+    # 3. Playwright Chromium browser binary
     playwright_ok = (
         os.path.isdir(playwright_marker) and
         any(True for _ in os.scandir(playwright_marker))
     )
-    checks.append({'name': 'Playwright Chromium', 'ok': playwright_ok})
+    checks.append({'name': 'Playwright browser', 'ok': playwright_ok})
 
-    # Cache directory writable
+    # 4. Cache directory writable
     cache_dir = '/home/pi/bigrock-app/cache'
-    checks.append({'name': 'Cache dir', 'ok': os.path.isdir(cache_dir) and os.access(cache_dir, os.W_OK)})
+    checks.append({'name': 'Cache', 'ok': os.path.isdir(cache_dir) and os.access(cache_dir, os.W_OK)})
 
-    # Internet (quick DNS check)
+    # 5. Internet
     try:
-        import socket
-        socket.setdefaulttimeout(3)
-        socket.getaddrinfo('github.com', 443)
+        import socket as _socket
+        _socket.setdefaulttimeout(3)
+        _socket.getaddrinfo('github.com', 443)
         internet_ok = True
     except Exception:
         internet_ok = False

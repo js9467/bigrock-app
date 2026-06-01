@@ -1101,7 +1101,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                r'\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\s]+$')
         # Header pattern: "Boat · Xd" — the · may be on its own line due to HTML structure
         _HEADER_RE = re.compile(r'^(.{2,60}?)\s*[·•]\s*(\d+\s*[smhdw])\s*$', re.UNICODE)
-        _DESC_RE   = re.compile(r'released|boated|hooked up|pulled hook|wrong species', re.I)
+        _DESC_RE   = re.compile(r'released|boated|weighed|hooked up|pulled hook|wrong species', re.I)
 
         def parse_events_from_soup(soup):
             found = 0
@@ -1184,7 +1184,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                         continue
                     after = flat[m.end():m.end() + 600]
                     dm = re.search(
-                        r'([A-Z][^.!?]{3,150}?(?:released|boated|hooked up|pulled hook|wrong species)[^.!?]{0,100}[.!?]?)',
+                        r'([A-Z][^.!?]{3,150}?(?:released|boated|weighed|hooked up|pulled hook|wrong species)[^.!?]{0,100}[.!?]?)',
                         after, re.I
                     )
                     if not dm:

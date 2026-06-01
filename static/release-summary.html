@@ -275,7 +275,9 @@ createApp({
         });
     },
     formatDate(dateStr) {
-      const d = new Date(dateStr);
+      // Parse as noon local time — avoids UTC-midnight shifting the date
+      // one day back in browsers west of UTC (e.g. Eastern timezone).
+      const d = new Date(dateStr + 'T12:00:00');
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     },
     renderCharts() {
@@ -374,8 +376,8 @@ createApp({
     formatDateTime(ts) {
       if (!ts) return '';
       const d = new Date(ts);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-             d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) + ' ' +
+             d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' });
     },
     closeModal() {
       this.showModal = false;

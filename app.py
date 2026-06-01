@@ -3319,19 +3319,20 @@ def release_summary_data():
             events_file = get_cache_path(tournament, "events.json")
             events = safe_json_load(events_file, [])
 
-        # Deduplicate events that are the same boat+type within 36 hours of each other.
+        # Deduplicate events that are the same boat+type+details within 12 hours of each other.
         # Root cause: relative timestamps like "0d" resolve to scrape-time in UTC, which
         # can flip to the next calendar day vs. an earlier scrape — producing duplicate
         # entries for the same real-world catch with dates one day apart.
-        # Sort earliest-first, keep the first occurrence, skip anything within 36h of it.
-        eastern = ZoneInfo("America/New_York")
+        # Using details text as part of the key prevents over-deduping legitimate
+        # multi-day catches of the same species by the same boat.
         events_sorted = sorted(events, key=lambda e: e.get('timestamp', ''))
-        dedup_seen: dict = {}   # uid_eventtype -> list[datetime]
+        dedup_seen: dict = {}   # uid_eventtype_details -> list[datetime]
         deduped: list = []
         for e in events_sorted:
-            uid   = e.get('uid', '')
-            etype = e.get('event', '')
-            key   = f"{uid}_{etype}"
+            uid     = e.get('uid', '')
+            etype   = e.get('event', '')
+            details = e.get('details', '').strip().lower()
+            key     = f"{uid}\x00{etype}\x00{details}"
             try:
                 dt = date_parser.parse(e['timestamp'])
                 if dt.tzinfo is None:
@@ -3340,7 +3341,7 @@ def release_summary_data():
                 deduped.append(e)
                 continue
             prev_times = dedup_seen.get(key, [])
-            too_close = any(abs((dt - t).total_seconds()) < 36 * 3600 for t in prev_times)
+            too_close = any(abs((dt - t).total_seconds()) < 12 * 3600 for t in prev_times)
             if not too_close:
                 dedup_seen.setdefault(key, []).append(dt)
                 deduped.append(e)

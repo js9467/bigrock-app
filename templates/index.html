@@ -150,18 +150,8 @@
             <!-- Filter selector -->
             <div class="filter-selector-wrap" @click.stop>
 
-              <!-- Desktop/kiosk: custom styled dropdown (hidden on mobile via CSS) -->
-              <button class="filter-selector-btn filter-custom-ctl" @click="filterOpen = !filterOpen"
-                      :class="{ 'has-filter': eventFilter !== null }">
-                <span v-if="eventFilter !== null" class="filter-sel-dot"
-                      :style="{ background: eventTypeColor(eventFilter) }"></span>
-                <span class="filter-sel-label">{{ eventFilter || 'All Events' }}</span>
-                <span class="filter-sel-count">{{ filteredEvents.length }}</span>
-                <span class="filter-sel-caret" :class="{ open: filterOpen }">&#9660;</span>
-              </button>
-
-              <!-- Mobile: native OS select (shown only on mobile via CSS) -->
-              <select class="filter-native-ctl"
+              <!-- Mobile: native OS picker -->
+              <select v-if="isMobile" class="filter-native-ctl"
                       :value="eventFilter === null ? '' : eventFilter"
                       @change="eventFilter = $event.target.value || null">
                 <option value="">All Events ({{ allEvents.length }})</option>
@@ -170,9 +160,18 @@
                 </option>
               </select>
 
-              <!-- Dropdown (desktop/kiosk only) -->
+              <!-- Desktop/kiosk: custom styled button + dropdown -->
+              <template v-if="!isMobile">
+              <button class="filter-selector-btn" @click="filterOpen = !filterOpen"
+                      :class="{ 'has-filter': eventFilter !== null }">
+                <span v-if="eventFilter !== null" class="filter-sel-dot"
+                      :style="{ background: eventTypeColor(eventFilter) }"></span>
+                <span class="filter-sel-label">{{ eventFilter || 'All Events' }}</span>
+                <span class="filter-sel-count">{{ filteredEvents.length }}</span>
+                <span class="filter-sel-caret" :class="{ open: filterOpen }">&#9660;</span>
+              </button>
               <transition name="dd-fade">
-                <div v-if="filterOpen" class="filter-dropdown filter-custom-ctl">
+                <div v-if="filterOpen" class="filter-dropdown">
                   <button class="filter-dd-row" :class="{ active: eventFilter === null }"
                           @click="eventFilter = null; filterOpen = false">
                     <span class="filter-dd-dot" style="background:#94a3b8"></span>
@@ -190,6 +189,7 @@
                   </button>
                 </div>
               </transition>
+              </template>
             </div>
 
           </div>
@@ -290,6 +290,7 @@ const vm = createApp({
       mobileTab: 'events',
       eventFilter: null,
       filterOpen: false,
+      isMobile: window.innerWidth < 640,
       hookedColWidth: Number(localStorage.getItem('hookedColWidth') || 25),
       _dragState: null,
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,

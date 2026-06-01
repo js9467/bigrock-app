@@ -687,10 +687,6 @@ button:hover {
   flex: 1;
 }
 
-/* Desktop: show custom dropdown, hide native select */
-.filter-native-ctl  { display: none; }
-.filter-custom-ctl  { display: inline-flex; }
-
 /* ── Selector button ─────────────────────── */
 .filter-selector-wrap {
   position: relative;
@@ -1037,8 +1033,7 @@ button:hover {
     gap: 0.6rem !important;
     flex-wrap: nowrap !important;
   }
-  /* Mobile: hide custom dropdown, show native select */
-  .filter-custom-ctl { display: none !important; }
+  /* Mobile: native OS select for event filter */
   .filter-native-ctl {
     display: block !important;
     flex-shrink: 0 !important;

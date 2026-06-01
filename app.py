@@ -3082,6 +3082,77 @@ def api_update_check():
         'update_available': update_available
     })
 
+@app.route('/api/system-status')
+def api_system_status():
+    """Return system health: versions, upgrade state, recent update log, playwright status."""
+    log_path = '/home/pi/bigrock-update.log'
+    version_path = '/home/pi/.bigrock-version'
+    repo_version_path = '/home/pi/bigrock-app/setup/VERSION'
+    playwright_marker = '/home/pi/.cache/ms-playwright'
+
+    # Read last 60 lines of the update log
+    log_lines = []
+    try:
+        with open(log_path, 'r') as f:
+            log_lines = f.read().splitlines()[-60:]
+    except Exception:
+        pass
+
+    # Determine if an upgrade is actively running:
+    # Look for an "upgrade step" line not yet followed by "Upgrade complete"
+    upgrading = False
+    if log_lines:
+        tail = '\n'.join(log_lines[-20:])
+        upgrading = (
+            'upgrade step' in tail.lower() and
+            'upgrade complete' not in tail.lower() and
+            'update complete' not in tail.lower()
+        )
+
+    # Current step description (last non-empty log line)
+    current_step = next((l for l in reversed(log_lines) if l.strip()), '')
+
+    # Versions
+    deployed_version = 0
+    try:
+        with open(version_path) as f:
+            deployed_version = int(f.read().strip())
+    except Exception:
+        pass
+    repo_version = 0
+    try:
+        with open(repo_version_path) as f:
+            repo_version = int(f.read().strip())
+    except Exception:
+        pass
+
+    # Playwright: check if chromium headless shell dir exists and has content
+    playwright_ok = (
+        os.path.isdir(playwright_marker) and
+        any(True for _ in os.scandir(playwright_marker))
+    )
+
+    # Git commit
+    git_commit = 'unknown'
+    try:
+        git_commit = subprocess.check_output(
+            ['git', '-C', '/home/pi/bigrock-app', 'rev-parse', '--short', 'HEAD'],
+            text=True, timeout=3
+        ).strip()
+    except Exception:
+        pass
+
+    return jsonify({
+        'deployed_version': deployed_version,
+        'repo_version': repo_version,
+        'upgrading': upgrading,
+        'current_step': current_step,
+        'playwright_ok': playwright_ok,
+        'git_commit': git_commit,
+        'log_lines': log_lines,
+    })
+
+
 @app.route('/api/update/apply', methods=['POST'])
 def api_update_apply():
     """Trigger the canonical update script."""

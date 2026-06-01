@@ -109,6 +109,64 @@
         <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
       </div>
 
+      <!-- System Status Panel -->
+      <div class="pt-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xl font-semibold">🖥️ System Status</h2>
+          <button @click="statusLogOpen = !statusLogOpen" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">
+            {{ statusLogOpen ? 'Hide Log' : 'Show Log' }}
+          </button>
+        </div>
+
+        <div v-if="systemStatus" class="space-y-2">
+          <!-- Status rows -->
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div class="bg-gray-50 border rounded p-2">
+              <div class="text-gray-500 text-xs mb-0.5">App Version</div>
+              <div class="font-mono font-semibold">v{{ systemStatus.deployed_version }}
+                <span v-if="systemStatus.deployed_version < systemStatus.repo_version" class="text-yellow-600 text-xs ml-1">(repo: v{{ systemStatus.repo_version }})</span>
+              </div>
+            </div>
+            <div class="bg-gray-50 border rounded p-2">
+              <div class="text-gray-500 text-xs mb-0.5">Git Commit</div>
+              <div class="font-mono font-semibold">{{ systemStatus.git_commit }}</div>
+            </div>
+            <div class="bg-gray-50 border rounded p-2">
+              <div class="text-gray-500 text-xs mb-0.5">Playwright</div>
+              <div class="font-semibold" :class="systemStatus.playwright_ok ? 'text-green-600' : 'text-red-500'">
+                {{ systemStatus.playwright_ok ? '✅ Installed' : '❌ Missing' }}
+              </div>
+            </div>
+            <div class="bg-gray-50 border rounded p-2">
+              <div class="text-gray-500 text-xs mb-0.5">Update State</div>
+              <div class="font-semibold" :class="systemStatus.upgrading ? 'text-yellow-600' : 'text-green-600'">
+                <span v-if="systemStatus.upgrading">⏳ Upgrading…</span>
+                <span v-else>✅ Idle</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active step banner -->
+          <div v-if="systemStatus.upgrading" class="flex items-center gap-2 bg-yellow-50 border border-yellow-300 rounded p-2 text-sm text-yellow-800">
+            <svg class="animate-spin h-4 w-4 text-yellow-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            <span class="font-mono text-xs truncate">{{ systemStatus.current_step }}</span>
+          </div>
+
+          <!-- Log output -->
+          <div v-if="statusLogOpen" class="bg-black rounded p-2 overflow-y-auto max-h-48">
+            <div v-for="(line, i) in systemStatus.log_lines" :key="i"
+                 class="font-mono text-xs whitespace-pre-wrap"
+                 :class="line.includes('WARNING') || line.includes('❌') ? 'text-red-400' : line.includes('complete') || line.includes('✅') ? 'text-green-400' : 'text-gray-300'">
+              {{ line }}
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-sm text-gray-400">Loading status…</div>
+      </div>
+
       <!-- App Version / Update Banner -->
       <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 mb-2">
         App commit: <span class="font-mono" id="deployed-commit">checking...</span>
@@ -299,7 +357,10 @@
         recipients: [{ email: '' }],
         btStatus: { enabled: false, connected: false, devices: [], adapter: null },
         noInternetReason: null,
-        updateInfo: null
+        updateInfo: null,
+        systemStatus: null,
+        statusLogOpen: false,
+        _statusPollTimer: null
       };
     },
     computed: {
@@ -464,6 +525,27 @@
           const msg = err?.response?.data?.message || 'Disconnect failed.';
           this.showToast(`❌ ${msg}`, 'error');
         });
+      },
+
+      /* ===== System Status ===== */
+      fetchSystemStatus() {
+        axios.get('/api/system-status').then(res => {
+          this.systemStatus = res.data;
+          // If log scrolled open, keep it scrolled to bottom
+          if (this.statusLogOpen) {
+            this.$nextTick(() => {
+              const el = this.$el.querySelector('.max-h-48');
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+          }
+          // Poll fast while upgrading, slow otherwise
+          const interval = res.data.upgrading ? 3000 : 30000;
+          clearTimeout(this._statusPollTimer);
+          this._statusPollTimer = setTimeout(() => this.fetchSystemStatus(), interval);
+        }).catch(() => {
+          clearTimeout(this._statusPollTimer);
+          this._statusPollTimer = setTimeout(() => this.fetchSystemStatus(), 30000);
+        });
       }
     },
     mounted() {
@@ -563,6 +645,9 @@
         this.refreshWifiStatus();
         this.refreshBtStatus();
       }, 5000);
+
+      // System status — self-schedules, fast during upgrades
+      this.fetchSystemStatus();
     },
   }).mount('#app');
   </script>

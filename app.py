@@ -3319,6 +3319,33 @@ def release_summary_data():
             events_file = get_cache_path(tournament, "events.json")
             events = safe_json_load(events_file, [])
 
+        # Deduplicate events that are the same boat+type within 36 hours of each other.
+        # Root cause: relative timestamps like "0d" resolve to scrape-time in UTC, which
+        # can flip to the next calendar day vs. an earlier scrape — producing duplicate
+        # entries for the same real-world catch with dates one day apart.
+        # Sort earliest-first, keep the first occurrence, skip anything within 36h of it.
+        eastern = ZoneInfo("America/New_York")
+        events_sorted = sorted(events, key=lambda e: e.get('timestamp', ''))
+        dedup_seen: dict = {}   # uid_eventtype -> list[datetime]
+        deduped: list = []
+        for e in events_sorted:
+            uid   = e.get('uid', '')
+            etype = e.get('event', '')
+            key   = f"{uid}_{etype}"
+            try:
+                dt = date_parser.parse(e['timestamp'])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+            except Exception:
+                deduped.append(e)
+                continue
+            prev_times = dedup_seen.get(key, [])
+            too_close = any(abs((dt - t).total_seconds()) < 36 * 3600 for t in prev_times)
+            if not too_close:
+                dedup_seen.setdefault(key, []).append(dt)
+                deduped.append(e)
+        events = deduped
+
         summary = defaultdict(lambda: {"blue_marlins": 0, "white_marlins": 0, "sailfish": 0, "total_releases": 0})
 
         for e in events:
@@ -3326,7 +3353,10 @@ def release_summary_data():
                 continue
             try:
                 dt = date_parser.parse(e["timestamp"])
-                day = dt.strftime("%Y-%m-%d")
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+                # Bucket by Eastern date — avoids UTC-midnight flips showing as wrong day
+                day = dt.astimezone(eastern).strftime("%Y-%m-%d")
             except:
                 continue
             details = e.get("details", "").lower()

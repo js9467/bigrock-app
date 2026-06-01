@@ -69,11 +69,19 @@ if [ "$DEPLOYED" -lt "$REPO" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Python dep refresh (only if requirements.txt changed)
+# 3. Python dep refresh (always — ensures deps are present after any failure)
 # ---------------------------------------------------------------------------
-if git diff --name-only "$PREV" "$NEW" 2>/dev/null | grep -q "requirements.txt"; then
-    log "requirements.txt changed — reinstalling Python deps..."
-    ./venv/bin/pip install -r requirements.txt --quiet
+log "Ensuring Python deps are installed..."
+./venv/bin/pip install -r requirements.txt --quiet 2>&1 | grep -v 'already satisfied' | tee -a "$LOG" || log "WARNING: pip install failed."
+
+# ---------------------------------------------------------------------------
+# 3b. Playwright browser (always — install is a no-op if already present)
+# ---------------------------------------------------------------------------
+if ! ./venv/bin/python3 -c 'from playwright.sync_api import sync_playwright; sync_playwright().__enter__().chromium.executable_path' &>/dev/null; then
+    log "Playwright browser missing — installing..."
+    su -c "cd '$APP_DIR' && ./venv/bin/python3 -m playwright install chromium" pi \
+        && log "Playwright browser installed." \
+        || log "WARNING: playwright install failed — will retry next cycle."
 fi
 
 # ---------------------------------------------------------------------------

@@ -142,23 +142,25 @@
            :class="[mobileTab !== 'events' ? 'mobile-tab-hidden' : '']"
            :style="{ width: (100 - hookedColWidth) + '%' }">
 
-        <!-- Feed header + filter pills -->
-        <div class="events-col-header border-b bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
-          <div class="h-10 px-3 flex items-center justify-between">
-            <span class="text-base font-bold">Event Feed</span>
-            <span class="text-xs font-normal opacity-70">{{ filteredEvents.length }} events</span>
+        <!-- Feed header + filter strip -->
+        <div class="events-col-header border-b">
+          <div class="feed-header-bar">
+            <span class="feed-title">Event Feed</span>
+            <span class="feed-subtitle" v-if="eventFilter">{{ eventFilter }}</span>
+            <span class="feed-count">{{ filteredEvents.length }}</span>
           </div>
-          <div class="flex flex-wrap gap-1 px-2 pb-1.5">
+          <div class="filter-strip">
             <button @click="eventFilter=null"
-                    :class="eventFilter===null ? 'bg-blue-900 text-white' : 'bg-white/80 text-blue-900 hover:bg-white'"
-                    class="px-2 py-0.5 rounded text-xs font-semibold transition-colors">
-              All ({{ allEvents.length }})
+                    :class="eventFilter===null ? 'active' : ''"
+                    class="filter-pill">
+              All
             </button>
             <button v-for="f in availableFilters" :key="f"
                     @click="eventFilter = eventFilter===f ? null : f"
-                    :class="eventFilter===f ? 'bg-blue-900 text-white' : 'bg-white/80 text-blue-900 hover:bg-white'"
-                    class="px-2 py-0.5 rounded text-xs font-semibold transition-colors">
-              {{ f }} ({{ allEvents.filter(e=>e.event===f).length }})
+                    :class="eventFilter===f ? 'active' : ''"
+                    class="filter-pill">
+              {{ f }}
+              <span class="filter-pill-count">{{ allEvents.filter(e=>e.event===f).length }}</span>
             </button>
           </div>
         </div>

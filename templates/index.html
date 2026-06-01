@@ -26,7 +26,7 @@
 </head>
 
 <body class="bg-gray-100 text-gray-900 font-sans h-screen overflow-x-hidden">
-<div id="app" class="h-full flex flex-col">
+<div id="app" class="h-full flex flex-col" @click="filterOpen = false">
 
   <!-- ===== PREMIUM HEADER ===== -->
   <header class="site-header shrink-0">
@@ -137,61 +137,82 @@
     <!-- Always display columns side by side -->
     <div class="mobile-columns flex h-full flex-row" ref="mainCols">
 
-      <!-- Event Feed (scrolls, flex width) -->
-      <div class="overflow-y-auto event-feed order-1 events-col border-r border-gray-300"
+      <!-- Event Feed column: flex-col so header is outside the scroll area -->
+      <div class="event-feed order-1 events-col border-r border-gray-300 flex flex-col"
            :class="[mobileTab !== 'events' ? 'mobile-tab-hidden' : '']"
            :style="{ width: (100 - hookedColWidth) + '%' }">
 
-        <!-- Feed header + filter strip -->
-        <div class="events-col-header border-b">
+        <!-- Fixed header: title + filter dropdown -->
+        <div class="events-col-header flex-shrink-0">
           <div class="feed-header-bar">
             <span class="feed-title">Event Feed</span>
-            <span class="feed-subtitle" v-if="eventFilter">{{ eventFilter }}</span>
-            <span class="feed-count">{{ filteredEvents.length }}</span>
-          </div>
-          <div class="filter-strip">
-            <button @click="eventFilter=null"
-                    :class="eventFilter===null ? 'active' : ''"
-                    class="filter-pill">
-              All
-            </button>
-            <button v-for="f in availableFilters" :key="f"
-                    @click="eventFilter = eventFilter===f ? null : f"
-                    :class="eventFilter===f ? 'active' : ''"
-                    class="filter-pill">
-              {{ f }}
-              <span class="filter-pill-count">{{ allEvents.filter(e=>e.event===f).length }}</span>
-            </button>
+
+            <!-- Filter selector -->
+            <div class="filter-selector-wrap" @click.stop>
+              <button class="filter-selector-btn" @click="filterOpen = !filterOpen"
+                      :class="{ 'has-filter': eventFilter !== null }">
+                <span v-if="eventFilter !== null" class="filter-sel-dot"
+                      :style="{ background: eventTypeColor(eventFilter) }"></span>
+                <span class="filter-sel-label">{{ eventFilter || 'All Events' }}</span>
+                <span class="filter-sel-count">{{ filteredEvents.length }}</span>
+                <span class="filter-sel-caret" :class="{ open: filterOpen }">&#9660;</span>
+              </button>
+
+              <!-- Dropdown -->
+              <transition name="dd-fade">
+                <div v-if="filterOpen" class="filter-dropdown">
+                  <button class="filter-dd-row" :class="{ active: eventFilter === null }"
+                          @click="eventFilter = null; filterOpen = false">
+                    <span class="filter-dd-dot" style="background:#94a3b8"></span>
+                    <span class="filter-dd-name">All Events</span>
+                    <span class="filter-dd-badge">{{ allEvents.length }}</span>
+                    <span v-if="eventFilter === null" class="filter-dd-check">&#10003;</span>
+                  </button>
+                  <button v-for="f in availableFilters" :key="f"
+                          class="filter-dd-row" :class="{ active: eventFilter === f }"
+                          @click="eventFilter = f; filterOpen = false">
+                    <span class="filter-dd-dot" :style="{ background: eventTypeColor(f) }"></span>
+                    <span class="filter-dd-name">{{ f }}</span>
+                    <span class="filter-dd-badge">{{ allEvents.filter(e=>e.event===f).length }}</span>
+                    <span v-if="eventFilter === f" class="filter-dd-check">&#10003;</span>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
           </div>
         </div>
 
-        <div v-if="loading" class="p-3 text-gray-500 italic text-sm">Loading events...</div>
-        <div v-else-if="filteredEvents.length === 0" class="p-3 text-gray-500 italic text-sm">No events to show.</div>
+        <!-- Scrollable event list (flex-1 fills remaining column height) -->
+        <div class="events-feed-scroll overflow-y-auto flex-1">
+          <div v-if="loading" class="p-3 text-gray-500 italic text-sm">Loading events...</div>
+          <div v-else-if="filteredEvents.length === 0" class="p-3 text-gray-500 italic text-sm">No events to show.</div>
 
-        <div v-for="event in filteredEvents" :key="event.timestamp + event.uid"
-             :class="['event-row p-2 border-b flex items-center gap-3 hover:bg-gray-50',
-                      isFollowed(event.uid) ? 'bg-yellow-100' : '',
-                      event.event === 'Weighed' ? 'border-l-4 border-l-blue-500' : '']">
+          <div v-for="event in filteredEvents" :key="event.timestamp + event.uid"
+               :class="['event-row p-2 border-b flex items-center gap-3 hover:bg-gray-50',
+                        isFollowed(event.uid) ? 'bg-yellow-100' : '',
+                        event.event === 'Weighed' ? 'border-l-4 border-l-blue-500' : '']">
 
-          <div class="relative w-14 h-14 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
-            <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" decoding="async" class="w-14 h-14 object-cover rounded opacity-0 transition-opacity duration-500"
-                 @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
-          </div>
-
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
-            <div :class="['text-xs', event.event==='Weighed' ? 'text-blue-700 font-medium' : 'text-gray-500']">
-              {{ event.event }} &mdash; {{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}
+            <div class="relative w-14 h-14 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
+              <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
+                   loading="lazy" decoding="async" class="w-14 h-14 object-cover rounded opacity-0 transition-opacity duration-500"
+                   @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
             </div>
-            <div class="text-xs text-gray-700 truncate">{{ event.details }}</div>
-          </div>
 
-          <button @click="toggleFollow(event.boat)"
-                  :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
-                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
-            {{ isFollowed(event.uid) ? '\u2605' : '\u2606' }}
-          </button>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
+              <div :class="['text-xs', event.event==='Weighed' ? 'text-blue-700 font-medium' : 'text-gray-500']">
+                {{ event.event }} &mdash; {{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}
+              </div>
+              <div class="text-xs text-gray-700 truncate">{{ event.details }}</div>
+            </div>
+
+            <button @click="toggleFollow(event.boat)"
+                    :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
+                    class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
+              {{ isFollowed(event.uid) ? '\u2605' : '\u2606' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -256,6 +277,7 @@ const vm = createApp({
       events: [], hooked: [], weighed: [], boatImages: {},
       mobileTab: 'events',
       eventFilter: null,
+      filterOpen: false,
       hookedColWidth: Number(localStorage.getItem('hookedColWidth') || 25),
       _dragState: null,
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
@@ -494,6 +516,11 @@ const vm = createApp({
           this.radioDisabled=true;localStorage.setItem('vhfPlaying','false');
         }
       }
+    },
+    eventTypeColor(type) {
+      const c = { 'Released':'#22c55e','Boated':'#3b82f6','Weighed':'#8b5cf6',
+                  'Hooked Up':'#f59e0b','Pulled Hook':'#ef4444','Wrong Species':'#6b7280','Other':'#9ca3af' };
+      return c[type] || '#9ca3af';
     },
     startDrag(e) {
       if (!this.$refs.mainCols) return;

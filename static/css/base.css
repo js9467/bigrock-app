@@ -651,105 +651,168 @@ button:hover {
   border-radius: 2px;
 }
 
-/* Events column header */
-.events-col-header {
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #002855 0%, #00529b 100%);
+/* ==========================================
+   EVENT FEED HEADER + FILTER DROPDOWN
+   ========================================== */
+
+/* Column must be a flex column so scroll area fills remaining height */
+.events-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-/* Top bar: title + active filter badge + count */
+.events-col-header {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #002855 0%, #014a8f 100%);
+  border-bottom: 1px solid rgba(246,197,83,0.15);
+  position: relative; /* anchor for the absolute dropdown */
+  z-index: 20;
+}
+
 .feed-header-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 2.5rem;
+  height: 2.75rem;
   padding: 0 0.75rem;
+  gap: 0.6rem;
 }
+
 .feed-title {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #f6c553;
-  flex-shrink: 0;
+  flex: 1;
 }
-.feed-subtitle {
-  font-size: 0.65rem;
-  font-weight: 700;
-  background: rgba(246,197,83,0.18);
-  color: #f6c553;
-  border: 1px solid rgba(246,197,83,0.35);
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 10rem;
-}
-.feed-count {
-  margin-left: auto;
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: rgba(246,197,83,0.55);
+
+/* ── Selector button ─────────────────────── */
+.filter-selector-wrap {
+  position: relative;
   flex-shrink: 0;
 }
 
-/* Horizontal scroll pill strip — single row, never wraps */
-.filter-strip {
-  display: flex;
-  flex-direction: row;
-  gap: 0.35rem;
-  padding: 0.3rem 0.6rem 0.45rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.filter-strip::-webkit-scrollbar { display: none; }
-
-.filter-pill {
+.filter-selector-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem 0.35rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgba(255,255,255,0.1);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 2.1rem; /* touch-friendly */
+}
+.filter-selector-btn:hover,
+.filter-selector-btn.has-filter {
+  background: rgba(246,197,83,0.15);
+  border-color: rgba(246,197,83,0.5);
+  color: #f6c553;
+}
+.filter-sel-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
   flex-shrink: 0;
-  scroll-snap-align: start;
-  padding: 0.28rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.68rem;
+}
+.filter-sel-label {
   font-weight: 700;
   letter-spacing: 0.02em;
-  white-space: nowrap;
-  cursor: pointer;
-  border: 1.5px solid rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.75);
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-  -webkit-tap-highlight-color: transparent;
-  min-height: 1.8rem; /* comfortable touch target */
 }
-.filter-pill:hover {
-  background: rgba(255,255,255,0.18);
-  color: #fff;
-}
-.filter-pill.active {
-  background: #f6c553;
-  color: #001528;
-  border-color: #f6c553;
+.filter-sel-count {
+  font-size: 0.6rem;
   font-weight: 800;
-}
-.filter-pill-count {
-  font-size: 0.58rem;
-  font-weight: 700;
-  opacity: 0.7;
-  background: rgba(0,0,0,0.12);
-  padding: 0.05rem 0.3rem;
+  background: rgba(0,0,0,0.2);
+  padding: 0.05rem 0.35rem;
   border-radius: 999px;
+  opacity: 0.85;
 }
-.filter-pill.active .filter-pill-count {
-  background: rgba(0,0,0,0.15);
-  opacity: 0.8;
+.filter-sel-caret {
+  font-size: 0.55rem;
+  opacity: 0.65;
+  transition: transform 0.15s;
+}
+.filter-sel-caret.open {
+  transform: rotate(180deg);
+}
+
+/* ── Dropdown card ───────────────────────── */
+.filter-dropdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 13rem;
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.filter-dd-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  text-align: left;
+}
+.filter-dd-row:hover { background: #f8fafc; }
+.filter-dd-row.active { background: #eff6ff; }
+.filter-dd-row + .filter-dd-row {
+  border-top: 1px solid #f1f5f9;
+}
+
+.filter-dd-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.filter-dd-name {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.filter-dd-row.active .filter-dd-name { color: #1d4ed8; font-weight: 700; }
+.filter-dd-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  min-width: 1.6rem;
+  text-align: center;
+}
+.filter-dd-row.active .filter-dd-badge { background: #dbeafe; color: #1d4ed8; }
+.filter-dd-check {
+  font-size: 0.8rem;
+  color: #1d4ed8;
+  font-weight: 800;
+  margin-left: 0.1rem;
+}
+
+/* Vue transition */
+.dd-fade-enter-active { animation: dd-in 0.13s ease-out; }
+.dd-fade-leave-active { animation: dd-in 0.1s ease-in reverse; }
+@keyframes dd-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
 }
 
 /* ==========================================
@@ -856,7 +919,8 @@ button:hover {
   .mobile-columns  { flex-direction: column !important; height: auto !important; overflow: visible !important; }
   .mobile-main     { overflow: visible !important; flex: none !important; background: #0d1424; }
   .hooked-col      { width: 100% !important; order: unset !important; max-height: none !important; overflow-y: visible !important; background: transparent !important; border: none !important; }
-  .events-col      { width: 100% !important; order: unset !important; max-height: none !important; overflow-y: visible !important; background: transparent !important; border: none !important; }
+  .events-col      { width: 100% !important; order: unset !important; max-height: none !important; display: block !important; background: transparent !important; border: none !important; }
+  .events-feed-scroll { overflow-y: visible !important; flex: none !important; height: auto !important; }
   .col-drag-handle { display: none !important; }
 
   /* Dark mode drag handle (desktop) */
@@ -954,17 +1018,24 @@ button:hover {
     background: rgba(246,197,83,0.1) !important;
     border-color: rgba(246,197,83,0.22) !important;
   }
-  /* Section header — already dark by default via base styles */
+  /* Events column header: already dark from base, just darken further on phone */
   .events-col-header {
     background: linear-gradient(135deg, #001a3a 0%, #002f6c 100%) !important;
     border-bottom: 1px solid rgba(246,197,83,0.08) !important;
   }
-  /* Filter strip: slightly larger touch targets on phone */
-  .filter-pill {
-    font-size: 0.72rem !important;
-    min-height: 2rem !important;
-    padding: 0.3rem 0.7rem !important;
+  /* Dropdown card: dark on mobile */
+  .filter-dropdown {
+    background: #1e293b !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
   }
+  .filter-dd-row:hover  { background: #263548 !important; }
+  .filter-dd-row.active { background: #1e3a5f !important; }
+  .filter-dd-row + .filter-dd-row { border-top-color: rgba(255,255,255,0.06) !important; }
+  .filter-dd-name       { color: #e2e8f0 !important; }
+  .filter-dd-row.active .filter-dd-name { color: #93c5fd !important; }
+  .filter-dd-badge      { background: rgba(255,255,255,0.1) !important; color: #94a3b8 !important; }
+  .filter-dd-row.active .filter-dd-badge { background: rgba(59,130,246,0.2) !important; color: #93c5fd !important; }
+  .filter-dd-check      { color: #60a5fa !important; }
   /* Boat thumbnail: bigger */
   .event-row .w-14 { width: 3.75rem !important; height: 3.75rem !important; border-radius: 0.6rem !important; }
   .event-row img   { border-radius: 0.6rem !important; }

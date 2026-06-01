@@ -733,7 +733,6 @@ _BOAT_HEADER_PREFIX_RE = re.compile(r'^.{2,60}?\s*[·•]\s*\d+\s*[smhdw]\s*', r
 _JUNK_DESC_RE = re.compile(
     r'sponsor|award|congratulat|thank you|register|weigh.?in ceremony|angler of the year'
     r'|hall of fame|banquet|presented by|in memory|scholarship|donation|raffle|silent auction'
-    r'|\bweighed\b'  # weight-in entries are not fishing action events
     r'|for sponsoring|visit us at|visit www',
     re.I
 )
@@ -807,6 +806,7 @@ def _classify_event(text: str) -> str:
     low = (text or '').lower()
     if 'released' in low:     return 'Released'
     if 'boated' in low:       return 'Boated'
+    if 'weighed' in low:      return 'Weighed'
     if 'pulled hook' in low:  return 'Pulled Hook'
     if 'wrong species' in low: return 'Wrong Species'
     if 'hooked up' in low:    return 'Hooked Up'
@@ -2014,11 +2014,25 @@ def scrape_events_route():
         # making a separate upstream HTTP call to reeltime.app
         events = scrape_events(force=False, tournament=tournament)
         events.sort(key=lambda e: e["timestamp"], reverse=True)
-        cleaned = [_clean_event(e) for e in events[:100] if not _JUNK_DESC_RE.search(e.get('details', ''))]
+        cleaned = [_clean_event(e) for e in events[:100]
+                   if not _JUNK_DESC_RE.search(e.get('details', ''))
+                   and e.get('event', '') != 'Weighed']
         return jsonify({"status": "ok", "count": len(cleaned), "events": cleaned})
     except Exception as e:
         print(f"❌ Error in /scrape/events: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
+@app.route("/weighed")
+def get_weighed_events():
+    """Return weighed-in events for the current tournament, newest first."""
+    tournament = get_current_tournament()
+    events_file = get_cache_path(tournament, "events.json")
+    events = safe_json_load(events_file, [])
+    weighed = [_clean_event(e) for e in events
+               if e.get('event') == 'Weighed'
+               and not _JUNK_DESC_RE.search(e.get('details', ''))]
+    weighed.sort(key=lambda e: e.get('timestamp', ''), reverse=True)
+    return jsonify({"status": "ok", "count": len(weighed), "events": weighed[:100]})
 
 @app.route("/scrape/all")
 def scrape_all():

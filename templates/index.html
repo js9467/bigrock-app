@@ -130,6 +130,9 @@
     <button class="mobile-tab-btn" :class="{ active: mobileTab === 'hooked' }" @click="mobileTab = 'hooked'">
       &#127869; Hooked <span v-if="hooked.length" class="tab-badge">{{ hooked.length }}</span>
     </button>
+    <button class="mobile-tab-btn" :class="{ active: mobileTab === 'weighed' }" @click="mobileTab = 'weighed'">
+      &#9878; Weighed <span v-if="weighed.length" class="tab-badge">{{ weighed.length }}</span>
+    </button>
   </div>
 
   <!-- Content area fills remaining height; both columns scroll -->
@@ -138,7 +141,7 @@
     <div class="mobile-columns flex h-full flex-row">
 
       <!-- Hooked Column (scrolls) -->
-      <div class="hooked-col" :class="['w-1/4 bg-white border-l border-gray-300 overflow-y-auto order-2',
+      <div class="hooked-col" :class="['w-1/5 bg-white border-l border-gray-300 overflow-y-auto order-3',
                     hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '',
                     mobileTab !== 'hooked' ? 'mobile-tab-hidden' : '']">
         <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
@@ -169,8 +172,39 @@
         </div>
       </div>
 
+      <!-- Weighed Column (scrolls) -->
+      <div :class="['w-1/5 bg-white border-l border-gray-300 overflow-y-auto order-2', mobileTab !== 'weighed' ? 'mobile-tab-hidden' : '']">
+        <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-blue-700 to-blue-900 text-white">
+          &#9878; Weighed <span v-if="weighed.length > 0">({{ weighed.length }})</span>
+        </div>
+
+        <div v-if="weighed.length === 0" class="p-3 text-gray-500 italic text-sm">No weigh-ins yet.</div>
+
+        <div v-for="event in weighed" :key="event.timestamp + event.uid"
+             :class="['p-2 border-b hover:bg-gray-50 flex items-center gap-2', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
+
+          <div class="relative w-12 h-12 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
+            <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
+                 loading="lazy" decoding="async" class="w-12 h-12 object-cover rounded opacity-0 transition-opacity duration-500"
+                 @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
+            <div class="text-xs text-blue-700 font-medium truncate">{{ event.details }}</div>
+            <div class="text-xs text-gray-500">{{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}</div>
+          </div>
+
+          <button @click="toggleFollow(event.boat)"
+                  :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
+                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
+            {{ isFollowed(event.uid) ? '★' : '☆' }}
+          </button>
+        </div>
+      </div>
+
       <!-- Event Feed (scrolls) -->
-      <div :class="['w-3/4 overflow-y-auto event-feed order-1 events-col border-r border-gray-300', mobileTab !== 'events' ? 'mobile-tab-hidden' : '']">
+      <div :class="['w-3/5 overflow-y-auto event-feed order-1 events-col border-r border-gray-300', mobileTab !== 'events' ? 'mobile-tab-hidden' : '']">
 
         <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Event Feed
@@ -220,7 +254,7 @@ document.addEventListener('click', () => {
 const vm = createApp({
   data() {
     return {
-      events: [], hooked: [], boatImages: {},
+      events: [], hooked: [], weighed: [], boatImages: {},
       mobileTab: 'events',
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
       followed: [], lastEventTimestamps: new Set(),
@@ -336,9 +370,9 @@ const vm = createApp({
 
     fetchAll(){
       if(this.initialLoad) this.loading=true;
-      Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json())])
-        .then(([ed,hd])=>{
-          const ne=ed.events||[],nh=hd.events||[];
+      Promise.all([fetch('/scrape/events').then(r=>r.json()),fetch('/hooked').then(r=>r.json()),fetch('/weighed').then(r=>r.json())])
+        .then(([ed,hd,wd])=>{
+          const ne=ed.events||[],nh=hd.events||[],nw=wd.events||[];
           // Collect at most one sound per type per poll to avoid sound storms
           const soundsThisPoll=new Set();
           for(const e of ne){
@@ -367,9 +401,10 @@ const vm = createApp({
             }
           }
           // Only reassign if content actually changed to avoid unnecessary re-renders
-          const neStr=JSON.stringify(ne), nhStr=JSON.stringify(nh);
+          const neStr=JSON.stringify(ne), nhStr=JSON.stringify(nh), nwStr=JSON.stringify(nw);
           if(JSON.stringify(this.events)!==neStr) this.events=ne;
           if(JSON.stringify(this.hooked)!==nhStr) this.hooked=nh;
+          if(JSON.stringify(this.weighed)!==nwStr) this.weighed=nw;
           this.loading=false;
           this.initialLoad=false;
           this.updateDemoMessage();

@@ -1086,10 +1086,16 @@ def scrape_events(force: bool = False, tournament: str | None = None):
             uid = e.get('uid', '')
             etype = e.get('event', '')
             try:
-                day = date_parser.parse(e['timestamp']).strftime('%Y-%m-%d')
+                dt = date_parser.parse(e['timestamp'])
+                # Mark the stored day AND its two neighbours as seen.
+                # Relative timestamps like "2d" tick to "3d" the next scrape day,
+                # computing a different calendar date for the same real event.
+                # The ±1 window prevents that from creating phantom duplicate days.
+                for offset in (-1, 0, 1):
+                    adj = (dt + timedelta(days=offset)).strftime('%Y-%m-%d')
+                    seen.add(f"{uid}_{etype}_{adj}")
             except Exception:
-                day = ''
-            seen.add(f"{uid}_{etype}_{day}")
+                pass
 
         # Labels/patterns to skip when extracting description lines
         _SKIP_LABELS = {

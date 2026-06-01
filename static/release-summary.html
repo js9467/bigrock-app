@@ -85,7 +85,7 @@
     </div>
   </div>
 
-  <!-- Drilldown Modal -->
+  <!-- Day Drilldown Modal -->
   <div v-if="showModal" class="fixed inset-0 flex items-center justify-center modal-bg z-50">
     <div class="bg-white rounded-lg p-6 w-11/12 max-w-5xl shadow-lg overflow-y-auto max-h-[90vh]">
       <div class="flex justify-between items-center mb-4">
@@ -94,12 +94,46 @@
       </div>
       <div v-if="drilldownLoading" class="text-gray-500 italic">Loading boat details...</div>
       <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <div v-for="boat in drilldownBoats" :key="boat.uid" class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg">
+        <div v-for="boat in drilldownBoats" :key="boat.uid"
+             class="bg-white rounded shadow p-4 flex flex-col items-center border hover:shadow-lg cursor-pointer hover:border-blue-400 transition-colors"
+             @click="openBoatActivity(boat.uid, boat.name)">
           <img :src="boat.image || tournamentLogo" class="w-24 h-24 object-cover rounded mb-2" @error="e => e.target.src = tournamentLogo"/>
           <div class="font-bold text-center mb-1">{{ boat.name }}</div>
           <div class="text-sm text-gray-700 text-center leading-tight">
             <div v-for="line in boat.fishLines" :key="line">{{ line }}</div>
           </div>
+          <div class="mt-2 text-xs text-blue-500 font-semibold">View Activity →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Boat Activity Modal -->
+  <div v-if="boatModal" class="fixed inset-0 flex items-center justify-center modal-bg z-[60]">
+    <div class="bg-white rounded-lg p-6 w-11/12 max-w-2xl shadow-lg overflow-y-auto max-h-[90vh]">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-brand-blue">{{ boatModalName }} — Full Activity</h2>
+        <button @click="boatModal = false" class="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
+      </div>
+      <div v-if="!boatActivity.length" class="text-gray-500 italic">No recorded activity.</div>
+      <div v-else class="space-y-2">
+        <div v-for="e in boatActivity" :key="e.timestamp + e.event"
+             class="flex items-start gap-3 p-3 rounded-lg border"
+             :class="{
+               'border-green-200 bg-green-50':  e.event === 'Released',
+               'border-blue-200 bg-blue-50':    e.event === 'Boated',
+               'border-purple-200 bg-purple-50':e.event === 'Weighed',
+               'border-amber-200 bg-amber-50':  e.event === 'Hooked Up',
+               'border-red-200 bg-red-50':      e.event === 'Pulled Hook',
+               'border-gray-200 bg-gray-50':    !['Released','Boated','Weighed','Hooked Up','Pulled Hook'].includes(e.event)
+             }">
+          <span class="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+                :style="{ background: activityColor(e.event) }"></span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm">{{ e.event }}</div>
+            <div class="text-xs text-gray-600 truncate">{{ e.details }}</div>
+          </div>
+          <div class="text-xs text-gray-400 whitespace-nowrap">{{ formatDateTime(e.timestamp) }}</div>
         </div>
       </div>
     </div>
@@ -124,7 +158,10 @@ createApp({
       drilldownLoading: false,
       boatImages: {},
       allEvents: [],
-      participants: []
+      participants: [],
+      boatModal: false,
+      boatModalName: '',
+      boatActivity: [],
     };
   },
   mounted() {
@@ -322,6 +359,23 @@ createApp({
         .sort((a,b) => a.name.localeCompare(b.name));
 
       this.drilldownLoading = false;
+    },
+    openBoatActivity(uid, name) {
+      this.boatModalName = name;
+      this.boatActivity = this.allEvents
+        .filter(e => e.uid === uid)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      this.boatModal = true;
+    },
+    activityColor(type) {
+      return { Released:'#22c55e', Boated:'#3b82f6', Weighed:'#8b5cf6',
+               'Hooked Up':'#f59e0b', 'Pulled Hook':'#ef4444' }[type] || '#94a3b8';
+    },
+    formatDateTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+             d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     },
     closeModal() {
       this.showModal = false;

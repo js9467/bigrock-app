@@ -130,20 +130,81 @@
     <button class="mobile-tab-btn" :class="{ active: mobileTab === 'hooked' }" @click="mobileTab = 'hooked'">
       &#127869; Hooked <span v-if="hooked.length" class="tab-badge">{{ hooked.length }}</span>
     </button>
-    <button class="mobile-tab-btn" :class="{ active: mobileTab === 'weighed' }" @click="mobileTab = 'weighed'">
-      &#9878; Weighed <span v-if="weighed.length" class="tab-badge">{{ weighed.length }}</span>
-    </button>
   </div>
 
   <!-- Content area fills remaining height; both columns scroll -->
   <main class="mobile-main flex-1 overflow-hidden">
     <!-- Always display columns side by side -->
-    <div class="mobile-columns flex h-full flex-row">
+    <div class="mobile-columns flex h-full flex-row" ref="mainCols">
+
+      <!-- Event Feed (scrolls, flex width) -->
+      <div class="overflow-y-auto event-feed order-1 events-col border-r border-gray-300"
+           :class="[mobileTab !== 'events' ? 'mobile-tab-hidden' : '']"
+           :style="{ width: (100 - hookedColWidth) + '%' }">
+
+        <!-- Feed header + filter pills -->
+        <div class="events-col-header border-b bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
+          <div class="h-10 px-3 flex items-center justify-between">
+            <span class="text-base font-bold">Event Feed</span>
+            <span class="text-xs font-normal opacity-70">{{ filteredEvents.length }} events</span>
+          </div>
+          <div class="flex flex-wrap gap-1 px-2 pb-1.5">
+            <button @click="eventFilter=null"
+                    :class="eventFilter===null ? 'bg-blue-900 text-white' : 'bg-white/80 text-blue-900 hover:bg-white'"
+                    class="px-2 py-0.5 rounded text-xs font-semibold transition-colors">
+              All ({{ allEvents.length }})
+            </button>
+            <button v-for="f in availableFilters" :key="f"
+                    @click="eventFilter = eventFilter===f ? null : f"
+                    :class="eventFilter===f ? 'bg-blue-900 text-white' : 'bg-white/80 text-blue-900 hover:bg-white'"
+                    class="px-2 py-0.5 rounded text-xs font-semibold transition-colors">
+              {{ f }} ({{ allEvents.filter(e=>e.event===f).length }})
+            </button>
+          </div>
+        </div>
+
+        <div v-if="loading" class="p-3 text-gray-500 italic text-sm">Loading events...</div>
+        <div v-else-if="filteredEvents.length === 0" class="p-3 text-gray-500 italic text-sm">No events to show.</div>
+
+        <div v-for="event in filteredEvents" :key="event.timestamp + event.uid"
+             :class="['event-row p-2 border-b flex items-center gap-3 hover:bg-gray-50',
+                      isFollowed(event.uid) ? 'bg-yellow-100' : '',
+                      event.event === 'Weighed' ? 'border-l-4 border-l-blue-500' : '']">
+
+          <div class="relative w-14 h-14 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
+            <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
+                 loading="lazy" decoding="async" class="w-14 h-14 object-cover rounded opacity-0 transition-opacity duration-500"
+                 @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
+            <div :class="['text-xs', event.event==='Weighed' ? 'text-blue-700 font-medium' : 'text-gray-500']">
+              {{ event.event }} &mdash; {{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}
+            </div>
+            <div class="text-xs text-gray-700 truncate">{{ event.details }}</div>
+          </div>
+
+          <button @click="toggleFollow(event.boat)"
+                  :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
+                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
+            {{ isFollowed(event.uid) ? '\u2605' : '\u2606' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Drag handle -->
+      <div class="col-drag-handle order-2 flex-shrink-0"
+           @mousedown.prevent="startDrag"
+           @touchstart.prevent="startDragTouch">
+        <div class="drag-grip"></div>
+      </div>
 
       <!-- Hooked Column (scrolls) -->
-      <div class="hooked-col" :class="['w-1/5 bg-white border-l border-gray-300 overflow-y-auto order-3',
-                    hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '',
-                    mobileTab !== 'hooked' ? 'mobile-tab-hidden' : '']">
+      <div class="hooked-col bg-white border-l border-gray-300 overflow-y-auto order-3"
+           :class="[hooked.length > 0 ? 'ring-4 ring-yellow-400 animate-pulse shadow-lg' : '',
+                    mobileTab !== 'hooked' ? 'mobile-tab-hidden' : '']"
+           :style="{ width: hookedColWidth + '%' }">
         <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
           Hooked Up <span v-if="hooked.length > 0">({{ hooked.length }})</span>
         </div>
@@ -167,71 +228,7 @@
           <button @click="toggleFollow(event.boat)"
                   :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
                   class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
-            {{ isFollowed(event.uid) ? '★' : '☆' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Weighed Column (scrolls) -->
-      <div :class="['w-1/5 bg-white border-l border-gray-300 overflow-y-auto order-2', mobileTab !== 'weighed' ? 'mobile-tab-hidden' : '']">
-        <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-blue-700 to-blue-900 text-white">
-          &#9878; Weighed <span v-if="weighed.length > 0">({{ weighed.length }})</span>
-        </div>
-
-        <div v-if="weighed.length === 0" class="p-3 text-gray-500 italic text-sm">No weigh-ins yet.</div>
-
-        <div v-for="event in weighed" :key="event.timestamp + event.uid"
-             :class="['p-2 border-b hover:bg-gray-50 flex items-center gap-2', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
-
-          <div class="relative w-12 h-12 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
-            <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" decoding="async" class="w-12 h-12 object-cover rounded opacity-0 transition-opacity duration-500"
-                 @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
-          </div>
-
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
-            <div class="text-xs text-blue-700 font-medium truncate">{{ event.details }}</div>
-            <div class="text-xs text-gray-500">{{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}</div>
-          </div>
-
-          <button @click="toggleFollow(event.boat)"
-                  :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
-                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
-            {{ isFollowed(event.uid) ? '★' : '☆' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Event Feed (scrolls) -->
-      <div :class="['w-3/5 overflow-y-auto event-feed order-1 events-col border-r border-gray-300', mobileTab !== 'events' ? 'mobile-tab-hidden' : '']">
-
-        <div class="h-10 px-3 border-b text-base font-bold flex items-center justify-between bg-gradient-to-r from-yellow-400 to-yellow-600 text-blue-900">
-          Event Feed
-        </div>
-
-        <div v-if="loading" class="p-3 text-gray-500 italic text-sm">Loading events...</div>
-        <div v-else-if="events.length === 0" class="p-3 text-gray-500 italic text-sm">No events to show.</div>
-
-        <div v-for="event in events" :key="event.timestamp + event.uid"
-             :class="['event-row p-2 border-b flex items-center gap-3 hover:bg-gray-50', isFollowed(event.uid) ? 'bg-yellow-100' : '']">
-
-          <div class="relative w-14 h-14 bg-gray-200 flex items-center justify-center rounded overflow-hidden flex-shrink-0">
-            <img :src="getBoatImage(event.uid)" :key="boatImages[event.uid] || event.uid"
-                 loading="lazy" decoding="async" class="w-14 h-14 object-cover rounded opacity-0 transition-opacity duration-500"
-                 @load="$event.target.classList.add('opacity-100')" @error="onImageError($event)">
-          </div>
-
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold truncate">{{ event.boat }}</div>
-            <div class="text-xs text-gray-500">{{ event.event }} — {{ event.time_str ? event.time_str + ' ago' : (formatDate(event.timestamp) + ' ' + formatTime(event.timestamp)) }}</div>
-            <div class="text-xs text-gray-700 truncate">{{ event.details }}</div>
-          </div>
-
-          <button @click="toggleFollow(event.boat)"
-                  :class="isFollowed(event.uid) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 hover:bg-gray-400'"
-                  class="px-1.5 py-0.5 text-white rounded text-xs flex-shrink-0">
-            {{ isFollowed(event.uid) ? '★' : '☆' }}
+            {{ isFollowed(event.uid) ? '\u2605' : '\u2606' }}
           </button>
         </div>
       </div>
@@ -256,6 +253,9 @@ const vm = createApp({
     return {
       events: [], hooked: [], weighed: [], boatImages: {},
       mobileTab: 'events',
+      eventFilter: null,
+      hookedColWidth: Number(localStorage.getItem('hookedColWidth') || 25),
+      _dragState: null,
       tournamentLogo: '', tournamentDate: '', tournamentName: '', version: '', loading: false, initialLoad: true,
       followed: [], lastEventTimestamps: new Set(),
       boatsTodayCount: 0, boatsTodayList: [],
@@ -297,6 +297,25 @@ const vm = createApp({
     window.playFollowed = () => this.playSound(this.settings.followed_sound);
     window.playBoated = () => this.playSound(this.settings.boated_sound);
     window.playHooked = () => this.playSound(this.settings.hooked_sound);
+  },
+
+  computed: {
+    allEvents() {
+      const combined = [...this.events, ...this.weighed];
+      combined.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+      return combined;
+    },
+    availableFilters() {
+      const types = new Set(this.allEvents.map(e => e.event).filter(Boolean));
+      const ORDER = ['Weighed','Boated','Released','Hooked Up','Pulled Hook','Wrong Species','Other'];
+      const sorted = ORDER.filter(t => types.has(t));
+      for (const t of [...types].sort()) { if (!sorted.includes(t)) sorted.push(t); }
+      return sorted;
+    },
+    filteredEvents() {
+      if (!this.eventFilter) return this.allEvents;
+      return this.allEvents.filter(e => e.event === this.eventFilter);
+    },
   },
 
   methods:{
@@ -473,6 +492,39 @@ const vm = createApp({
           this.radioDisabled=true;localStorage.setItem('vhfPlaying','false');
         }
       }
+    },
+    startDrag(e) {
+      if (!this.$refs.mainCols) return;
+      this._dragState = { startX: e.clientX, startWidth: this.hookedColWidth, totalWidth: this.$refs.mainCols.offsetWidth };
+      const move = (ev) => this._onDragMove(ev.clientX);
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        this._dragState = null;
+        localStorage.setItem('hookedColWidth', this.hookedColWidth);
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    },
+    startDragTouch(e) {
+      if (!this.$refs.mainCols) return;
+      const t = e.touches[0];
+      this._dragState = { startX: t.clientX, startWidth: this.hookedColWidth, totalWidth: this.$refs.mainCols.offsetWidth };
+      const move = (ev) => { ev.preventDefault(); this._onDragMove(ev.touches[0].clientX); };
+      const up = () => {
+        document.removeEventListener('touchmove', move);
+        document.removeEventListener('touchend', up);
+        this._dragState = null;
+        localStorage.setItem('hookedColWidth', this.hookedColWidth);
+      };
+      document.addEventListener('touchmove', move, { passive: false });
+      document.addEventListener('touchend', up);
+    },
+    _onDragMove(clientX) {
+      if (!this._dragState) return;
+      const dx = this._dragState.startX - clientX; // drag left = wider hooked col
+      const newPct = this._dragState.startWidth + (dx / this._dragState.totalWidth * 100);
+      this.hookedColWidth = Math.max(12, Math.min(50, Math.round(newPct * 10) / 10));
     },
     setupMessages(){this.messageQueue=[];if(!navigator.onLine)this.enqueueMessage(`📡 Offline. <a href='/settings-page'>Connect to WiFi</a>`);this.updateDemoMessage();},
     updateDemoMessage(){if(this.settings.data_source==='demo'){this.enqueueMessage(`🎣 You are currently in demo mode. Events are being generated from prior tournaments. — <a href="#" onclick="window.vm.injectPalmerLouEvent();return false;">Click here to simulate a "fish boated" event!</a>`);}},

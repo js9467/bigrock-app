@@ -246,3 +246,52 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+
+// Dismiss wvkbd virtual keyboard when the user taps outside an input field.
+// On touch kiosks the blur event is unreliable, so we use a global touchstart
+// listener instead.  This fires on every page since nav.js is loaded everywhere.
+(function () {
+  const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+  let _kbdVisible = false;
+  let _hideTimer  = null;
+
+  document.addEventListener('touchstart', function (e) {
+    const tag = e.target && e.target.tagName;
+    if (INPUT_TAGS.has(tag)) {
+      // Tapped an input — keyboard should be (or will be) visible
+      _kbdVisible = true;
+      clearTimeout(_hideTimer);
+    } else if (_kbdVisible) {
+      // Tapped outside an input — dismiss keyboard after a short delay
+      // so that a blur→focus transition (moving between inputs) doesn't flicker
+      clearTimeout(_hideTimer);
+      _hideTimer = setTimeout(function () {
+        fetch('/hide_keyboard', { method: 'POST' }).catch(function () {});
+        _kbdVisible = false;
+      }, 150);
+    }
+  }, { passive: true });
+
+  // Also track when an input gains focus so we know keyboard should be up
+  document.addEventListener('focusin', function (e) {
+    if (INPUT_TAGS.has(e.target && e.target.tagName)) {
+      _kbdVisible = true;
+      clearTimeout(_hideTimer);
+    }
+  });
+
+  // And when focus leaves all inputs entirely
+  document.addEventListener('focusout', function (e) {
+    if (INPUT_TAGS.has(e.target && e.target.tagName)) {
+      clearTimeout(_hideTimer);
+      _hideTimer = setTimeout(function () {
+        // Only hide if focus has not moved to another input
+        const active = document.activeElement;
+        if (!active || !INPUT_TAGS.has(active.tagName)) {
+          fetch('/hide_keyboard', { method: 'POST' }).catch(function () {});
+          _kbdVisible = false;
+        }
+      }, 300);
+    }
+  });
+}());

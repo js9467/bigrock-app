@@ -57,6 +57,21 @@ button:hover {
   transform: translateY(-1px);
 }
 
+/* Explicitly force light styling on native form controls.
+   Without this, <meta color-scheme="dark"> causes browsers to render
+   inputs/selects with a black background and white text. */
+input,
+select,
+textarea {
+  background-color: #ffffff;
+  color: #1f2937;
+  color-scheme: light;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
+
 .loading {
   padding: 1rem;
   font-style: italic;

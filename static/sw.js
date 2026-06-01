@@ -1,7 +1,7 @@
 // BigRock Tournament -- Service Worker
 // bump CACHE version whenever index.html or cached assets change.
 // activate clears old cache AND force-reloads open pages for fresh HTML.
-const CACHE = 'bigrock-pwa-v3';
+const CACHE = 'bigrock-pwa-v4';
 
 const PRECACHE = [
   '/manifest.json',

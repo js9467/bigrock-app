@@ -1998,7 +1998,9 @@ def scrape_events_route():
             build_demo_cache(tournament)
             data = load_demo_data(tournament)
 
-        all_events = data.get("events", [])
+        all_events = [e for e in data.get("events", [])
+                      if _is_valid_boat_name(e.get('boat', ''))
+                      and not _JUNK_DESC_RE.search(e.get('details', ''))]
 
         eastern = ZoneInfo("America/New_York")
         now = datetime.now(eastern)

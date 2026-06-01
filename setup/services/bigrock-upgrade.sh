@@ -117,6 +117,15 @@ AUTOSTART_EOF
             || log "WARNING: playwright install failed — will retry next update cycle."
         ;;
 
+    6)
+        # Retry Playwright Chromium install. v5 may have failed silently if there was no
+        # internet at upgrade time. This step retries unconditionally.
+        log "v6: Retrying Playwright Chromium install..."
+        su -c "/home/pi/bigrock-app/venv/bin/python3 -m playwright install chromium" pi \
+            && log "v6: Playwright Chromium installed successfully." \
+            || { log "WARNING: playwright install failed again. Check internet and retry by bumping VERSION."; true; }
+        ;;
+
     # ---------------------------------------------------------------------------
     # TEMPLATE for future upgrades — copy this block and increment the number:
     #

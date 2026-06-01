@@ -284,8 +284,8 @@ const vm = createApp({
       followed: [], lastEventTimestamps: new Set(),
       boatsTodayCount: 0, boatsTodayList: [],
       enrolledCount: 0, enrolledList: [], activePill: null,
-      _soundQueue: [], _soundPlaying: false,
-      settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
+      _soundQueue: [], _soundPlaying: false, _audioCtx: null,
+      settings: { followed_sound:'', boated_sound:'', hooked_sound:'', event_click_sound:false, event_volume:80, radio_volume:30, sounds_enabled:true, data_source:'live', tournament:'' },
       radioPlaying:false, hls:null, error:null, radioDisabled:false, streamUrl:'',
       messageQueue:[], currentMessage:'', messageTimer:null
     };
@@ -390,6 +390,20 @@ const vm = createApp({
         .replace(/^_+|_+$/g,'');
       return this.followed.some(b=>norm(b)===norm(uid));
     },
+    playClick(){
+      if(!this.settings.sounds_enabled||!this.settings.event_click_sound)return;
+      try{
+        if(!this._audioCtx) this._audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        const ctx=this._audioCtx;
+        const len=Math.floor(ctx.sampleRate*0.04); // 40 ms
+        const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+        const d=buf.getChannelData(0);
+        for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,8);
+        const src=ctx.createBufferSource(); src.buffer=buf;
+        const g=ctx.createGain(); g.gain.value=(this.settings.event_volume||80)/100*0.35;
+        src.connect(g); g.connect(ctx.destination); src.start();
+      }catch(e){}
+    },
     playSound(f){
       if(!f||!this.settings.sounds_enabled)return;
       let fn=f.trim();
@@ -418,6 +432,7 @@ const vm = createApp({
           const ne=ed.events||[],nh=hd.events||[],nw=wd.events||[];
           // Collect at most one sound per type per poll to avoid sound storms
           const soundsThisPoll=new Set();
+          let clickNeeded=false;
           for(const e of ne){
             // Timestamps come from relative scraping ("2m ago") so they drift slightly
             // on every poll. Round to the nearest 5-minute bucket so the same event
@@ -434,7 +449,8 @@ const vm = createApp({
             // discovering stale events on later polls and re-triggering sounds.
             const eventAge = Date.now() - new Date(e.timestamp).getTime();
             const MAX_SOUND_AGE_MS = 10 * 60 * 1000;
-            if(!this.initialLoad && isNew && eventAge < MAX_SOUND_AGE_MS && this.settings.sounds_enabled && this.isFollowed(e.uid)){
+            if(!this.initialLoad && isNew && eventAge < MAX_SOUND_AGE_MS) clickNeeded=true;
+          if(!this.initialLoad && isNew && eventAge < MAX_SOUND_AGE_MS && this.settings.sounds_enabled && this.isFollowed(e.uid)){
               const et=(e.event||'').toLowerCase();
               let snd=null;
               if(et.includes('boated')) snd=this.settings.boated_sound;
@@ -443,6 +459,7 @@ const vm = createApp({
               if(snd && !soundsThisPoll.has(snd)){ soundsThisPoll.add(snd); this.playSound(snd); }
             }
           }
+          if(clickNeeded) this.playClick();
           // Only reassign if content actually changed to avoid unnecessary re-renders
           const neStr=JSON.stringify(ne), nhStr=JSON.stringify(nh), nwStr=JSON.stringify(nw);
           if(JSON.stringify(this.events)!==neStr) this.events=ne;

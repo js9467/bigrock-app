@@ -2423,8 +2423,9 @@ def api_settings():
             settings_data["mode"] = new_mode
 
         # Ensure sound fields exist
-        settings_data.setdefault("followed_sound", old_settings.get("followed_sound", "fishing reel"))
-        settings_data.setdefault("boated_sound",   old_settings.get("boated_sound",   "fishing reel"))
+        settings_data.setdefault("followed_sound",    old_settings.get("followed_sound",    "fishing reel"))
+        settings_data.setdefault("boated_sound",       old_settings.get("boated_sound",       "fishing reel"))
+        settings_data.setdefault("event_click_sound",  old_settings.get("event_click_sound",  False))
 
         # Save alerts and settings
         save_alerts(settings_data.get("sms_emails", []))
@@ -2443,8 +2444,9 @@ def api_settings():
         return jsonify({'status': 'success'})
 
     settings = load_settings()
-    settings.setdefault("followed_sound", "Fishing Reel")
-    settings.setdefault("boated_sound", "Fishing Reel")
+    settings.setdefault("followed_sound",   "Fishing Reel")
+    settings.setdefault("boated_sound",      "Fishing Reel")
+    settings.setdefault("event_click_sound", False)
     settings["sms_emails"] = load_alerts()
     return jsonify(settings)
 

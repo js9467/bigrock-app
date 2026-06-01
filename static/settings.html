@@ -86,6 +86,14 @@
           </select>
         </div>
 
+      <div>
+        <label class="block font-semibold mb-1">Event Click Sound</label>
+        <div class="flex items-center space-x-2">
+          <input type="checkbox" id="event_click_sound" v-model="settings.event_click_sound" @change="saveSettings">
+          <label for="event_click_sound">Play a soft click on every new event (uses Event Activity Volume)</label>
+        </div>
+      </div>
+
       <div class="flex items-center space-x-2">
         <input type="checkbox" id="sounds" v-model="settings.sounds_enabled" @change="saveSettings">
         <label for="sounds" class="font-semibold">Play Event Sounds</label>

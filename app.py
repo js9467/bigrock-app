@@ -149,28 +149,41 @@ def _is_nextjs_spa(html: str) -> bool:
 
 
 def _fetch_html_playwright(url: str) -> str:
-    """Render a page with headless Chromium (bypasses JS bot challenges)."""
+    """Render a page with headless Chromium (bypasses JS bot challenges).
+
+    Runs Playwright in a subprocess to avoid threading conflicts with Flask's
+    worker threads. sync_playwright uses its own event loop which crashes when
+    called from non-main threads (manifests as 'Target page, context or browser
+    has been closed').
+    """
+    import subprocess, sys
+    print(f"🌐 Playwright fetch: {url}")
+    script = (
+        "from playwright.sync_api import sync_playwright\n"
+        "import sys\n"
+        "with sync_playwright() as p:\n"
+        "    b = p.chromium.launch(headless=True, args=["
+        "'--no-sandbox','--disable-dev-shm-usage','--disable-gpu',"
+        "'--disable-setuid-sandbox'])\n"
+        "    pg = b.new_page()\n"
+        "    pg.goto(sys.argv[1], wait_until='networkidle', timeout=45000)\n"
+        "    sys.stdout.write(pg.content())\n"
+        "    b.close()\n"
+    )
     try:
-        from playwright.sync_api import sync_playwright
-        print(f"🌐 Playwright fetch: {url}")
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--disable-setuid-sandbox',
-                ],
-            )
-            try:
-                page = browser.new_page()
-                page.goto(url, wait_until='networkidle', timeout=45000)
-                html = page.content()
-                return html if html and not _is_bot_challenge(html) else ""
-            finally:
-                browser.close()
-    except ImportError:
+        result = subprocess.run(
+            [sys.executable, '-c', script, url],
+            capture_output=True, text=True, timeout=60
+        )
+        if result.returncode != 0:
+            print(f"⚠️ Playwright subprocess error for {url}: {result.stderr.strip()[:300]}")
+            return ""
+        html = result.stdout
+        return html if html and not _is_bot_challenge(html) else ""
+    except subprocess.TimeoutExpired:
+        print(f"⚠️ Playwright fetch timed out for {url}")
+        return ""
+    except FileNotFoundError:
         print("⚠️ playwright not installed — run: pip3 install playwright")
         return ""
     except Exception as e:

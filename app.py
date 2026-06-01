@@ -155,16 +155,29 @@ def _fetch_html_playwright(url: str) -> str:
     worker threads. sync_playwright uses its own event loop which crashes when
     called from non-main threads (manifests as 'Target page, context or browser
     has been closed').
+
+    Forces use of the full Chrome binary (chromium-*/chrome-linux/chrome) rather
+    than the headless_shell variant, which crashes with SIGSEGV on some ARM64 Pis.
     """
-    import subprocess, sys
+    import subprocess, sys, glob, os
     print(f"🌐 Playwright fetch: {url}")
+
+    # Prefer the full Chrome binary over headless_shell — headless_shell segfaults
+    # on some ARM64 configurations (Raspberry Pi). The full chrome binary supports
+    # headless mode via --headless flag and is more stable.
+    ms_playwright_dir = os.path.expanduser('~/.cache/ms-playwright')
+    chrome_candidates = sorted(glob.glob(os.path.join(ms_playwright_dir, 'chromium-*/chrome-linux/chrome')))
+    exec_path = chrome_candidates[0] if chrome_candidates else None
+
+    exec_line = f"exec_path={repr(exec_path)}\n" if exec_path else "exec_path=None\n"
     script = (
         "from playwright.sync_api import sync_playwright\n"
         "import sys\n"
+        + exec_line +
+        "kw = dict(headless=True, args=['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-setuid-sandbox'])\n"
+        "if exec_path: kw['executable_path'] = exec_path\n"
         "with sync_playwright() as p:\n"
-        "    b = p.chromium.launch(headless=True, args=["
-        "'--no-sandbox','--disable-dev-shm-usage','--disable-gpu',"
-        "'--disable-setuid-sandbox'])\n"
+        "    b = p.chromium.launch(**kw)\n"
         "    pg = b.new_page()\n"
         "    pg.goto(sys.argv[1], wait_until='networkidle', timeout=45000)\n"
         "    sys.stdout.write(pg.content())\n"

@@ -113,58 +113,40 @@
       <div class="pt-4">
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-xl font-semibold">🖥️ System Status</h2>
-          <button @click="statusLogOpen = !statusLogOpen" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">
-            {{ statusLogOpen ? 'Hide Log' : 'Show Log' }}
-          </button>
-        </div>
-
-        <div v-if="systemStatus" class="space-y-2">
-          <!-- Status rows -->
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            <div class="bg-gray-50 border rounded p-2">
-              <div class="text-gray-500 text-xs mb-0.5">App Version</div>
-              <div class="font-mono font-semibold">v{{ systemStatus.deployed_version }}
-                <span v-if="systemStatus.deployed_version < systemStatus.repo_version" class="text-yellow-600 text-xs ml-1">(repo: v{{ systemStatus.repo_version }})</span>
-              </div>
-            </div>
-            <div class="bg-gray-50 border rounded p-2">
-              <div class="text-gray-500 text-xs mb-0.5">Git Commit</div>
-              <div class="font-mono font-semibold">{{ systemStatus.git_commit }}</div>
-            </div>
-            <div class="bg-gray-50 border rounded p-2">
-              <div class="text-gray-500 text-xs mb-0.5">Playwright</div>
-              <div class="font-semibold" :class="systemStatus.playwright_ok ? 'text-green-600' : 'text-red-500'">
-                {{ systemStatus.playwright_ok ? '✅ Installed' : '❌ Missing' }}
-              </div>
-            </div>
-            <div class="bg-gray-50 border rounded p-2">
-              <div class="text-gray-500 text-xs mb-0.5">Update State</div>
-              <div class="font-semibold" :class="systemStatus.upgrading ? 'text-yellow-600' : 'text-green-600'">
-                <span v-if="systemStatus.upgrading">⏳ Upgrading…</span>
-                <span v-else>✅ Idle</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Active step banner -->
-          <div v-if="systemStatus.upgrading" class="flex items-center gap-2 bg-yellow-50 border border-yellow-300 rounded p-2 text-sm text-yellow-800">
-            <svg class="animate-spin h-4 w-4 text-yellow-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            <span class="font-mono text-xs truncate">{{ systemStatus.current_step }}</span>
-          </div>
-
-          <!-- Log output -->
-          <div v-if="statusLogOpen" class="bg-black rounded p-2 overflow-y-auto max-h-48">
-            <div v-for="(line, i) in systemStatus.log_lines" :key="i"
-                 class="font-mono text-xs whitespace-pre-wrap"
-                 :class="line.includes('WARNING') || line.includes('❌') ? 'text-red-400' : line.includes('complete') || line.includes('✅') ? 'text-green-400' : 'text-gray-300'">
-              {{ line }}
-            </div>
+          <div class="flex gap-2 items-center">
+            <span class="text-xs text-gray-400 font-mono">v{{ systemStatus ? systemStatus.deployed_version : '…' }} · {{ systemStatus ? systemStatus.git_commit : '…' }}</span>
+            <button @click="statusLogOpen = !statusLogOpen" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">
+              {{ statusLogOpen ? 'Hide Log' : 'Log' }}
+            </button>
           </div>
         </div>
-        <div v-else class="text-sm text-gray-400">Loading status…</div>
+
+        <!-- Upgrade banner -->
+        <div v-if="systemStatus && systemStatus.upgrading" class="flex items-center gap-2 bg-yellow-50 border border-yellow-300 rounded p-2 text-sm text-yellow-800 mb-2">
+          <svg class="animate-spin h-4 w-4 text-yellow-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+          </svg>
+          <span class="font-mono text-xs truncate">{{ systemStatus.current_step }}</span>
+        </div>
+
+        <!-- Compact checklist: inline dots -->
+        <div v-if="systemStatus && systemStatus.checks" class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <span v-for="c in systemStatus.checks" :key="c.name" class="flex items-center gap-1 whitespace-nowrap">
+            <span :class="c.ok ? 'text-green-500' : 'text-red-500'" class="text-base leading-none">●</span>
+            <span :class="c.ok ? 'text-gray-700' : 'text-red-600 font-semibold'">{{ c.name }}</span>
+          </span>
+        </div>
+        <div v-else class="text-sm text-gray-400">Loading…</div>
+
+        <!-- Log output -->
+        <div v-if="statusLogOpen && systemStatus" class="mt-2 bg-black rounded p-2 overflow-y-auto max-h-40">
+          <div v-for="(line, i) in systemStatus.log_lines" :key="i"
+               class="font-mono text-xs whitespace-pre-wrap"
+               :class="line.includes('WARNING') || line.includes('❌') ? 'text-red-400' : line.includes('complete') || line.includes('✅') ? 'text-green-400' : 'text-gray-300'">
+            {{ line }}
+          </div>
+        </div>
       </div>
 
       <!-- App Version / Update Banner -->

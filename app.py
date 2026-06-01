@@ -3126,11 +3126,45 @@ def api_system_status():
     except Exception:
         pass
 
-    # Playwright: check if chromium headless shell dir exists and has content
+    # --- Dependency checklist ---
+    checks = []
+
+    # Python venv
+    venv_python = '/home/pi/bigrock-app/venv/bin/python3'
+    checks.append({'name': 'Python venv', 'ok': os.path.isfile(venv_python)})
+
+    # Each pip package in requirements.txt
+    pip_pkgs = ['flask', 'python-dateutil', 'beautifulsoup4', 'requests', 'Pillow', 'playwright']
+    for pkg in pip_pkgs:
+        try:
+            out = subprocess.check_output(
+                [venv_python, '-c', f'import importlib.util; assert importlib.util.find_spec("{pkg.lower().replace("-","_")}") is not None'],
+                timeout=5, stderr=subprocess.DEVNULL
+            )
+            checks.append({'name': pkg, 'ok': True})
+        except Exception:
+            checks.append({'name': pkg, 'ok': False})
+
+    # Playwright Chromium browser binary
     playwright_ok = (
         os.path.isdir(playwright_marker) and
         any(True for _ in os.scandir(playwright_marker))
     )
+    checks.append({'name': 'Playwright Chromium', 'ok': playwright_ok})
+
+    # Cache directory writable
+    cache_dir = '/home/pi/bigrock-app/cache'
+    checks.append({'name': 'Cache dir', 'ok': os.path.isdir(cache_dir) and os.access(cache_dir, os.W_OK)})
+
+    # Internet (quick DNS check)
+    try:
+        import socket
+        socket.setdefaulttimeout(3)
+        socket.getaddrinfo('github.com', 443)
+        internet_ok = True
+    except Exception:
+        internet_ok = False
+    checks.append({'name': 'Internet', 'ok': internet_ok})
 
     # Git commit
     git_commit = 'unknown'
@@ -3147,7 +3181,7 @@ def api_system_status():
         'repo_version': repo_version,
         'upgrading': upgrading,
         'current_step': current_step,
-        'playwright_ok': playwright_ok,
+        'checks': checks,
         'git_commit': git_commit,
         'log_lines': log_lines,
     })

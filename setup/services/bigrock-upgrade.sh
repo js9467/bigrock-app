@@ -126,8 +126,17 @@ AUTOSTART_EOF
             || { log "WARNING: playwright install failed again. Check internet and retry by bumping VERSION."; true; }
         ;;
 
+    7)
+        # Install emoji font — required for the Enrolled/Today/Watching icons
+        # and any emoji in the UI. Missing on clones that were set up before
+        # this was added to the system package list in install.sh.
+        log "v7: Installing fonts-noto-color-emoji..."
+        apt-get install -y -qq fonts-noto-color-emoji \
+            && log "v7: Emoji font installed." \
+            || log "WARNING: emoji font install failed — check internet."
+        ;;
+
     # ---------------------------------------------------------------------------
-    # TEMPLATE for future upgrades — copy this block and increment the number:
     #
     # 2)
     #     log "v2: Install new apt package / update service file / etc."

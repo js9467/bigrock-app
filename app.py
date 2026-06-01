@@ -2975,12 +2975,22 @@ def api_boats_today():
     cache_key = f'boats_today_{tournament}'
     cache = load_cache()
 
+    # Short-circuit: tournament is over, no one is fishing today
+    try:
+        _info_quick = _get_tournament_urls(tournament)
+        _end = _info_quick.get('end')
+        if _end and datetime.strptime(_end, '%Y-%m-%d').date() < datetime.now().date():
+            return jsonify({'status': 'ok', 'count': 0, 'boats': []})
+    except (ValueError, TypeError, Exception):
+        pass
+
     if is_cache_fresh(cache, cache_key, 30):
         cached = cache.get(cache_key, {})
         return jsonify({'status': 'ok', 'count': cached.get('count', 0), 'boats': cached.get('boats', [])})
 
     try:
         info = _get_tournament_urls(tournament)
+
         events_url = info.get('events', '')
         if not events_url:
             return jsonify({'status': 'ok', 'count': 0, 'boats': []})

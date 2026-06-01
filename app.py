@@ -1085,15 +1085,17 @@ def scrape_events(force: bool = False, tournament: str | None = None):
         for e in all_events:
             uid = e.get('uid', '')
             etype = e.get('event', '')
+            details = e.get('details', '').strip().lower()
             try:
                 dt = date_parser.parse(e['timestamp'])
-                # Mark the stored day AND its two neighbours as seen.
-                # Relative timestamps like "2d" tick to "3d" the next scrape day,
-                # computing a different calendar date for the same real event.
-                # The ±1 window prevents that from creating phantom duplicate days.
-                for offset in (-1, 0, 1):
-                    adj = (dt + timedelta(days=offset)).strftime('%Y-%m-%d')
-                    seen.add(f"{uid}_{etype}_{adj}")
+                # Key on uid+event+details+day so the scraper never writes the
+                # exact same catch twice.  We no longer use a ±1 day window here
+                # because it was blocking legitimate catches from adjacent days
+                # (e.g. a May 29 release being suppressed by an existing May 30
+                # entry for the same boat+species).  The display-layer 12 h dedup
+                # in release_summary_data() handles the midnight-UTC phantom
+                # duplicate problem instead.
+                seen.add(f"{uid}_{etype}_{details}_{dt.strftime('%Y-%m-%d')}")
             except Exception:
                 pass
 
@@ -1159,7 +1161,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                                 if uid in participants:
                                     boat = participants[uid]['boat']
                                 event_type = _classify_event(desc)
-                                dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                                dkey = f"{uid}_{event_type}_{desc.strip().lower()}_{ts_dt.strftime('%Y-%m-%d')}"
                                 if dkey not in seen:
                                     seen.add(dkey)
                                     all_events.append({
@@ -1203,7 +1205,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     if uid in participants:
                         boat = participants[uid]['boat']
                     event_type = _classify_event(desc)
-                    dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                    dkey = f"{uid}_{event_type}_{desc.strip().lower()}_{ts_dt.strftime('%Y-%m-%d')}"
                     if dkey not in seen:
                         seen.add(dkey)
                         all_events.append({
@@ -1238,7 +1240,7 @@ def scrape_events(force: bool = False, tournament: str | None = None):
                     if uid in participants:
                         boat = participants[uid]['boat']
                     event_type = _classify_event(desc)
-                    dkey = f"{uid}_{event_type}_{ts_dt.strftime('%Y-%m-%d')}"
+                    dkey = f"{uid}_{event_type}_{desc.strip().lower()}_{ts_dt.strftime('%Y-%m-%d')}"
                     is_relative = bool(re.match(r'^\d+\s*[smhdw]\b', raw.lower()))
                     if dkey not in seen:
                         seen.add(dkey)

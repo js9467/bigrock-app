@@ -121,6 +121,16 @@
           </div>
         </div>
 
+        <!-- Pending upgrade banner — version behind, not currently running -->
+        <div v-if="systemStatus && !systemStatus.upgrading && systemStatus.deployed_version < systemStatus.repo_version"
+             class="mb-3 rounded-lg border-2 border-blue-400 bg-blue-50 p-3 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-blue-800 text-sm">Upgrade pending: v{{ systemStatus.deployed_version }} → v{{ systemStatus.repo_version }}</div>
+            <div class="text-xs text-blue-600">Runs automatically on next hourly check, or tap to run now.</div>
+          </div>
+          <button @click="runUpgrade" class="ml-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm font-semibold whitespace-nowrap">Run Now</button>
+        </div>
+
         <!-- Upgrade in progress — prominent animated banner -->
         <div v-if="systemStatus && systemStatus.upgrading"
              class="mb-3 rounded-lg border-2 border-yellow-400 bg-yellow-50 p-3">
@@ -434,6 +444,14 @@
         this.showToast('⏳ Updating… app will restart in ~15 seconds.', 'info');
         axios.post('/api/update/apply').catch(() => {});
         setTimeout(() => location.reload(), 18000);
+      },
+
+      runUpgrade() {
+        this.showToast('⏳ Running upgrade steps… this may take a few minutes.', 'info');
+        axios.post('/api/update/apply').catch(() => {});
+        // Start polling fast so the upgrade banner appears immediately
+        clearTimeout(this._statusPollTimer);
+        setTimeout(() => this.fetchSystemStatus(), 2000);
       },
 
       /* ===== Wi-Fi (Bluetooth-like UX) ===== */

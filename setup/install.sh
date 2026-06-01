@@ -75,6 +75,10 @@ python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt --quiet
 echo "Python deps installed."
 
+echo ">>> Installing Playwright browsers (Chromium headless shell)..."
+./venv/bin/python3 -m playwright install chromium
+echo "Playwright Chromium installed."
+
 # ---------------------------------------------------------------------------
 # 4. Required directories
 # ---------------------------------------------------------------------------

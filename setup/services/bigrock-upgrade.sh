@@ -105,6 +105,18 @@ AUTOSTART_EOF
         shutdown -r +1 "BigRock v4 upgrade: rebooting to apply --disk-cache-size=1" || true
         ;;
 
+    5)
+        # Install Playwright's bundled Chromium headless shell so the scraper can
+        # render JavaScript-heavy pages (e.g. reeltime.app). Without this, scrapes
+        # fall back to plain HTTP and only get raw nav/DOM text.
+        log "v5: Installing Playwright Chromium headless shell..."
+        PLAYWRIGHT_BROWSERS_PATH="/home/pi/.cache/ms-playwright"
+        export PLAYWRIGHT_BROWSERS_PATH
+        su -c "/home/pi/bigrock-app/venv/bin/python3 -m playwright install chromium" pi \
+            && log "v5: Playwright Chromium installed." \
+            || log "WARNING: playwright install failed — will retry next update cycle."
+        ;;
+
     # ---------------------------------------------------------------------------
     # TEMPLATE for future upgrades — copy this block and increment the number:
     #

@@ -840,7 +840,9 @@ _INVALID_BOAT_CONTENT_RE = re.compile(
     r'|\.\s+[A-Z]{2,}'          # ". BULL PEN" — period then caps (caption + boat)
     r'|\bday\s+\d\b'            # "Day 1", "Day 2"
     r'|\bfish\s+of\s+the\b'     # "fish of the day" type phrases
-    r'|\bright\s+here\b|\bright\s+now\b',
+    r'|\bright\s+here\b|\bright\s+now\b'
+    # ReelTime navigation tabs that bleed into the boat-name position
+    r'|\bposts\b|\bphotos\b|\bvideos\b|\bmessages\b|\bscores\b|\bstats\b',
     re.I
 )
 
@@ -851,6 +853,9 @@ def _is_valid_boat_name(name: str) -> bool:
     if any(nl == s or nl.startswith(s) for s in _SCRAPER_SKIP_NAMES):
         return False
     if _INVALID_BOAT_CONTENT_RE.search(name):
+        return False
+    # Too many words → almost certainly nav text, not a boat name
+    if len(name.split()) > 6:
         return False
     # Must start with letter or digit
     return bool(re.match(r'^[A-Za-z0-9]', name))

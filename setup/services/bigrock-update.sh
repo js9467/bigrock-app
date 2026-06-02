@@ -64,7 +64,14 @@ ensure_js "tailwind.cdn.js"     "https://cdn.tailwindcss.com"
 ensure_js "chart.min.js"        "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
 
 # ---------------------------------------------------------------------------
-# 2. Version upgrade (runs upgrade.sh as root when setup/VERSION increases)
+# 2. Python dep refresh (always, and BEFORE upgrade script so packages like
+#    playwright are available when upgrade steps try to use them)
+# ---------------------------------------------------------------------------
+log "Ensuring Python deps are installed..."
+./venv/bin/pip install -r requirements.txt --quiet 2>&1 | grep -v 'already satisfied' | tee -a "$LOG" || log "WARNING: pip install failed."
+
+# ---------------------------------------------------------------------------
+# 3. Version upgrade (runs upgrade.sh as root when setup/VERSION increases)
 #    This handles: new apt packages, new service files, sudoers changes, etc.
 # ---------------------------------------------------------------------------
 DEPLOYED=$(cat "$DEPLOYED_VERSION_FILE" 2>/dev/null || echo "0")
@@ -76,12 +83,6 @@ if [ "$DEPLOYED" -lt "$REPO" ]; then
     sudo bash "$APP_DIR/setup/services/bigrock-upgrade.sh"
     # upgrade.sh writes the new version to $DEPLOYED_VERSION_FILE
 fi
-
-# ---------------------------------------------------------------------------
-# 3. Python dep refresh (always — ensures deps are present after any failure)
-# ---------------------------------------------------------------------------
-log "Ensuring Python deps are installed..."
-./venv/bin/pip install -r requirements.txt --quiet 2>&1 | grep -v 'already satisfied' | tee -a "$LOG" || log "WARNING: pip install failed."
 
 # ---------------------------------------------------------------------------
 # 3b. Playwright browser (always — install is a no-op if already present)

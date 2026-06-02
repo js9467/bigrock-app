@@ -174,6 +174,15 @@ AUTOSTART_EOF
         shutdown -r +1 "BigRock v9: rebooting to start PulseAudio for BT audio" || true
         ;;
 
+    10)
+        # Retry Playwright Chromium install. On devices upgrading from v1 in a single
+        # pass, v5/v6 ran before network was fully ready. This step retries unconditionally.
+        log "v10: Retrying Playwright Chromium install..."
+        su -c "/home/pi/bigrock-app/venv/bin/python3 -m playwright install chromium" pi \
+            && log "v10: Playwright Chromium installed successfully." \
+            || { log "WARNING: playwright install failed. Will retry next cycle."; true; }
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

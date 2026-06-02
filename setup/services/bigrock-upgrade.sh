@@ -19,6 +19,10 @@ REPO_VERSION_FILE="$APP_DIR/setup/VERSION"
 LOG="/home/pi/bigrock-update.log"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [upgrade] $*" | tee -a "$LOG"; }
+# This script runs as root. Touch + chown the log immediately so the pi user
+# can always write to it after we're done (even if we exit early or reboot).
+touch "$LOG" 2>/dev/null || true
+chown pi:pi "$LOG" 2>/dev/null || true
 
 DEPLOYED=$(cat "$DEPLOYED_VERSION_FILE" 2>/dev/null || echo "0")
 REPO=$(cat "$REPO_VERSION_FILE" 2>/dev/null | tr -d '[:space:]' || echo "0")
@@ -250,6 +254,16 @@ AUTOSTART_EOF
             || log "WARNING: PipeWire install still failing — will retry next cycle."
         ;;
 
+    14)
+        # Redeploy bigrock-update.service with the + prefix on ExecStartPre chown.
+        # Without it, the chown runs as pi (User=pi) and cannot fix a root-owned log
+        # file, so the service fails with Permission denied after every upgrade run.
+        log "v14: Redeploying bigrock-update.service with root-chown ExecStartPre fix..."
+        cp "$APP_DIR/setup/services/bigrock-update.service" /etc/systemd/system/bigrock-update.service
+        systemctl daemon-reload
+        log "v14: bigrock-update.service updated."
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)
@@ -272,3 +286,7 @@ AUTOSTART_EOF
 done
 
 log "Upgrade complete. Deployed version is now $REPO."
+# Return log ownership to pi — upgrade.sh runs as root and tee-writes to the
+# log throughout. Without this chown, the next update run (as pi) gets
+# "Permission denied" and fails before writing a single line.
+chown pi:pi "$LOG" 2>/dev/null || true

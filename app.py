@@ -3329,9 +3329,15 @@ def api_update_apply():
 def _do_update():
     """Trigger the update via systemd — runs as root, within sudoers permissions."""
     try:
+        # Fix log ownership before starting the service. bigrock-upgrade.sh runs
+        # as root and writes to the log, leaving it root-owned. The service runs as
+        # pi, so it fails with Permission denied on the very first tee write.
+        # We do this here (not just in ExecStartPre) so it works on old service files
+        # that pre-date the +/bin/chown ExecStartPre fix.
+        subprocess.call(['sudo', '/bin/chown', 'pi:pi', '/home/pi/bigrock-update.log'])
         subprocess.call(['sudo', '/usr/bin/systemctl', 'restart', 'bigrock-update.service'])
     except Exception as e:
-        print(f"❌ Update failed: {e}")
+        print(f"\u274c Update failed: {e}")
 
 def _background_update_check():
     """After WiFi connects: silently run the update script (exits early if already up to date)."""

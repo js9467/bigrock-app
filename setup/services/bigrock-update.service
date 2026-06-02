@@ -8,7 +8,8 @@ Type=oneshot
 User=pi
 WorkingDirectory=/home/pi/bigrock-app
 ExecStartPre=/bin/chmod +x /home/pi/bigrock-app/setup/services/bigrock-update.sh /home/pi/bigrock-app/setup/services/bigrock-upgrade.sh
-ExecStartPre=/bin/chown pi:pi /home/pi/bigrock-update.log
+# + prefix = run as root even though User=pi, so it can chown a root-owned log file
+ExecStartPre=+/bin/chown pi:pi /home/pi/bigrock-update.log
 ExecStart=/home/pi/bigrock-app/setup/services/bigrock-update.sh
 StandardOutput=journal
 StandardError=journal

@@ -240,6 +240,16 @@ AUTOSTART_EOF
         exit 0
         ;;
 
+    13)
+        # Retry PipeWire install after reboot (v12 apt may have failed on first run).
+        log "v13: Ensuring PipeWire packages are installed..."
+        apt-get install -y -qq \
+            pipewire pipewire-pulse wireplumber \
+            libspa-0.2-bluetooth pipewire-audio-client-libraries \
+            && log "v13: PipeWire packages confirmed." \
+            || log "WARNING: PipeWire install still failing — will retry next cycle."
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

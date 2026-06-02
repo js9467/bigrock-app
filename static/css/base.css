@@ -585,6 +585,21 @@ textarea::placeholder {
   pointer-events: none;
   letter-spacing: 0.08em;
 }
+.header-version-tag.nav-version-update {
+  color: #f59e0b;
+  background: rgba(245,158,11,0.15);
+  border: 1px solid rgba(245,158,11,0.4);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  pointer-events: auto;
+  animation: pulse-amber 2s ease-in-out infinite;
+}
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
 
 /* === Demo Badge === */
 .header-demo-badge {

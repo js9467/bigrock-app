@@ -3489,7 +3489,7 @@ def startup_scrape():
         part_key = f"{tournament}_participants"
         event_key = f"events_{tournament}"
         lb_key = f"leaderboard_{tournament}"
-        if not os.path.exists(participants_file) or not is_cache_fresh(cache, part_key, 1440):
+        if not os.path.exists(participants_file) or not is_cache_fresh(cache, part_key, 30):
             run_in_thread(scrape_participants, "participants")
         if not os.path.exists(events_file) or not is_cache_fresh(cache, event_key, 10):
             run_in_thread(lambda: scrape_events(tournament=tournament), "events")

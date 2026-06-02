@@ -32,12 +32,28 @@ document.addEventListener('DOMContentLoaded', () => {
       if (active) btn.classList.add('is-active');
     });
 
-    // Version
+    // Version + update badge
     fetch('/api/version')
       .then(r => r.json())
       .then(d => {
         const el = document.getElementById('nav-version');
         if (el && d.version) el.textContent = d.version;
+      })
+      .catch(() => {});
+    // Check for pending update and show amber badge that navigates to settings
+    fetch('/api/update/check')
+      .then(r => r.json())
+      .then(d => {
+        if (!d.update_available) return;
+        const el = document.getElementById('nav-version');
+        if (!el) return;
+        el.innerHTML = '&#8593; Update';
+        el.title = 'Update available — click to install';
+        el.classList.add('nav-version-update');
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+          window.location.href = '/settings-page';
+        });
       })
       .catch(() => {});
 

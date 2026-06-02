@@ -102,7 +102,9 @@ AUTOSTART_EOF
         log "v4: autostart rewritten and Chromium cache cleared."
         # Schedule a reboot so new Chromium flags take effect (1 minute from now)
         log "v4: Scheduling reboot in 1 minute to apply new Chromium flags..."
+        echo "4" > "$DEPLOYED_VERSION_FILE"
         shutdown -r +1 "BigRock v4 upgrade: rebooting to apply --disk-cache-size=1" || true
+        exit 0
         ;;
 
     5)
@@ -142,7 +144,9 @@ AUTOSTART_EOF
         # is not enough because the kiosk process caches fonts at launch.
         log "v8: Scheduling reboot in 1 minute to apply emoji font..."
         fc-cache -f 2>/dev/null || true
+        echo "8" > "$DEPLOYED_VERSION_FILE"
         shutdown -r +1 "BigRock v8: rebooting to apply emoji font" || true
+        exit 0
         ;;
 
     9)
@@ -171,7 +175,9 @@ chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-inf
 AUTOSTART_EOF
         chmod +x "$AUTOSTART"
         log "v9: autostart rewritten. Scheduling reboot to apply PulseAudio..."
+        echo "9" > "$DEPLOYED_VERSION_FILE"
         shutdown -r +1 "BigRock v9: rebooting to start PulseAudio for BT audio" || true
+        exit 0
         ;;
 
     10)
@@ -199,9 +205,9 @@ AUTOSTART_EOF
         ;;
     esac
 
+    # Save progress after each step so reboots mid-chain resume from the right step
+    echo "$V" > "$DEPLOYED_VERSION_FILE"
     log "--- Step $V complete ---"
 done
 
-# Write the new deployed version
-echo "$REPO" > "$DEPLOYED_VERSION_FILE"
 log "Upgrade complete. Deployed version is now $REPO."

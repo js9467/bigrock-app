@@ -63,10 +63,14 @@
       <!-- Event Volume -->
       <div>
         <label class="block font-semibold mb-1">Event Activity Volume</label>
-        <input type="range" min="0" max="100" v-model="settings.event_volume"
-               @change="() => { localStorage.setItem('event_volume', settings.event_volume); saveSettings(); }"
-               class="w-full">
-        <div class="text-center">{{ settings.event_volume }}%</div>
+        <div class="flex items-center gap-3">
+          <input type="range" min="0" max="100" v-model="settings.event_volume"
+                 @input="previewVolumeChange"
+                 @change="() => { localStorage.setItem('event_volume', settings.event_volume); saveSettings(); }"
+                 class="flex-1">
+          <span class="text-sm font-mono w-10 text-right">{{ settings.event_volume }}%</span>
+          <button @click="previewVolumeNow" class="text-lg leading-none" title="Test volume">🔊</button>
+        </div>
       </div>
 
       <!-- Sounds -->
@@ -102,6 +106,17 @@
       <!-- Email Alerts -->
       <div class="pt-6">
         <h2 class="text-xl font-semibold mb-2">📧 Email Alerts</h2>
+        <p class="text-sm text-gray-600 mb-3">Send an email when a new event is detected. Choose which events trigger an alert:</p>
+        <div class="flex flex-col gap-2 mb-4">
+          <label class="flex items-center gap-2">
+            <input type="checkbox" v-model="settings.alert_on_followed" @change="saveSettings">
+            <span>Followed boat activity <span class="text-xs text-gray-500">(any event for boats you follow)</span></span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" v-model="settings.alert_on_boated" @change="saveSettings">
+            <span>Any fish boated <span class="text-xs text-gray-500">(all boats)</span></span>
+          </label>
+        </div>
         <div v-for="(recipient, index) in recipients" :key="index" class="mb-3 border-b pb-3">
           <label class="block mb-1">Email Address:</label>
           <input type="email" v-model="recipient.email" placeholder="name@example.com"
@@ -112,9 +127,10 @@
             Remove
           </button>
         </div>
+        <div v-if="recipients.length === 0" class="text-sm text-gray-500 italic mb-3">No recipients added yet.</div>
         <button @click="addRecipient" class="bg-green-500 text-white px-3 py-1 rounded mr-2">+ Add Email</button>
-        <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save All</button>
-        <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test Alert</button>
+        <button @click="saveAlerts" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Save</button>
+        <button @click="sendTestAlert" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Send Test</button>
       </div>
 
       <!-- System Status Panel -->
@@ -350,6 +366,8 @@
           data_source: 'live',
           event_volume: 80,
           vhf_volume: 70,
+          alert_on_followed: true,
+          alert_on_boated: true,
           sounds_enabled: true,
           followed_sound: '',
           boated_sound: '',
@@ -452,6 +470,22 @@
       setBrandColor(t){ const color = this.tournaments[t]?.color || '#002855'; document.documentElement.style.setProperty('--brand-color', color); },
       updateTournamentLogo() { const t = this.settings.tournament; this.tournamentLogo = this.tournaments[t]?.logo || ''; this.setBrandColor(t); },
       previewSound(file) { if (!file) return; const a = new Audio(`/static/sounds/${file}`); a.volume = (this.settings.event_volume || 80) / 100; a.play().catch(() => {}); },
+      previewVolumeNow() {
+        const f = this.settings.followed_sound || this.settings.boated_sound;
+        if (f) { this.previewSound(f); return; }
+        // Play a short tone if no sound selected
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.frequency.value = 880; g.gain.value = (this.settings.event_volume || 80) / 100 * 0.4;
+          o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.15);
+          o.onended = () => ctx.close();
+        } catch(e) {}
+      },
+      previewVolumeChange() {
+        clearTimeout(this._volPreviewTimer);
+        this._volPreviewTimer = setTimeout(() => this.previewVolumeNow(), 180);
+      },
 
       applyUpdate() {
         this.showToast('⏳ Updating… app will restart in ~15 seconds.', 'info');

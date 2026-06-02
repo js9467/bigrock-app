@@ -2296,12 +2296,17 @@ def _route_all_audio_to_sink(sink_name: str, env: dict | None = None):
         safe_print(f"route_all_audio_to_sink error: {e}")
 
 def should_email(event):
+    settings = load_settings()
     etype = event.get("event", "").lower()
     uid = event.get("uid", "")
-    if "boated" in etype:
+    alert_on_boated = settings.get("alert_on_boated", True)
+    alert_on_followed = settings.get("alert_on_followed", True)
+    if alert_on_boated and "boated" in etype:
         return True
-    followed_boats = [normalize_boat_name(b) for b in load_settings().get("followed_boats", [])]
-    return uid in followed_boats
+    if alert_on_followed:
+        followed_boats = [normalize_boat_name(b) for b in settings.get("followed_boats", [])]
+        return uid in followed_boats
+    return False
 
 def process_new_event(event):
     global emailed_events
@@ -2477,6 +2482,8 @@ def api_settings():
     settings.setdefault("followed_sound",   "Fishing Reel")
     settings.setdefault("boated_sound",      "Fishing Reel")
     settings.setdefault("event_click_sound", False)
+    settings.setdefault("alert_on_followed", True)
+    settings.setdefault("alert_on_boated",   True)
     settings["sms_emails"] = load_alerts()
     return jsonify(settings)
 

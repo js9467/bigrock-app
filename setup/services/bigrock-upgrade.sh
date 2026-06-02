@@ -199,6 +199,47 @@ AUTOSTART_EOF
         log "v11: bigrock-update.service updated."
         ;;
 
+    12)
+        # Switch audio stack from PulseAudio to PipeWire + WirePlumber.
+        # Pi OS Bookworm uses PipeWire natively; it handles BT A2DP routing
+        # automatically via WirePlumber — no manual pactl/reconcile needed.
+        log "v12: Installing PipeWire + WirePlumber + Bluetooth SPA plugin..."
+        apt-get remove -y -qq pulseaudio pulseaudio-module-bluetooth 2>/dev/null || true
+        apt-get install -y -qq \
+            pipewire pipewire-pulse wireplumber \
+            libspa-0.2-bluetooth pipewire-audio-client-libraries \
+            && log "v12: PipeWire installed." \
+            || log "WARNING: PipeWire install failed — check internet."
+
+        log "v12: Rewriting autostart with PipeWire..."
+        AUTOSTART="/home/pi/.config/labwc/autostart"
+        mkdir -p /home/pi/.config/labwc
+        cat > "$AUTOSTART" << 'AUTOSTART_EOF'
+# Hide mouse cursor after 5s of inactivity
+unclutter -idle 5 -root &
+# Start PipeWire audio stack (handles BT A2DP routing automatically)
+pipewire &
+sleep 0.5
+wireplumber &
+sleep 0.5
+pipewire-pulse &
+sleep 1
+# Pre-start on-screen keyboard hidden so it holds its Wayland connection before
+# Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
+wvkbd-mobintl -L 220 --hidden &
+sleep 1
+# Launch app maximized (not --kiosk) so wvkbd layer-shell renders above it.
+# labwc rc.xml strips the title bar via windowRule below.
+chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --no-restore-last-session --disk-cache-size=1 --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
+AUTOSTART_EOF
+        chmod +x "$AUTOSTART"
+        chown pi:pi "$AUTOSTART"
+        log "v12: autostart rewritten. Scheduling reboot..."
+        echo "12" > "$DEPLOYED_VERSION_FILE"
+        shutdown -r +1 "BigRock v12: rebooting to start PipeWire for BT audio" || true
+        exit 0
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

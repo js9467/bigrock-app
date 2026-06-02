@@ -2388,53 +2388,58 @@ def test_alerts():
     if not recipients:
         return jsonify({"status": "no_subscribers"}), 404
     success = 0
-    for recipient in recipients:
-        try:
-            msg = MIMEMultipart("related")
-            msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
-            msg['To'] = recipient
-            msg['Subject'] = f"{boat_name} {action} at {action_time}"
-            msg_alt = MIMEMultipart("alternative")
-            msg.attach(msg_alt)
-            text_body = f"🚤 {boat_name} {action}!\nTime: {action_time}\n\nBigRock Live Alert"
-            msg_alt.attach(MIMEText(text_body, "plain"))
-            html_body = f"""
-            <html>
-            <body>
-                <p>🚤 <b>{boat_name}</b> {action}!<br>
-                Time: {action_time}</p>
-                <img src="cid:boat_image" style="max-width: 600px; height: auto;">
-            </body>
-            </html>
-            """
-            msg_alt.attach(MIMEText(html_body, "html"))
-            if os.path.exists(image_path):
+    errors = []
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            for recipient in recipients:
                 try:
-                    with Image.open(image_path) as img:
-                        img = ImageOps.exif_transpose(img)
-                        img.thumbnail((600, 600))
-                        img_bytes = io.BytesIO()
-                        if img.mode in ("RGBA", "LA", "P"):
-                            img = img.convert("RGB")
-                        img.save(img_bytes, format="JPEG", quality=70)
-                        img_bytes.seek(0)
-                        image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
-                        image.add_header("Content-ID", "<boat_image>")
-                        image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
-                        msg.attach(image)
+                    msg = MIMEMultipart("related")
+                    msg['From'] = formataddr(("BigRock Alerts", SMTP_USER))
+                    msg['To'] = recipient
+                    msg['Subject'] = f"{boat_name} {action} at {action_time}"
+                    msg_alt = MIMEMultipart("alternative")
+                    msg.attach(msg_alt)
+                    text_body = f"🚤 {boat_name} {action}!\nTime: {action_time}\n\nBigRock Live Alert"
+                    msg_alt.attach(MIMEText(text_body, "plain"))
+                    html_body = f"""<html><body>
+                        <p>🚤 <b>{boat_name}</b> {action}!<br>Time: {action_time}</p>
+                        <img src="cid:boat_image" style="max-width:600px;height:auto;">
+                    </body></html>"""
+                    msg_alt.attach(MIMEText(html_body, "html"))
+                    if os.path.exists(image_path):
+                        try:
+                            with Image.open(image_path) as img:
+                                img = ImageOps.exif_transpose(img)
+                                img.thumbnail((600, 600))
+                                img_bytes = io.BytesIO()
+                                if img.mode in ("RGBA", "LA", "P"):
+                                    img = img.convert("RGB")
+                                img.save(img_bytes, format="JPEG", quality=70)
+                                img_bytes.seek(0)
+                                image = MIMEImage(img_bytes.read(), name=os.path.basename(image_path))
+                                image.add_header("Content-ID", "<boat_image>")
+                                image.add_header("Content-Disposition", "inline", filename=os.path.basename(image_path))
+                                msg.attach(image)
+                        except Exception as img_e:
+                            print(f"⚠️ Could not attach image: {img_e}")
+                    server.sendmail(SMTP_USER, [recipient], msg.as_string())
+                    print(f"✅ Test email sent to {recipient}")
+                    success += 1
                 except Exception as e:
-                    print(f"⚠️ Could not resize/attach image: {e}")
-            else:
-                print(f"❌ Image not found at {image_path}")
-            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(SMTP_USER, [recipient], msg.as_string())
-            print(f"✅ Test email sent to {recipient} with Palmer Lou image inline")
-            success += 1
-        except Exception as e:
-            print(f"❌ Failed to send to {recipient}: {e}")
-    return jsonify({"status": "sent", "success_count": success})
+                    err = str(e)
+                    print(f"❌ Failed to send to {recipient}: {err}")
+                    errors.append(err)
+    except smtplib.SMTPAuthenticationError as e:
+        err = f"Gmail auth failed — App Password may be expired. Re-generate it at myaccount.google.com → Security → App Passwords. ({e.smtp_code}: {e.smtp_error.decode(errors='replace')})"
+        print(f"❌ SMTP auth: {err}")
+        return jsonify({"status": "error", "success_count": 0, "error": err}), 500
+    except Exception as e:
+        err = str(e)
+        print(f"❌ SMTP failed: {err}")
+        return jsonify({"status": "error", "success_count": 0, "error": err}), 500
+    return jsonify({"status": "sent", "success_count": success, "errors": errors})
 
 # ------------------------
 # Settings & UI pages

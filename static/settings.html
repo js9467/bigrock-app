@@ -461,8 +461,15 @@
       },
       sendTestAlert() {
         axios.get('/alerts/test').then(res => {
-          this.showToast(`✅ Test alert sent to ${res.data.success_count} recipients.`, 'success');
-        }).catch(() => this.showToast('❌ Failed to send test alert.', 'error'));
+          if (res.data.status === 'error') {
+            this.showToast(`❌ ${res.data.error}`, 'error');
+          } else {
+            this.showToast(`✅ Test alert sent to ${res.data.success_count} recipient(s).`, 'success');
+          }
+        }).catch(err => {
+          const msg = err.response?.data?.error || 'Failed to send test alert.';
+          this.showToast(`❌ ${msg}`, 'error');
+        });
       },
         onFollowedSoundChange() { const f = this.settings.followed_sound; if (f) this.previewSound(f); this.saveSettings(); },
         onBoatedSoundChange()   { const f = this.settings.boated_sound;   if (f) this.previewSound(f); this.saveSettings(); },

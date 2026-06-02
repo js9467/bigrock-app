@@ -264,6 +264,40 @@ AUTOSTART_EOF
         log "v14: bigrock-update.service updated."
         ;;
 
+    15)
+        # Fix silent audio failure introduced in v12.
+        # v12 rewrote autostart to manually start pipewire, wireplumber, and
+        # pipewire-pulse as background processes. On Bookworm, systemd user services
+        # also manage these via socket activation — the two instances compete for the
+        # same sockets, leaving Chromium with no audio sink (no BT, no HDMI).
+        # Fix: remove manual starts from autostart; let systemd own the lifecycle.
+        log "v15: Rewriting autostart to remove conflicting PipeWire manual starts..."
+        AUTOSTART="/home/pi/.config/labwc/autostart"
+        mkdir -p /home/pi/.config/labwc
+        cat > "$AUTOSTART" << 'AUTOSTART_EOF'
+# Hide mouse cursor after 5s of inactivity
+unclutter -idle 5 -root &
+# PipeWire (pipewire, wireplumber, pipewire-pulse) is managed by systemd user
+# services via socket activation on Bookworm — do NOT start them here.
+# Starting them manually creates duplicate instances that fight over the sockets,
+# leaving Chromium with no audio sink. Give systemd 2s to activate them.
+sleep 2
+# Pre-start on-screen keyboard hidden so it holds its Wayland connection before
+# Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
+wvkbd-mobintl -L 220 --hidden &
+sleep 1
+# Launch app maximized (not --kiosk) so wvkbd layer-shell renders above it.
+# labwc rc.xml strips the title bar via windowRule below.
+chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --no-restore-last-session --disk-cache-size=1 --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
+AUTOSTART_EOF
+        chmod +x "$AUTOSTART"
+        chown pi:pi "$AUTOSTART"
+        log "v15: autostart rewritten. Scheduling reboot to apply..."
+        echo "15" > "$DEPLOYED_VERSION_FILE"
+        shutdown -r +1 "BigRock v15: rebooting to apply audio fix (remove duplicate PipeWire)" || true
+        exit 0
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

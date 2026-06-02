@@ -145,6 +145,35 @@ AUTOSTART_EOF
         shutdown -r +1 "BigRock v8: rebooting to apply emoji font" || true
         ;;
 
+    9)
+        # Install PulseAudio + Bluetooth module and rewrite labwc autostart so
+        # PulseAudio starts before Chromium. Required for BT speaker audio routing.
+        log "v9: Installing pulseaudio pulseaudio-module-bluetooth..."
+        apt-get install -y -qq pulseaudio pulseaudio-module-bluetooth \
+            && log "v9: PulseAudio installed." \
+            || log "WARNING: pulseaudio install failed — check internet."
+        log "v9: Rewriting labwc autostart with PulseAudio startup..."
+        AUTOSTART="/home/pi/.config/labwc/autostart"
+        mkdir -p /home/pi/.config/labwc
+        cat > "$AUTOSTART" << 'AUTOSTART_EOF'
+# Hide mouse cursor after 5s of inactivity
+unclutter -idle 5 -root &
+# Start PulseAudio (with Bluetooth module) before Chromium opens audio device
+pulseaudio --start --log-target=syslog &
+sleep 1
+# Pre-start on-screen keyboard hidden so it holds its Wayland connection before
+# Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
+wvkbd-mobintl -L 220 --hidden &
+sleep 1
+# Launch app maximized (not --kiosk) so wvkbd layer-shell renders above it.
+# labwc rc.xml strips the title bar via windowRule below.
+chromium --start-maximized --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --no-restore-last-session --disk-cache-size=1 --disable-features=WebBluetooth --disable-notifications --app=http://localhost:5000 &
+AUTOSTART_EOF
+        chmod +x "$AUTOSTART"
+        log "v9: autostart rewritten. Scheduling reboot to apply PulseAudio..."
+        shutdown -r +1 "BigRock v9: rebooting to start PulseAudio for BT audio" || true
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

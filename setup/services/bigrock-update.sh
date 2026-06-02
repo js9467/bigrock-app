@@ -88,20 +88,16 @@ REPO=$(cat "$APP_DIR/setup/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "0")
 
 if [ "$DEPLOYED" -lt "$REPO" ]; then
     log "Version upgrade required: $DEPLOYED -> $REPO. Running upgrade script..."
-    chmod +x "$APP_DIR/setup/services/bigrock-upgrade.sh"
+    chmod +x "$APP_DIR/setup/services/bigrock-upgrade.sh" 2>/dev/null || true
     sudo bash "$APP_DIR/setup/services/bigrock-upgrade.sh"
     # upgrade.sh writes the new version to $DEPLOYED_VERSION_FILE
 fi
 
 # ---------------------------------------------------------------------------
-# 3b. Playwright browser (always — install is a no-op if already present)
+# 3b. Playwright browser (skip — Playwright Node binary requires newer CPU
+#     instructions than may be available on v1 hardware; scraper uses
+#     system Chromium as fallback instead)
 # ---------------------------------------------------------------------------
-if ! ./venv/bin/python3 -c 'from playwright.sync_api import sync_playwright; sync_playwright().__enter__().chromium.executable_path' &>/dev/null; then
-    log "Playwright browser missing — installing..."
-    su -c "cd '$APP_DIR' && ./venv/bin/python3 -m playwright install chromium" pi \
-        && log "Playwright browser installed." \
-        || log "WARNING: playwright install failed — will retry next cycle."
-fi
 
 # ---------------------------------------------------------------------------
 # 4. Restart app if any Python or template files changed

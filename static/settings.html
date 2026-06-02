@@ -534,14 +534,30 @@
         });
       },
       connectBluetooth(mac) {
-        axios.post('/bluetooth/connect', { mac }).then(() => {
-          this.showToast('Connecting to device...', 'success');
+        this.showToast('Connecting… (may take a few seconds)', 'info');
+        axios.post('/bluetooth/connect', { mac }).then(res => {
+          const d = res.data || {};
+          if (d.connected || d.status === 'ok') {
+            const name = d.device?.name || mac;
+            const routed = d.routing?.routed_to;
+            const routeMsg = routed === 'bluetooth' ? ' Audio routed to BT.' : (routed ? ` Audio on ${routed}.` : '');
+            this.showToast(`Connected to ${name}.${routeMsg}`, 'success');
+          } else {
+            this.showToast('Connected but audio routing failed — try Rescan.', 'error');
+          }
           this.refreshBtStatus();
-          this.scanBluetooth();
-          setTimeout(() => { this.bluetoothPopup = false; this.refreshBtStatus(); }, 1200);
+          setTimeout(() => { this.bluetoothPopup = false; this.refreshBtStatus(); }, 1500);
         }).catch(err => {
-          const msg = err?.response?.data?.message || 'Failed to connect.';
-          this.showToast(`❌ ${msg}`, 'error');
+          // axios throws on 4xx/5xx; check if the body says connected anyway
+          const d = err?.response?.data || {};
+          if (d.connected) {
+            this.showToast(`Connected (audio routing pending)`, 'success');
+            this.refreshBtStatus();
+            setTimeout(() => { this.bluetoothPopup = false; this.refreshBtStatus(); }, 1500);
+          } else {
+            const msg = d.message || 'Failed to connect.';
+            this.showToast(`❌ ${msg}`, 'error');
+          }
         });
       },
       disconnectBluetooth(mac) {

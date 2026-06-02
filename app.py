@@ -2755,22 +2755,37 @@ def bluetooth_connect():
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
 
     try:
-        # Connect (pair if needed)
-        rc1 = subprocess.run(['bluetoothctl', 'connect', mac], text=True, capture_output=True)
-        if rc1.returncode != 0:
-            subprocess.run(['bluetoothctl', 'pair', mac], text=True, capture_output=True, check=False)
-            rc2 = subprocess.run(['bluetoothctl', 'connect', mac], text=True, capture_output=True)
-            if rc2.returncode != 0:
-                return jsonify({"status": "error", "message": (rc2.stdout + rc2.stderr).strip()}), 500
+        def _bt_connect(m):
+            """Run bluetoothctl connect; return True if successful (stdout or exit code)."""
+            r = subprocess.run(['bluetoothctl', 'connect', m], text=True, capture_output=True, timeout=15)
+            output = (r.stdout + r.stderr).lower()
+            return r.returncode == 0 or 'connection successful' in output or 'already connected' in output
 
-        # Give bluez time to publish sinks, then ensure A2DP
-        time.sleep(1.5)
+        # First attempt; if it fails, try pair then connect
+        if not _bt_connect(mac):
+            subprocess.run(['bluetoothctl', 'pair', mac], text=True, capture_output=True, check=False, timeout=20)
+            if not _bt_connect(mac):
+                # Final check: maybe it connected anyway
+                info_chk = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='replace', timeout=5)
+                if 'Connected: yes' not in info_chk:
+                    return jsonify({"status": "error", "message": "Could not connect to device"}), 500
+
+        # Wait for A2DP sink to appear in PulseAudio (up to 6s with retries)
         _ensure_bt_profile_a2dp()
-        time.sleep(0.5)
+        routing = None
+        for attempt in range(4):
+            time.sleep(1.5)
+            _ensure_bt_profile_a2dp()
+            sinks = _list_sinks()
+            bt_sink = _pick_bt_sink(sinks)
+            if bt_sink:
+                routing = _reconcile_audio_route(verbose=True)
+                break
+        if not routing:
+            # BT sink never appeared — still reconcile (routes to HDMI) so state is clean
+            routing = _reconcile_audio_route(verbose=True)
 
-        routing = _reconcile_audio_route(verbose=True)
-
-        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='replace')
+        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='replace', timeout=5)
         connected = 'Connected: yes' in info
         paired = 'Paired: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
@@ -2781,7 +2796,7 @@ def bluetooth_connect():
             "connected": connected, "paired": paired,
             "device": {"mac": mac, "name": name},
             "routing": routing
-        }), 200 if connected else 500
+        }), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

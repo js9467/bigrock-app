@@ -112,24 +112,14 @@ AUTOSTART_EOF
         ;;
 
     5)
-        # Install Playwright's bundled Chromium headless shell so the scraper can
-        # render JavaScript-heavy pages (e.g. reeltime.app). Without this, scrapes
-        # fall back to plain HTTP and only get raw nav/DOM text.
-        log "v5: Installing Playwright Chromium headless shell..."
-        PLAYWRIGHT_BROWSERS_PATH="/home/pi/.cache/ms-playwright"
-        export PLAYWRIGHT_BROWSERS_PATH
-        su -c "/home/pi/bigrock-app/venv/bin/python3 -m playwright install chromium" pi \
-            && log "v5: Playwright Chromium installed." \
-            || log "WARNING: playwright install failed — will retry next update cycle."
+        # Playwright install skipped — bundled Node binary requires ARMv8.2+ instructions
+        # not available on all hardware. Scraper uses system Chromium as fallback.
+        log "v5: Playwright install skipped (not supported on this hardware)."
         ;;
 
     6)
-        # Retry Playwright Chromium install. v5 may have failed silently if there was no
-        # internet at upgrade time. This step retries unconditionally.
-        log "v6: Retrying Playwright Chromium install..."
-        su -c "/home/pi/bigrock-app/venv/bin/python3 -m playwright install chromium" pi \
-            && log "v6: Playwright Chromium installed successfully." \
-            || { log "WARNING: playwright install failed again. Check internet and retry by bumping VERSION."; true; }
+        # Playwright install skipped — see v5.
+        log "v6: Playwright install skipped (not supported on this hardware)."
         ;;
 
     7)
@@ -185,12 +175,8 @@ AUTOSTART_EOF
         ;;
 
     10)
-        # Retry Playwright Chromium install. On devices upgrading from v1 in a single
-        # pass, v5/v6 ran before network was fully ready. This step retries unconditionally.
-        log "v10: Retrying Playwright Chromium install..."
-        su -c "/home/pi/bigrock-app/venv/bin/python3 -m playwright install chromium" pi \
-            && log "v10: Playwright Chromium installed successfully." \
-            || { log "WARNING: playwright install failed. Will retry next cycle."; true; }
+        # Playwright install skipped — see v5.
+        log "v10: Playwright install skipped (not supported on this hardware)."
         ;;
 
     11)

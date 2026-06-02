@@ -20,6 +20,15 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
 cd "$APP_DIR"
 
 # ---------------------------------------------------------------------------
+# 0. Fix ownership/permissions in case a previous sudo git left files as root
+# ---------------------------------------------------------------------------
+if [ "$(stat -c '%U' "$APP_DIR/setup/services/bigrock-update.sh" 2>/dev/null)" != "pi" ]; then
+    chown -R pi:pi "$APP_DIR" 2>/dev/null || true
+fi
+chmod +x "$APP_DIR/setup/services/bigrock-update.sh" "$APP_DIR/setup/services/bigrock-upgrade.sh" 2>/dev/null || true
+chown pi:pi "$LOG" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
 # 1. Fetch latest code
 # ---------------------------------------------------------------------------
 PREV=$(git rev-parse HEAD 2>/dev/null || echo "UNKNOWN")

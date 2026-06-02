@@ -189,6 +189,16 @@ AUTOSTART_EOF
             || { log "WARNING: playwright install failed. Will retry next cycle."; true; }
         ;;
 
+    11)
+        # Redeploy bigrock-update.service with ExecStartPre chmod lines.
+        # This makes the service self-healing against git stripping the execute bit,
+        # so it can NEVER get stuck in Permission denied again.
+        log "v11: Redeploying bigrock-update.service with ExecStartPre chmod fix..."
+        cp "$APP_DIR/setup/services/bigrock-update.service" /etc/systemd/system/bigrock-update.service
+        systemctl daemon-reload
+        log "v11: bigrock-update.service updated."
+        ;;
+
     # ---------------------------------------------------------------------------
     #
     # 2)

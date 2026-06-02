@@ -151,57 +151,75 @@ def _is_nextjs_spa(html: str) -> bool:
 def _fetch_html_playwright(url: str) -> str:
     """Render a page with headless Chromium (bypasses JS bot challenges).
 
-    Runs Playwright in a subprocess to avoid threading conflicts with Flask's
-    worker threads. sync_playwright uses its own event loop which crashes when
-    called from non-main threads (manifests as 'Target page, context or browser
-    has been closed').
-
-    Forces use of the full Chrome binary (chromium-*/chrome-linux/chrome) rather
-    than the headless_shell variant, which crashes with SIGSEGV on some ARM64 Pis.
+    Tries Playwright first (if its bundled browser is installed).
+    Falls back to system `chromium --headless` if Playwright's Node binary
+    is unavailable or crashes (e.g. SIGILL on older ARM64 hardware).
     """
-    import subprocess, sys, glob, os
-    print(f"🌐 Playwright fetch: {url}")
+    import subprocess, sys, glob, os, shutil
+    print(f"🌐 Headless fetch: {url}")
 
-    # Prefer the full Chrome binary over headless_shell — headless_shell segfaults
-    # on some ARM64 configurations (Raspberry Pi). The full chrome binary supports
-    # headless mode via --headless flag and is more stable.
+    # --- Option 1: Playwright bundled Chromium ---
     ms_playwright_dir = os.path.expanduser('~/.cache/ms-playwright')
     chrome_candidates = sorted(glob.glob(os.path.join(ms_playwright_dir, 'chromium-*/chrome-linux/chrome')))
     exec_path = chrome_candidates[0] if chrome_candidates else None
 
-    exec_line = f"exec_path={repr(exec_path)}\n" if exec_path else "exec_path=None\n"
-    script = (
-        "from playwright.sync_api import sync_playwright\n"
-        "import sys\n"
-        + exec_line +
-        "kw = dict(headless=True, args=['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-setuid-sandbox'])\n"
-        "if exec_path: kw['executable_path'] = exec_path\n"
-        "with sync_playwright() as p:\n"
-        "    b = p.chromium.launch(**kw)\n"
-        "    pg = b.new_page()\n"
-        "    pg.goto(sys.argv[1], wait_until='networkidle', timeout=45000)\n"
-        "    sys.stdout.write(pg.content())\n"
-        "    b.close()\n"
-    )
-    try:
-        result = subprocess.run(
-            [sys.executable, '-c', script, url],
-            capture_output=True, text=True, timeout=60
+    if exec_path:
+        exec_line = f"exec_path={repr(exec_path)}\n"
+        script = (
+            "from playwright.sync_api import sync_playwright\n"
+            "import sys\n"
+            + exec_line +
+            "kw = dict(headless=True, args=['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-setuid-sandbox'])\n"
+            "if exec_path: kw['executable_path'] = exec_path\n"
+            "with sync_playwright() as p:\n"
+            "    b = p.chromium.launch(**kw)\n"
+            "    pg = b.new_page()\n"
+            "    pg.goto(sys.argv[1], wait_until='networkidle', timeout=45000)\n"
+            "    sys.stdout.write(pg.content())\n"
+            "    b.close()\n"
         )
-        if result.returncode != 0:
-            print(f"⚠️ Playwright subprocess error for {url}: {result.stderr.strip()[:300]}")
-            return ""
-        html = result.stdout
-        return html if html and not _is_bot_challenge(html) else ""
-    except subprocess.TimeoutExpired:
-        print(f"⚠️ Playwright fetch timed out for {url}")
-        return ""
-    except FileNotFoundError:
-        print("⚠️ playwright not installed — run: pip3 install playwright")
-        return ""
-    except Exception as e:
-        print(f"⚠️ Playwright fetch error for {url}: {e}")
-        return ""
+        try:
+            result = subprocess.run(
+                [sys.executable, '-c', script, url],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode == 0:
+                html = result.stdout
+                if html and not _is_bot_challenge(html):
+                    return html
+            else:
+                print(f"⚠️ Playwright subprocess error: {result.stderr.strip()[:200]}")
+        except subprocess.TimeoutExpired:
+            print(f"⚠️ Playwright fetch timed out for {url}")
+        except Exception as e:
+            print(f"⚠️ Playwright fetch error: {e}")
+
+    # --- Option 2: System chromium --headless (works on hardware where Playwright Node crashes) ---
+    system_chromium = shutil.which('chromium') or shutil.which('chromium-browser')
+    if system_chromium:
+        print(f"🌐 Falling back to system chromium headless for {url}")
+        try:
+            result = subprocess.run(
+                [
+                    system_chromium,
+                    '--headless=old', '--no-sandbox', '--disable-gpu',
+                    '--disable-dev-shm-usage', '--disable-setuid-sandbox',
+                    '--dump-dom', '--virtual-time-budget=8000',
+                    url
+                ],
+                capture_output=True, text=True, timeout=30
+            )
+            html = result.stdout
+            if html and not _is_bot_challenge(html):
+                return html
+            print(f"⚠️ System chromium headless returned empty/challenge for {url}")
+        except subprocess.TimeoutExpired:
+            print(f"⚠️ System chromium headless timed out for {url}")
+        except Exception as e:
+            print(f"⚠️ System chromium headless error: {e}")
+
+    print(f"⚠️ All headless fetch methods failed for {url}")
+    return ""
 
 
 def fetch_html(url, use_scraperapi: bool = False) -> str:
@@ -3275,12 +3293,15 @@ def api_system_status():
     else:
         checks.append({'name': 'Python deps', 'ok': False})
 
-    # 3. Playwright Chromium browser binary
+    # 3. Headless browser available (Playwright bundle OR system chromium)
+    import shutil as _shutil
     playwright_ok = (
         os.path.isdir(playwright_marker) and
         any(True for _ in os.scandir(playwright_marker))
     )
-    checks.append({'name': 'Playwright browser', 'ok': playwright_ok})
+    system_chromium_ok = bool(_shutil.which('chromium') or _shutil.which('chromium-browser'))
+    headless_ok = playwright_ok or system_chromium_ok
+    checks.append({'name': 'Headless browser', 'ok': headless_ok})
 
     # 4. Cache directory writable
     cache_dir = '/home/pi/bigrock-app/cache'

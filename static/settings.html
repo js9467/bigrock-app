@@ -302,7 +302,11 @@
     <div v-if="bluetoothPopup" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white p-4 rounded shadow w-11/12 md:w-1/2 max-h-[80vh] overflow-y-auto">
         <h3 class="text-lg font-bold mb-2">Bluetooth Devices (Audio-capable)</h3>
-        <div v-if="bluetoothDevices.length === 0" class="text-gray-500 mb-2">No devices found.</div>
+        <div v-if="btScanning" class="flex items-center gap-2 text-gray-500 mb-2">
+          <svg class="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+          Scanning… (up to 12s)
+        </div>
+        <div v-else-if="bluetoothDevices.length === 0" class="text-gray-500 mb-2">No devices found.</div>
         <ul>
           <li v-for="dev in bluetoothDevices" :key="dev.mac" class="flex items-center justify-between py-2 border-b">
             <div class="min-w-0">
@@ -320,7 +324,7 @@
           </li>
         </ul>
         <div class="mt-4 flex justify-end gap-2">
-          <button @click="scanBluetooth" class="px-3 py-1 bg-blue-500 text-white rounded">Rescan</button>
+          <button @click="scanBluetooth" :disabled="btScanning" class="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50">{{ btScanning ? 'Scanning…' : 'Rescan' }}</button>
           <button @click="bluetoothPopup=false" class="px-3 py-1 bg-gray-300 rounded">Close</button>
         </div>
       </div>
@@ -356,6 +360,7 @@
         wifiNetworks: [],
         wifiStatus: { connected: null },   // NEW: mirrors Bluetooth-style status
         bluetoothDevices: [],
+        btScanning: false,
         wifiPopup: false,
         wifiPasswordModal: { show: false, ssid: '', password: '' },
         bluetoothPopup: false,
@@ -518,8 +523,14 @@
         axios.get('/bluetooth/status').then(res => { this.btStatus = res.data || {}; });
       },
       scanBluetooth() {
+        this.btScanning = true;
+        this.bluetoothDevices = [];
         axios.get('/bluetooth/scan').then(res => {
           this.bluetoothDevices = (res.data.devices || []);
+        }).catch(() => {
+          this.showToast('Bluetooth scan failed', 'error');
+        }).finally(() => {
+          this.btScanning = false;
         });
       },
       connectBluetooth(mac) {

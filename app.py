@@ -2661,16 +2661,16 @@ def bluetooth_scan():
     try:
         safe_print("🔍 Starting Bluetooth scan (12s)…")
 
-        subprocess.check_output(
+        # Run scan; ignore non-zero exit (bluetoothctl returns 1 on timeout which is normal)
+        subprocess.run(
             ['bluetoothctl', '--timeout', '12', 'scan', 'on'],
-            text=True, encoding='utf-8', errors='replace', stderr=subprocess.STDOUT
+            text=True, encoding='utf-8', errors='replace',
+            stderr=subprocess.STDOUT, timeout=20
         )
-        # Ensure off
-        try:
-            subprocess.check_output(['bluetoothctl', 'scan', 'off'],
-                                    text=True, encoding='utf-8', errors='replace')
-        except Exception:
-            pass
+        # Best-effort scan off
+        subprocess.run(['bluetoothctl', 'scan', 'off'],
+                       text=True, encoding='utf-8', errors='replace',
+                       timeout=5)
 
         devices_raw = subprocess.check_output(
             ['bluetoothctl', 'devices'],
@@ -2687,7 +2687,7 @@ def bluetooth_scan():
                     name = safe_str(parts[2])
                     discovered[mac] = {"mac": mac, "name": name}
 
-        # Keep only audio-capable (A2DP/Headset/Handsfree/AVRCP)
+        # Audio UUID markers — used to confirm audio capability, but NOT to exclude unknown devices
         AUDIO_UUID_SUBSTRS = (
             '0000110b',  # Audio Sink (A2DP)
             '0000110e',  # A/V Remote Control (AVRCP)
@@ -2702,7 +2702,8 @@ def bluetooth_scan():
             try:
                 info = subprocess.check_output(
                     ['bluetoothctl', 'info', mac],
-                    text=True, encoding='utf-8', errors='replace'
+                    text=True, encoding='utf-8', errors='replace',
+                    timeout=5
                 )
                 paired    = 'Paired: yes' in info
                 connected = 'Connected: yes' in info
@@ -2713,11 +2714,13 @@ def bluetooth_scan():
                     if t.startswith('UUID:'):
                         uuids.append(safe_str(t[5:].strip()))
 
-                # Filter: keep if any audio UUID keyword present
+                # Include if audio UUIDs are found OR if no UUIDs are available yet
+                # (unpaired devices don't expose UUIDs until after pairing)
                 blob = info.lower()
                 is_audio = any(k.lower() in blob for k in AUDIO_UUID_SUBSTRS) or any(k.lower() in ' '.join(uuids).lower() for k in AUDIO_UUID_SUBSTRS)
-                if not is_audio:
-                    continue
+                no_uuid_info = len(uuids) == 0
+                if not is_audio and not no_uuid_info:
+                    continue  # Definitely not audio (has UUIDs but none are audio)
 
                 base.update({
                     "paired": paired,
@@ -2726,7 +2729,10 @@ def bluetooth_scan():
                 })
                 results.append(base)
             except Exception as e_info:
+                # If we can't get info, include the device anyway — user can try to connect
                 safe_print(f"info({mac}) failed: {e_info}")
+                base.update({"paired": False, "connected": False, "uuids": []})
+                results.append(base)
 
         # Sort: connected first, then paired, then by name
         results.sort(key=lambda d: (not d.get("connected", False),

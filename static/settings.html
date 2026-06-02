@@ -138,11 +138,14 @@
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-xl font-semibold">🖥️ System Status</h2>
           <div class="flex gap-2 items-center">
-            <span class="text-xs text-gray-400 font-mono" v-if="systemStatus">v{{ systemStatus.deployed_version }} · {{ systemStatus.git_commit }}</span>
+            <span class="font-mono text-xs transition-colors" v-if="systemStatus"
+                  :class="hasUpdateAvailable ? 'text-amber-400 font-semibold' : 'text-gray-400'">
+              v{{ systemStatus.deployed_version }} · {{ systemStatus.git_commit }}<span v-if="systemStatus.repo_version > systemStatus.deployed_version" class="text-green-400 ml-1">→ v{{ systemStatus.repo_version }}</span>
+            </span>
             <button v-if="!updateApplying && hasUpdateAvailable"
                     @click="applyUpdate"
                     class="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 font-semibold">
-              ↑ Update
+              ↑ <span v-if="systemStatus?.repo_version > systemStatus?.deployed_version">v{{ systemStatus.repo_version }}</span><span v-else>Update</span>
             </button>
             <button @click="statusLogOpen = !statusLogOpen" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">
               {{ statusLogOpen ? 'Hide Log' : 'Log' }}
@@ -192,7 +195,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
           </svg>
-          <span class="font-bold text-blue-300 text-sm tracking-wide">Updating — do not power off</span>
+          <span class="font-bold text-blue-300 text-sm tracking-wide">Updating<template v-if="_updateToVersion > _updateFromVersion"> <span class="font-mono text-yellow-300">v{{ _updateFromVersion }} → v{{ _updateToVersion }}</span></template> — do not power off</span>
         </div>
         <!-- Stage pills -->
         <div class="flex items-center gap-2 mb-3 flex-wrap">
@@ -409,7 +412,10 @@
         statusLogOpen: false,
         _statusPollTimer: null,
         _updateLogAnchor: null,
-        _updateStartedAt: 0
+        _updateStartedAt: 0,
+        _updateFromVersion: null,
+        _updateToVersion: null,
+        _postUpdateCheck: false
       };
     },
     computed: {
@@ -548,6 +554,8 @@
         const lines = this.systemStatus?.log_lines || [];
         this._updateLogAnchor = lines.length > 0 ? lines[lines.length - 1] : null;
         this._updateStartedAt = Date.now();
+        this._updateFromVersion = this.systemStatus?.deployed_version ?? null;
+        this._updateToVersion = this.systemStatus?.repo_version ?? null;
         this.updateApplying = true;
         axios.post('/api/update/apply').catch(() => {});
         clearTimeout(this._statusPollTimer);
@@ -704,11 +712,24 @@
             );
             if (done) {
               this.updateApplying = false;
-              this.updateInfo = null;
-              this.showToast('✅ Update complete!', 'success');
+              this._postUpdateCheck = true;
+              const toV = this._updateToVersion;
+              this.showToast(toV ? `✅ Updated to v${toV}!` : '✅ Update complete!', 'success');
+              // Re-check whether any further update is now available
+              axios.get('/api/update/check').then(r => {
+                this.updateInfo = r.data.update_available ? r.data : null;
+              }).catch(() => { this.updateInfo = null; });
             }
           }
-          const interval = (this.updateApplying || res.data.upgrading) ? 2000 : 30000;
+          let interval;
+          if (this.updateApplying || res.data.upgrading) {
+            interval = 2000;
+          } else if (this._postUpdateCheck) {
+            interval = 2000; // one fast follow-up to refresh deployed_version display
+            this._postUpdateCheck = false;
+          } else {
+            interval = 30000;
+          }
           this._statusPollTimer = setTimeout(() => this.fetchSystemStatus(), interval);
         }).catch(() => {
           // App may be restarting — retry faster when update in progress

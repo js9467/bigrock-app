@@ -46,7 +46,8 @@ $SUDO apt-get install -y \
     network-manager \
     labwc wlr-randr \
     wvkbd \
-    fonts-noto-color-emoji
+    fonts-noto-color-emoji \
+    pulseaudio pulseaudio-module-bluetooth
 
 # ---------------------------------------------------------------------------
 # 2. Clone or update the repo
@@ -149,6 +150,9 @@ mkdir -p /home/pi/.config/labwc
 cat << 'EOF' > /home/pi/.config/labwc/autostart
 # Hide mouse cursor after 5s of inactivity
 unclutter -idle 5 -root &
+# Start PulseAudio (with Bluetooth module) before Chromium opens audio device
+pulseaudio --start --log-target=syslog &
+sleep 1
 # Pre-start on-screen keyboard hidden so it holds its Wayland connection before
 # Chromium kiosk takes exclusive compositor access. Show/hide via SIGUSR2/SIGUSR1.
 wvkbd-mobintl -L 220 --hidden &

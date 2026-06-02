@@ -526,10 +526,17 @@
       },
 
       applyUpdate() {
+        // Snapshot the last log line so we can detect only NEW lines after update starts.
+        // Without this, the completion check immediately finds "No changes" from the
+        // previous hourly run and clears the panel before the service even launches.
+        const lines = this.systemStatus?.log_lines || [];
+        this._updateLogMarker = lines.length > 0 ? lines[lines.length - 1] : null;
+        this._updateStartedAt = Date.now();
         this.updateApplying = true;
         axios.post('/api/update/apply').catch(() => {});
         clearTimeout(this._statusPollTimer);
-        this.fetchSystemStatus();
+        // Give the service 4s to start before first poll
+        this._statusPollTimer = setTimeout(() => this.fetchSystemStatus(), 4000);
       },
 
       runUpgrade() { this.applyUpdate(); },
@@ -668,12 +675,26 @@
               if (el) el.scrollTop = el.scrollHeight;
             });
           }
-          // Detect completion when user triggered the update
+          // Detect completion — only look at log lines that appeared AFTER the update
+          // was triggered. Avoids false positive from old "No changes" / "Update complete"
+          // lines that were already in the log when the button was clicked.
           if (this.updateApplying) {
-            const tail = (res.data.log_lines || []).slice(-10).join('\n');
-            const done = tail.includes('Update complete') ||
-                         tail.includes('Already up to date') ||
-                         tail.includes('No changes');
+            const elapsed = Date.now() - (this._updateStartedAt || 0);
+            const lines = res.data.log_lines || [];
+            const marker = this._updateLogMarker;
+            let newStart = 0;
+            if (marker) {
+              const idx = lines.lastIndexOf(marker);
+              newStart = idx >= 0 ? idx + 1 : 0;
+            }
+            const newLines = lines.slice(newStart);
+            const tail = newLines.join('\n');
+            // Require: ≥5s elapsed, at least one new log line, AND completion marker
+            const done = elapsed >= 5000 && newLines.length > 0 && (
+              tail.includes('Update complete') ||
+              tail.includes('Already up to date') ||
+              tail.includes('No changes')
+            );
             if (done) {
               this.updateApplying = false;
               this.updateInfo = null;

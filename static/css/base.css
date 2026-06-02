@@ -1204,3 +1204,80 @@ textarea::placeholder {
 @media (display-mode: standalone) {
   .ath-banner { display: none !important; }
 }
+
+/* ==========================================
+   Upgrade Status Overlay
+   ========================================== */
+.upgrade-overlay {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  pointer-events: none;
+}
+.upgrade-overlay--active .upgrade-box {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(246, 197, 83, 0.5);
+  box-shadow: 0 0 0 1px rgba(246,197,83,0.15), 0 4px 24px rgba(0,0,0,0.6);
+}
+.upgrade-overlay--pending .upgrade-box {
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(100, 116, 139, 0.4);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.upgrade-box {
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  min-width: 160px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  backdrop-filter: blur(8px);
+}
+.upgrade-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.upgrade-overlay--active .upgrade-icon {
+  animation: upgrade-spin 2s linear infinite;
+  display: inline-block;
+}
+@keyframes upgrade-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.upgrade-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f6c553;
+  letter-spacing: 0.02em;
+}
+.upgrade-overlay--pending .upgrade-title {
+  color: #94a3b8;
+}
+.upgrade-versions {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
+.upgrade-step {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.upgrade-hint {
+  font-size: 0.65rem;
+  color: #64748b;
+  margin-top: 0.1rem;
+}
+.upgrade-fade-enter-active, .upgrade-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.upgrade-fade-enter-from, .upgrade-fade-leave-to {
+  opacity: 0;
+}

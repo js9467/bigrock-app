@@ -272,6 +272,24 @@
   </main>
 
   <audio id="radio-player" hidden></audio>
+
+  <!-- ===== UPGRADE STATUS OVERLAY ===== -->
+  <transition name="upgrade-fade">
+    <div v-if="upgradeStatus && upgradeStatus.pending"
+         class="upgrade-overlay"
+         :class="upgradeStatus.upgrading ? 'upgrade-overlay--active' : 'upgrade-overlay--pending'">
+      <div class="upgrade-box">
+        <div class="upgrade-icon" v-if="upgradeStatus.upgrading">&#9881;</div>
+        <div class="upgrade-icon" v-else>&#8987;</div>
+        <div class="upgrade-title">
+          {{ upgradeStatus.upgrading ? 'Upgrading…' : 'Upgrade Pending' }}
+        </div>
+        <div class="upgrade-versions">v{{ upgradeStatus.deployed }} &rarr; v{{ upgradeStatus.repo }}</div>
+        <div v-if="upgradeStatus.step" class="upgrade-step">{{ upgradeStatus.step }}</div>
+        <div class="upgrade-hint" v-if="!upgradeStatus.upgrading">Will run in next update cycle</div>
+      </div>
+    </div>
+  </transition>
 </div>
 
 <script>
@@ -287,6 +305,7 @@ const vm = createApp({
   data() {
     return {
       events: [], hooked: [], weighed: [], boatImages: {},
+      upgradeStatus: null, _upgradePollTimer: null,
       mobileTab: 'events',
       eventFilter: null,
       filterOpen: false,
@@ -311,6 +330,7 @@ const vm = createApp({
         .then(()=>{ this.setupMessages(); this.startMessageRotation(); this.fetchVersion();
           this.loadTournamentLogo(); this.loadParticipants(); this.fetchAll(); this.loadBoatsToday();
           setInterval(this.fetchAll, 30000); setInterval(this.loadParticipants, 10000);
+          setTimeout(()=>this.fetchUpgradeStatus(), 5000);
           setInterval(this.loadBoatsToday, 5 * 60 * 1000);
 
           const player=document.getElementById('radio-player');
@@ -486,6 +506,25 @@ const vm = createApp({
 
     fetchSettings(){return fetch('/api/settings').then(r=>r.json()).then(d=>{this.settings={...this.settings,...d};});},
     fetchVersion(){fetch('/api/version').then(r=>r.json()).then(d=>{this.version=d.version;});},
+    fetchUpgradeStatus(){
+      fetch('/api/system-status').then(r=>r.json()).then(d=>{
+        const pending = d.deployed_version < d.repo_version;
+        this.upgradeStatus = pending ? {
+          pending: true,
+          upgrading: d.upgrading,
+          deployed: d.deployed_version,
+          repo: d.repo_version,
+          step: d.current_step || ''
+        } : null;
+        // Poll fast while upgrading/pending, slow when done
+        const interval = pending ? (d.upgrading ? 3000 : 15000) : 120000;
+        clearTimeout(this._upgradePollTimer);
+        this._upgradePollTimer = setTimeout(()=>this.fetchUpgradeStatus(), interval);
+      }).catch(()=>{
+        clearTimeout(this._upgradePollTimer);
+        this._upgradePollTimer = setTimeout(()=>this.fetchUpgradeStatus(), 30000);
+      });
+    },
     loadParticipants(){fetch('/participants_data').then(r=>r.json()).then(d=>{const imgs={...this.boatImages};for(const p of d.participants)imgs[p.uid]=p.image_path;imgs['palmer_lou']='/static/images/palmer_lou.jpg';this.boatImages=imgs;this.enrolledCount=d.count||d.participants.length||0;this.enrolledList=d.participants||[];});},
     togglePill(name){ this.activePill = this.activePill === name ? null : name; },
     getBoatImage(uid){return this.boatImages[uid]||'/static/images/bigrock.png';},

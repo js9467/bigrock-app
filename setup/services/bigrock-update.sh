@@ -40,13 +40,22 @@ fi
 
 NEW=$(git rev-parse "origin/$TARGET_BRANCH")
 
-if [ "$PREV" = "$NEW" ]; then
+# Check for pending version upgrade even if git hash is unchanged
+# (e.g. reboot in middle of upgrade chain leaves version < repo version)
+_DEPLOYED_EARLY=$(cat "$DEPLOYED_VERSION_FILE" 2>/dev/null || echo "0")
+_REPO_EARLY=$(cat "$APP_DIR/setup/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "0")
+
+if [ "$PREV" = "$NEW" ] && [ "$_DEPLOYED_EARLY" -ge "$_REPO_EARLY" ]; then
     log "Already up to date at ${PREV:0:7}. No changes."
     exit 0
 fi
 
-log "Update: ${PREV:0:7} -> ${NEW:0:7} (branch: $TARGET_BRANCH)"
-git reset --hard "origin/$TARGET_BRANCH"
+if [ "$PREV" != "$NEW" ]; then
+    log "Update: ${PREV:0:7} -> ${NEW:0:7} (branch: $TARGET_BRANCH)"
+    git reset --hard "origin/$TARGET_BRANCH"
+else
+    log "Git up to date at ${PREV:0:7} but version upgrade pending ($_DEPLOYED_EARLY -> $_REPO_EARLY). Continuing..."
+fi
 
 # ---------------------------------------------------------------------------
 # 1b. Ensure bundled JS assets are present (local copies avoid CDN failures on boot)

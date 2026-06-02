@@ -3327,10 +3327,9 @@ def api_update_apply():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def _do_update():
-    """Call bigrock-update.sh — the single authoritative update mechanism."""
-    script = '/home/pi/bigrock-app/setup/services/bigrock-update.sh'
+    """Trigger the update via systemd — runs as root, within sudoers permissions."""
     try:
-        subprocess.call(['sudo', 'bash', script])
+        subprocess.call(['sudo', '/usr/bin/systemctl', 'restart', 'bigrock-update.service'])
     except Exception as e:
         print(f"❌ Update failed: {e}")
 

@@ -201,13 +201,14 @@
                 class="px-2 py-0.5 rounded-full text-xs font-mono font-semibold transition-colors"
                 :class="updatePhaseClass(s.id)">{{ s.label }}</span>
         </div>
-        <!-- Current step -->
+        <!-- Current step: most recent new line only -->
         <div class="font-mono text-xs text-blue-200 mb-2 truncate leading-5">
-          {{ (systemStatus && systemStatus.current_step) || 'Starting update service…' }}
+          {{ updateNewLines.length ? updateNewLines[updateNewLines.length - 1] : 'Waiting for update service to start…' }}
         </div>
-        <!-- Full scrolling log -->
+        <!-- Only lines that appeared AFTER Update Now was clicked -->
         <div class="update-log-scroll bg-black rounded-lg p-3 overflow-y-auto" style="max-height:280px;min-height:120px;">
-          <div v-for="(line, i) in (systemStatus && systemStatus.log_lines || [])" :key="i"
+          <div v-if="!updateNewLines.length" class="font-mono text-xs text-gray-500 italic">No output yet — service starting…</div>
+          <div v-for="(line, i) in updateNewLines" :key="i"
                class="font-mono text-xs whitespace-pre-wrap leading-[1.6]"
                :class="logLineClass(line)">{{ line }}</div>
           <div ref="logBottom"></div>
@@ -406,7 +407,9 @@
         updateApplying: false,
         systemStatus: null,
         statusLogOpen: false,
-        _statusPollTimer: null
+        _statusPollTimer: null,
+        _updateLogLineCount: 0,
+        _updateStartedAt: 0
       };
     },
     computed: {
@@ -432,9 +435,15 @@
           this.systemStatus.deployed_version < this.systemStatus.repo_version;
         return !!(gitUpdate || versionUpdate);
       },
+      updateNewLines() {
+        const lines = this.systemStatus?.log_lines || [];
+        const start = this._updateLogLineCount || 0;
+        return lines.slice(start);
+      },
       updatePhase() {
-        if (!this.updateApplying || !this.systemStatus) return 'starting';
-        const tail = (this.systemStatus.log_lines || []).slice(-25).join('\n');
+        if (!this.updateApplying) return 'starting';
+        const tail = this.updateNewLines.join('\n');
+        if (!tail) return 'starting';
         if (tail.includes('Update complete') || tail.includes('No changes') || tail.includes('Already up to date')) return 'done';
         if (tail.includes('restarting bigrock') || tail.includes('Service restarted') || tail.includes('service restarted')) return 'restart';
         if (tail.includes('[upgrade]') || tail.includes('Running upgrade script') || tail.includes('upgrade step')) return 'upgrade';
@@ -526,11 +535,9 @@
       },
 
       applyUpdate() {
-        // Snapshot the last log line so we can detect only NEW lines after update starts.
-        // Without this, the completion check immediately finds "No changes" from the
-        // previous hourly run and clears the panel before the service even launches.
+        // Snapshot the log line COUNT so we show and detect only lines written after click.
         const lines = this.systemStatus?.log_lines || [];
-        this._updateLogMarker = lines.length > 0 ? lines[lines.length - 1] : null;
+        this._updateLogLineCount = lines.length;
         this._updateStartedAt = Date.now();
         this.updateApplying = true;
         axios.post('/api/update/apply').catch(() => {});
@@ -675,21 +682,12 @@
               if (el) el.scrollTop = el.scrollHeight;
             });
           }
-          // Detect completion — only look at log lines that appeared AFTER the update
-          // was triggered. Avoids false positive from old "No changes" / "Update complete"
-          // lines that were already in the log when the button was clicked.
+          // Completion check: only count lines written AFTER the button was clicked.
+          // _updateLogLineCount is the snapshot taken in applyUpdate().
           if (this.updateApplying) {
             const elapsed = Date.now() - (this._updateStartedAt || 0);
-            const lines = res.data.log_lines || [];
-            const marker = this._updateLogMarker;
-            let newStart = 0;
-            if (marker) {
-              const idx = lines.lastIndexOf(marker);
-              newStart = idx >= 0 ? idx + 1 : 0;
-            }
-            const newLines = lines.slice(newStart);
+            const newLines = this.updateNewLines; // computed from _updateLogLineCount
             const tail = newLines.join('\n');
-            // Require: ≥5s elapsed, at least one new log line, AND completion marker
             const done = elapsed >= 5000 && newLines.length > 0 && (
               tail.includes('Update complete') ||
               tail.includes('Already up to date') ||

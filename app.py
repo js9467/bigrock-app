@@ -1591,14 +1591,21 @@ def scrape_leaderboard(tournament=None, force: bool = False):
         save_cache(cache)
         return []
 # ========= Auto audio routing (BT <-> HDMI), robust =========
-import pwd, select
+import pwd, select, shutil
 from subprocess import CalledProcessError
 
 AUDIO_USER = os.environ.get("AUDIO_USER", "pi")   # desktop user (Chromium owner)
 _AUDIO_UID = pwd.getpwnam(AUDIO_USER).pw_uid
 
+# Resolve tool paths once at startup — avoids PATH issues under systemd
+PACTL_BIN        = shutil.which('pactl')        or '/usr/bin/pactl'
+WPCTL_BIN        = shutil.which('wpctl')        or '/usr/bin/wpctl'
+BLUETOOTHCTL_BIN = shutil.which('bluetoothctl') or '/usr/bin/bluetoothctl'
+
 def _audio_env():
     env = os.environ.copy()
+    # Ensure standard bin dirs are present (systemd strips PATH)
+    env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:" + env.get("PATH", "")
     env["XDG_RUNTIME_DIR"] = f"/run/user/{_AUDIO_UID}"
     env["PULSE_RUNTIME_PATH"] = f"/run/user/{_AUDIO_UID}/pulse"
     env["PULSE_SERVER"] = f"unix:/run/user/{_AUDIO_UID}/pulse/native"
@@ -1632,10 +1639,10 @@ def _run_pulse(cmd, check=True, timeout=None):
     return _run_raw(full, check=check, timeout=timeout)
 
 def _pactl(*args, check=True, timeout=None):
-    return _run_pulse(["pactl", *args], check=check, timeout=timeout)
+    return _run_pulse([PACTL_BIN, *args], check=check, timeout=timeout)
 
 def _wpctl(*args, check=True, timeout=None):
-    return _run_pulse(["wpctl", *args], check=check, timeout=timeout)
+    return _run_pulse([WPCTL_BIN, *args], check=check, timeout=timeout)
 
 def _list_sinks():
     out = _pactl("list", "short", "sinks", check=False)
@@ -1722,7 +1729,7 @@ def _ensure_bt_profile_a2dp():
 def _pactl_user(*args):
     # Run pactl in the 'pi' desktop audio context
     return subprocess.check_output(
-        ['sudo', '-u', 'pi', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', 'pactl', *args],
+        ['sudo', '-u', 'pi', 'env', 'XDG_RUNTIME_DIR=/run/user/1000', PACTL_BIN, *args],
         text=True, encoding='utf-8', errors='replace'
     )
 
@@ -1853,7 +1860,7 @@ def _audio_router_monitor():
     proc = None
     try:
         proc = subprocess.Popen(
-            _sudo_prefix() + ["pactl", "subscribe"],
+            _sudo_prefix() + [PACTL_BIN, "subscribe"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, env=_audio_env()
         )
@@ -2244,7 +2251,7 @@ def _find_bt_sink_name(mac: str, env: dict | None = None) -> str | None:
     """Return Pulse/PipeWire sink name for a BT device MAC (underscored)."""
     try:
         sinks = subprocess.check_output(
-            ['pactl', 'list', 'short', 'sinks'],
+            [PACTL_BIN, 'list', 'short', 'sinks'],
             text=True, encoding='utf-8', errors='replace', env=env
         )
         mac_id = mac.replace(':', '_').lower()
@@ -2265,12 +2272,12 @@ def _route_all_audio_to_sink(sink_name: str, env: dict | None = None):
     try:
         # Make it default
         subprocess.check_output(
-            ['pactl', 'set-default-sink', sink_name],
+            [PACTL_BIN, 'set-default-sink', sink_name],
             text=True, encoding='utf-8', errors='replace', env=env
         )
         # Move existing streams (Chromium, system sounds, etc.)
         inputs = subprocess.check_output(
-            ['pactl', 'list', 'short', 'sink-inputs'],
+            [PACTL_BIN, 'list', 'short', 'sink-inputs'],
             text=True, encoding='utf-8', errors='replace', env=env
         )
         for line in inputs.splitlines():
@@ -2280,7 +2287,7 @@ def _route_all_audio_to_sink(sink_name: str, env: dict | None = None):
             input_id = cols[0]
             try:
                 subprocess.check_output(
-                    ['pactl', 'move-sink-input', input_id, sink_name],
+                    [PACTL_BIN, 'move-sink-input', input_id, sink_name],
                     text=True, encoding='utf-8', errors='replace', env=env
                 )
             except Exception as e:
@@ -2602,7 +2609,7 @@ def scrape_tournament_dates():
 @app.route('/bluetooth/status')
 def bluetooth_status():
     try:
-        show = subprocess.check_output(['bluetoothctl', 'show'],
+        show = subprocess.check_output([BLUETOOTHCTL_BIN, 'show'],
                                        text=True, encoding='utf-8', errors='replace')
         powered = 'Powered: yes' in show
         discovering = 'Discovering: yes' in show
@@ -2618,7 +2625,7 @@ def bluetooth_status():
 
         connected = []
         try:
-            devs = subprocess.check_output(['bluetoothctl', 'devices', 'Connected'],
+            devs = subprocess.check_output([BLUETOOTHCTL_BIN, 'devices', 'Connected'],
                                            text=True, encoding='utf-8', errors='replace')
             for ln in devs.splitlines():
                 s = ln.strip()
@@ -2632,7 +2639,7 @@ def bluetooth_status():
         # Also try to infer active A2DP sink from PulseAudio/PipeWire
         active_sink = None
         try:
-            sinks = subprocess.check_output(['pactl', 'list', 'short', 'sinks'],
+            sinks = subprocess.check_output([PACTL_BIN, 'list', 'short', 'sinks'],
                                             text=True, encoding='utf-8', errors='replace')
             # bluez sinks usually contain "bluez" or device MAC with underscores
             for ln in sinks.splitlines():
@@ -2663,17 +2670,17 @@ def bluetooth_scan():
 
         # Run scan; ignore non-zero exit (bluetoothctl returns 1 on timeout which is normal)
         subprocess.run(
-            ['bluetoothctl', '--timeout', '12', 'scan', 'on'],
+            [BLUETOOTHCTL_BIN, '--timeout', '12', 'scan', 'on'],
             text=True, encoding='utf-8', errors='replace',
             stderr=subprocess.STDOUT, timeout=20
         )
         # Best-effort scan off
-        subprocess.run(['bluetoothctl', 'scan', 'off'],
+        subprocess.run([BLUETOOTHCTL_BIN, 'scan', 'off'],
                        text=True, encoding='utf-8', errors='replace',
                        timeout=5)
 
         devices_raw = subprocess.check_output(
-            ['bluetoothctl', 'devices'],
+            [BLUETOOTHCTL_BIN, 'devices'],
             text=True, encoding='utf-8', errors='replace'
         )
 
@@ -2701,7 +2708,7 @@ def bluetooth_scan():
         for mac, base in discovered.items():
             try:
                 info = subprocess.check_output(
-                    ['bluetoothctl', 'info', mac],
+                    [BLUETOOTHCTL_BIN, 'info', mac],
                     text=True, encoding='utf-8', errors='replace',
                     timeout=5
                 )
@@ -2757,16 +2764,16 @@ def bluetooth_connect():
     try:
         def _bt_connect(m):
             """Run bluetoothctl connect; return True if successful (stdout or exit code)."""
-            r = subprocess.run(['bluetoothctl', 'connect', m], text=True, capture_output=True, timeout=15)
+            r = subprocess.run([BLUETOOTHCTL_BIN, 'connect', m], text=True, capture_output=True, timeout=15)
             output = (r.stdout + r.stderr).lower()
             return r.returncode == 0 or 'connection successful' in output or 'already connected' in output
 
         # First attempt; if it fails, try pair then connect
         if not _bt_connect(mac):
-            subprocess.run(['bluetoothctl', 'pair', mac], text=True, capture_output=True, check=False, timeout=20)
+            subprocess.run([BLUETOOTHCTL_BIN, 'pair', mac], text=True, capture_output=True, check=False, timeout=20)
             if not _bt_connect(mac):
                 # Final check: maybe it connected anyway
-                info_chk = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='replace', timeout=5)
+                info_chk = subprocess.check_output([BLUETOOTHCTL_BIN, 'info', mac], text=True, errors='replace', timeout=5)
                 if 'Connected: yes' not in info_chk:
                     return jsonify({"status": "error", "message": "Could not connect to device"}), 500
 
@@ -2785,7 +2792,7 @@ def bluetooth_connect():
             # BT sink never appeared — still reconcile (routes to HDMI) so state is clean
             routing = _reconcile_audio_route(verbose=True)
 
-        info = subprocess.check_output(['bluetoothctl', 'info', mac], text=True, errors='replace', timeout=5)
+        info = subprocess.check_output([BLUETOOTHCTL_BIN, 'info', mac], text=True, errors='replace', timeout=5)
         connected = 'Connected: yes' in info
         paired = 'Paired: yes' in info
         name_line = next((l for l in info.splitlines() if l.strip().startswith('Name:')), None)
@@ -2824,7 +2831,7 @@ def bluetooth_disconnect():
         return jsonify({"status": "error", "message": "Missing 'mac'"}), 400
     try:
         subprocess.check_output(
-            ['bluetoothctl', 'disconnect', mac],
+            [BLUETOOTHCTL_BIN, 'disconnect', mac],
             text=True,
             encoding='utf-8',
             errors='replace',
@@ -2832,7 +2839,7 @@ def bluetooth_disconnect():
         )
         try:
             sinks = subprocess.check_output(
-                ['pactl', 'list', 'short', 'sinks'],
+                [PACTL_BIN, 'list', 'short', 'sinks'],
                 text=True,
                 encoding='utf-8',
                 errors='replace'
@@ -2846,7 +2853,7 @@ def bluetooth_disconnect():
                     break
             if fallback:
                 subprocess.check_output(
-                    ['pactl', 'set-default-sink', fallback],
+                    [PACTL_BIN, 'set-default-sink', fallback],
                     text=True,
                     encoding='utf-8',
                     errors='replace'

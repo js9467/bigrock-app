@@ -192,12 +192,33 @@
       </div>
 
       <!-- App Version / Update Banner -->
-      <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 mb-2">
-        App commit: <span class="font-mono" id="deployed-commit">checking...</span>
+      <div v-if="updateInfo && !updateApplying" class="p-4 bg-green-100 border border-green-400 rounded-lg flex items-center justify-between mb-2">
+        <div>
+          <div class="text-green-800 font-semibold text-sm">🔄 Code update available</div>
+          <div class="font-mono text-xs text-green-700 mt-0.5">{{ updateInfo.deployed }} → {{ updateInfo.latest }}</div>
+        </div>
+        <button @click="applyUpdate" class="ml-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-semibold">Update Now</button>
       </div>
-      <div v-if="updateInfo" class="p-4 bg-green-100 border border-green-400 rounded-lg flex items-center justify-between">
-        <span class="text-green-800 font-semibold">🔄 Update available ({{ updateInfo.deployed }} → {{ updateInfo.latest }})</span>
-        <button @click="applyUpdate" class="ml-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Update Now</button>
+
+      <!-- Applying update — live status -->
+      <div v-if="updateApplying" class="mb-2 rounded-lg border-2 border-yellow-400 bg-yellow-50 p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <svg class="animate-spin h-5 w-5 text-yellow-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+          </svg>
+          <span class="font-bold text-yellow-800 text-sm">Updating — do not power off</span>
+        </div>
+        <div v-if="systemStatus && systemStatus.current_step" class="font-mono text-xs text-yellow-700 truncate pl-7">{{ systemStatus.current_step }}</div>
+        <div v-else class="font-mono text-xs text-yellow-600 pl-7">Starting update service…</div>
+        <!-- Live log tail -->
+        <div v-if="systemStatus && systemStatus.log_lines" class="mt-2 bg-black rounded p-2 overflow-y-auto max-h-36">
+          <div v-for="(line, i) in systemStatus.log_lines.slice(-20)" :key="i"
+               class="font-mono text-xs whitespace-pre-wrap leading-4"
+               :class="line.includes('WARNING') || line.includes('❌') ? 'text-red-400' : line.includes('complete') || line.includes('✅') ? 'text-green-400' : 'text-gray-300'">
+            {{ line }}
+          </div>
+        </div>
       </div>
 
       <!-- Wi-Fi -->
@@ -389,6 +410,7 @@
         btStatus: { enabled: false, connected: false, devices: [], adapter: null },
         noInternetReason: null,
         updateInfo: null,
+        updateApplying: false,
         systemStatus: null,
         statusLogOpen: false,
         _statusPollTimer: null
@@ -495,17 +517,33 @@
       },
 
       applyUpdate() {
-        this.showToast('⏳ Updating… app will restart in ~15 seconds.', 'info');
+        this.updateApplying = true;
         axios.post('/api/update/apply').catch(() => {});
-        setTimeout(() => location.reload(), 18000);
+        // Poll fast — service restarts the app so we'll lose connection briefly
+        clearTimeout(this._statusPollTimer);
+        const poll = () => {
+          axios.get('/api/system-status').then(res => {
+            this.systemStatus = res.data;
+            const done = !res.data.upgrading &&
+              res.data.deployed_version >= res.data.repo_version &&
+              res.data.git_commit !== (this.updateInfo?.deployed || '');
+            if (done) {
+              this.updateApplying = false;
+              this.updateInfo = null;
+              this.showToast('✅ Update complete!', 'success');
+            } else {
+              this._statusPollTimer = setTimeout(poll, 3000);
+            }
+          }).catch(() => {
+            // App restarting — keep retrying
+            this._statusPollTimer = setTimeout(poll, 4000);
+          });
+        };
+        this._statusPollTimer = setTimeout(poll, 3000);
       },
 
       runUpgrade() {
-        this.showToast('⏳ Running upgrade steps… this may take a few minutes.', 'info');
-        axios.post('/api/update/apply').catch(() => {});
-        // Start polling fast so the upgrade banner appears immediately
-        clearTimeout(this._statusPollTimer);
-        setTimeout(() => this.fetchSystemStatus(), 2000);
+        this.applyUpdate();
       },
 
       /* ===== Wi-Fi (Bluetooth-like UX) ===== */

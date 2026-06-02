@@ -408,7 +408,7 @@
         systemStatus: null,
         statusLogOpen: false,
         _statusPollTimer: null,
-        _updateLogLineCount: 0,
+        _updateLogAnchor: null,
         _updateStartedAt: 0
       };
     },
@@ -437,8 +437,14 @@
       },
       updateNewLines() {
         const lines = this.systemStatus?.log_lines || [];
-        const start = this._updateLogLineCount || 0;
-        return lines.slice(start);
+        const anchor = this._updateLogAnchor;
+        // anchor = last log line at the moment Update Now was clicked.
+        // Find it in the current (last-60-lines) response and return everything after.
+        // If anchor is null the log was empty at click time — show everything.
+        // If anchor is no longer in the window (> 60 new lines) also show everything.
+        if (!anchor) return lines;
+        const idx = lines.lastIndexOf(anchor);
+        return idx >= 0 ? lines.slice(idx + 1) : lines;
       },
       updatePhase() {
         if (!this.updateApplying) return 'starting';
@@ -535,9 +541,12 @@
       },
 
       applyUpdate() {
-        // Snapshot the log line COUNT so we show and detect only lines written after click.
+        // Anchor on the last line currently in the log so we show/detect only
+        // lines written after this click. Storing TEXT (not a count) because
+        // the API always returns the last 60 lines — a count-based slice against
+        // that fixed-size window would always be empty.
         const lines = this.systemStatus?.log_lines || [];
-        this._updateLogLineCount = lines.length;
+        this._updateLogAnchor = lines.length > 0 ? lines[lines.length - 1] : null;
         this._updateStartedAt = Date.now();
         this.updateApplying = true;
         axios.post('/api/update/apply').catch(() => {});

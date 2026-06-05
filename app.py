@@ -2001,15 +2001,19 @@ def participants_data():
     tournament = get_current_tournament()
     participants_file = get_cache_path(tournament, "participants.json")
     participants = safe_json_load(participants_file, [])
+    cache = load_cache()
+    cache_key = f"{tournament}_participants"
     if not participants:
         # Respect cache backoff — don't force if a recent attempt already failed
-        cache = load_cache()
-        cache_key = f"{tournament}_participants"
         if not is_cache_fresh(cache, cache_key, 5):
             print(f"⚠️ No participants for {tournament} and cache stale — scraping...")
             participants = scrape_participants(force=True)
         else:
             print(f"⚠️ No participants for {tournament} but cache recently attempted — skipping rescrape")
+    elif not is_cache_fresh(cache, cache_key, 60):
+        # Cache is stale (>60 min) — serve existing data immediately, refresh in background
+        print(f"🔄 Participants cache stale for {tournament} — triggering background refresh")
+        run_in_thread(lambda: scrape_participants(force=True), "participants-refresh")
     for p in participants:
         p["uid"] = p.get("uid") or normalize_boat_name(p.get("boat","unknown"))
         p["image_path"] = f"/boat-image/{p['uid']}"
